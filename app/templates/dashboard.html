@@ -55,7 +55,7 @@
       </div>
       {% if stats.total_gain_twd is not none %}
       <div class="stat-desc {{ 'text-success' if stats.total_gain_twd >= 0 else 'text-error' }}">
-        {{ '+' if stats.total_gain_twd >= 0 else '' }}NT$ {{ "{:,.2f}".format(stats.total_gain_twd) }}
+        ({{ '+' if stats.total_gain_twd >= 0 else '' }}NT$ {{ "{:,.2f}".format(stats.total_gain_twd) }})
       </div>
       {% endif %}
     </div>
