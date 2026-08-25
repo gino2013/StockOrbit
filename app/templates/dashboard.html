@@ -71,15 +71,16 @@
       <div class="card-body">
         <h2 class="card-title text-base">目前持股</h2>
         {% if snapshots %}
-        <div class="flex flex-col md:flex-row gap-4 items-start">
-          <div class="overflow-x-auto flex-1">
+        <div class="flex flex-col gap-4">
+          <div class="overflow-x-auto">
             <table class="table table-sm">
               <thead>
                 <tr>
                   <th>代號</th>
                   <th>股數</th>
+                  <th>買入均價 (USD)</th>
+                  <th>現價 (USD)</th>
                   <th>市值</th>
-                  <th>價格</th>
                   <th>目前佔比</th>
                   <th>目標佔比</th>
                   <th>差距</th>
@@ -89,11 +90,13 @@
                 {% for s in snapshots %}
                 {% set current = advice.allocation.get(s.symbol, 0) %}
                 {% set target = targets.get(s.symbol) %}
+                {% set avg_cost = (s.cost_basis / s.quantity) if s.quantity else 0 %}
                 <tr>
                   <td class="font-medium">{{ s.symbol }}</td>
                   <td>{{ s.quantity }}</td>
-                  <td>${{ "{:,.2f}".format(s.market_value) }}</td>
+                  <td>${{ "{:,.2f}".format(avg_cost) }}</td>
                   <td>${{ "{:,.2f}".format(s.price) }}</td>
+                  <td>${{ "{:,.2f}".format(s.market_value) }}</td>
                   <td>{{ "{:.1%}".format(current) }}</td>
                   <td>{{ "{:.0%}".format(target) if target is not none else '-' }}</td>
                   <td>
@@ -111,7 +114,7 @@
               </tbody>
             </table>
           </div>
-          <div class="w-full md:w-64 h-64 shrink-0 mx-auto"><canvas id="allocationChart"></canvas></div>
+          <div class="w-full max-w-xs h-64 mx-auto"><canvas id="allocationChart"></canvas></div>
         </div>
         {% else %}
         <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
