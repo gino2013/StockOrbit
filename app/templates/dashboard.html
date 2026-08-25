@@ -3,96 +3,171 @@
 <head>
 <meta charset="utf-8">
 <title>StockOrbit</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
-  h1 { margin-bottom: 0; }
-  section { margin: 2rem 0; padding-top: 1rem; border-top: 1px solid #ddd; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
-  button { cursor: pointer; padding: 0.5rem 1rem; }
-  .advice li { margin-bottom: 0.4rem; }
-  form.inline { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
-  input { padding: 0.3rem; }
-  #backtest-stats span { margin-right: 1.5rem; }
+  body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }
 </style>
 </head>
-<body>
-<h1>StockOrbit</h1>
-<p>Firstrade 持股追蹤與建議</p>
+<body class="bg-slate-100 text-slate-800">
+<div class="max-w-6xl mx-auto px-4 py-6">
 
-<form action="/api/refresh" method="post">
-  <button type="submit">重新抓取持股</button>
-</form>
+  <!-- Top bar -->
+  <header class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">StockOrbit</h1>
+      <p class="text-sm text-slate-500">Firstrade 持股追蹤與建議</p>
+    </div>
+    <form action="/api/refresh" method="post">
+      <button type="submit"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">
+        重新抓取持股
+      </button>
+    </form>
+  </header>
 
-<section>
-  <h2>目前持股</h2>
   {% if snapshots %}
-  <table>
-    <tr><th>代號</th><th>股數</th><th>市值</th><th>價格</th></tr>
-    {% for s in snapshots %}
-    <tr><td>{{ s.symbol }}</td><td>{{ s.quantity }}</td><td>${{ "%.2f"|format(s.market_value) }}</td><td>${{ "%.2f"|format(s.price) }}</td></tr>
-    {% endfor %}
-  </table>
-  <canvas id="allocationChart" height="200"></canvas>
-  {% else %}
-  <p>還沒有資料，按上面「重新抓取持股」開始。</p>
+  <!-- Stat cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm p-4">
+      <p class="text-xs text-slate-500 mb-1">總市值</p>
+      <p class="text-xl font-semibold text-slate-900">${{ "{:,.0f}".format(stats.total_value) }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4">
+      <p class="text-xs text-slate-500 mb-1">未實現損益</p>
+      <p class="text-xl font-semibold {{ 'text-emerald-600' if stats.total_gain >= 0 else 'text-rose-600' }}">
+        {{ '+' if stats.total_gain >= 0 else '' }}${{ "{:,.0f}".format(stats.total_gain) }}
+      </p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4">
+      <p class="text-xs text-slate-500 mb-1">報酬率</p>
+      <p class="text-xl font-semibold {{ 'text-emerald-600' if stats.total_gain_pct >= 0 else 'text-rose-600' }}">
+        {{ "{:+.1%}".format(stats.total_gain_pct) }}
+      </p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4">
+      <p class="text-xs text-slate-500 mb-1">持股檔數</p>
+      <p class="text-xl font-semibold text-slate-900">{{ stats.position_count }}</p>
+    </div>
+  </div>
   {% endif %}
-</section>
 
-{% if advice %}
-<section>
-  <h2>建議</h2>
-  <ul class="advice">
-    {% for note in advice.advice %}<li>{{ note }}</li>{% endfor %}
-  </ul>
-</section>
-{% endif %}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- Positions + allocation chart -->
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-5">
+      <h2 class="text-base font-semibold mb-4">目前持股</h2>
+      {% if snapshots %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-200">
+              <th class="py-2 font-medium">代號</th>
+              <th class="py-2 font-medium">股數</th>
+              <th class="py-2 font-medium">市值</th>
+              <th class="py-2 font-medium">價格</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in snapshots %}
+            <tr class="border-b border-slate-100 last:border-0">
+              <td class="py-2 font-medium text-slate-900">{{ s.symbol }}</td>
+              <td class="py-2 text-slate-600">{{ s.quantity }}</td>
+              <td class="py-2 text-slate-600">${{ "{:,.2f}".format(s.market_value) }}</td>
+              <td class="py-2 text-slate-600">${{ "{:,.2f}".format(s.price) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <canvas id="allocationChart" class="mt-4" height="180"></canvas>
+      {% else %}
+      <p class="text-sm text-slate-500">還沒有資料，按右上角「重新抓取持股」開始。</p>
+      {% endif %}
+    </div>
 
-<section>
-  <h2>目標配置</h2>
-  <table>
-    <tr><th>代號</th><th>目標權重</th></tr>
-    {% for symbol, weight in targets.items() %}
-    <tr><td>{{ symbol }}</td><td>{{ "%.0f"|format(weight * 100) }}%</td></tr>
-    {% endfor %}
-  </table>
-  <form class="inline" action="/api/targets" method="post">
-    <input name="symbol" placeholder="代號 e.g. AAPL" required>
-    <input name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2 代表 20%" required>
-    <button type="submit">設定</button>
-  </form>
-</section>
+    <!-- Advice + targets -->
+    <div class="flex flex-col gap-6">
+      {% if advice %}
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h2 class="text-base font-semibold mb-3">建議</h2>
+        <ul class="space-y-2 text-sm">
+          {% for note in advice.advice %}
+          <li class="flex gap-2">
+            <span class="text-indigo-500">•</span>
+            <span class="text-slate-700">{{ note }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
 
-<section>
-  <h2>再平衡策略回測</h2>
-  <form class="inline" id="backtest-form">
-    <label>開始 <input name="start" type="date" required></label>
-    <label>結束 <input name="end" type="date" required></label>
-    <label>再平衡頻率
-      <select name="rebalance">
-        <option value="none">不再平衡</option>
-        <option value="M" selected>每月</option>
-        <option value="Q">每季</option>
-        <option value="A">每年</option>
-      </select>
-    </label>
-    <button type="submit">執行回測</button>
-  </form>
-  <p id="backtest-error" style="color:crimson;"></p>
-  <div id="backtest-stats"></div>
-  <canvas id="backtestChart" height="250"></canvas>
-</section>
+      <div class="bg-white rounded-xl shadow-sm p-5">
+        <h2 class="text-base font-semibold mb-3">目標配置</h2>
+        {% if targets %}
+        <table class="w-full text-sm mb-3">
+          <tbody>
+            {% for symbol, weight in targets.items() %}
+            <tr class="border-b border-slate-100 last:border-0">
+              <td class="py-1.5 font-medium text-slate-900">{{ symbol }}</td>
+              <td class="py-1.5 text-slate-600 text-right">{{ "{:.0f}%".format(weight * 100) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        <form action="/api/targets" method="post" class="flex gap-2">
+          <input name="symbol" placeholder="AAPL" required
+            class="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
+          <input name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2" required
+            class="w-20 border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
+          <button type="submit"
+            class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-3 py-1.5 rounded-lg">設定</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Backtest -->
+  <div class="bg-white rounded-xl shadow-sm p-5">
+    <h2 class="text-base font-semibold mb-4">再平衡策略回測</h2>
+    <form id="backtest-form" class="flex flex-wrap gap-3 items-end mb-2">
+      <label class="text-sm text-slate-600">
+        開始<br>
+        <input name="start" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+      </label>
+      <label class="text-sm text-slate-600">
+        結束<br>
+        <input name="end" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+      </label>
+      <label class="text-sm text-slate-600">
+        再平衡頻率<br>
+        <select name="rebalance" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
+          <option value="none">不再平衡</option>
+          <option value="M" selected>每月</option>
+          <option value="Q">每季</option>
+          <option value="A">每年</option>
+        </select>
+      </label>
+      <button type="submit"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">執行回測</button>
+    </form>
+    <p id="backtest-error" class="text-sm text-rose-600 mb-2"></p>
+    <div id="backtest-stats" class="flex gap-6 text-sm mb-3"></div>
+    <canvas id="backtestChart" height="220"></canvas>
+  </div>
+
+</div>
 
 <script>
 const allocation = {{ advice.allocation | default({}) | tojson }};
 if (Object.keys(allocation).length) {
   new Chart(document.getElementById('allocationChart'), {
-    type: 'pie',
+    type: 'doughnut',
     data: {
       labels: Object.keys(allocation),
       datasets: [{ data: Object.values(allocation).map(v => (v * 100).toFixed(1)) }],
     },
+    options: { plugins: { legend: { position: 'right' } } },
   });
 }
 
@@ -107,10 +182,11 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     document.getElementById('backtest-error').textContent = data.error;
     return;
   }
+  const fmtPct = v => `${(v * 100).toFixed(1)}%`;
   document.getElementById('backtest-stats').innerHTML =
-    `<span>總報酬: ${(data.total_return * 100).toFixed(1)}%</span>` +
-    `<span>基準報酬 (SPY): ${(data.benchmark_return * 100).toFixed(1)}%</span>` +
-    `<span>最大回撤: ${(data.max_drawdown * 100).toFixed(1)}%</span>`;
+    `<span class="text-slate-600">總報酬: <b class="${data.total_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${fmtPct(data.total_return)}</b></span>` +
+    `<span class="text-slate-600">基準報酬 (SPY): <b>${fmtPct(data.benchmark_return)}</b></span>` +
+    `<span class="text-slate-600">最大回撤: <b class="text-rose-600">${fmtPct(data.max_drawdown)}</b></span>`;
 
   if (backtestChart) backtestChart.destroy();
   backtestChart = new Chart(document.getElementById('backtestChart'), {
@@ -118,8 +194,8 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     data: {
       labels: data.dates,
       datasets: [
-        { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0 },
-        { label: '基準 (SPY)', data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0 },
+        { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
+        { label: '基準 (SPY)', data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
       ],
     },
     options: { scales: { x: { ticks: { maxTicksLimit: 10 } } } },

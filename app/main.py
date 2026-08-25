@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -21,7 +21,13 @@ def _latest_snapshots(db) -> list[dict]:
         return []
     rows = db.query(PositionSnapshot).filter(PositionSnapshot.snapshot_at == latest[0]).all()
     return [
-        {"symbol": r.symbol, "quantity": r.quantity, "market_value": r.market_value, "price": r.price}
+        {
+            "symbol": r.symbol,
+            "quantity": r.quantity,
+            "market_value": r.market_value,
+            "price": r.price,
+            "cost_basis": r.cost_basis,
+        }
         for r in rows
     ]
 
@@ -35,10 +41,19 @@ def dashboard(request: Request):
     finally:
         db.close()
     advice = build_advice(snapshots, targets) if snapshots else None
+    total_value = sum(s["market_value"] for s in snapshots)
+    total_cost = sum(s["cost_basis"] for s in snapshots)
+    total_gain = total_value - total_cost
+    stats = {
+        "total_value": total_value,
+        "total_gain": total_gain,
+        "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
+        "position_count": len(snapshots),
+    }
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"snapshots": snapshots, "advice": advice, "targets": targets},
+        {"snapshots": snapshots, "advice": advice, "targets": targets, "stats": stats},
     )
 
 
@@ -51,7 +66,7 @@ def refresh():
 
     db = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for p in positions:
             db.add(PositionSnapshot(snapshot_at=now, **p))
         db.commit()

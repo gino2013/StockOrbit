@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, Float, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
@@ -25,7 +25,7 @@ class PositionSnapshot(Base):
     # ponytail: raw item JSON kept in case firstrade-api's real field names
     # differ from our guesses; inspect this to fix mappings after first live refresh.
     raw_json = Column(Text)
-    snapshot_at = Column(DateTime, default=datetime.utcnow, index=True)
+    snapshot_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class TargetAllocation(Base):
