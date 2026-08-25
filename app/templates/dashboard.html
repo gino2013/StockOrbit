@@ -95,7 +95,7 @@
                   <td>${{ "{:,.2f}".format(s.market_value) }}</td>
                   <td>${{ "{:,.2f}".format(s.price) }}</td>
                   <td>{{ "{:.1%}".format(current) }}</td>
-                  <td>{{ "{:.0%}".format(target) if target is not none else '—' }}</td>
+                  <td>{{ "{:.0%}".format(target) if target is not none else '-' }}</td>
                   <td>
                     {% if target is not none %}
                     {% set diff = current - target %}
@@ -103,7 +103,7 @@
                       {{ "{:+.1%}".format(diff) }}
                     </span>
                     {% else %}
-                    <span class="opacity-40">—</span>
+                    <span class="opacity-40">-</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -427,15 +427,15 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
       { label: `${data.compare_label} (報酬 %)`, data: data.compare_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
     ];
     if (data.portfolio_max_drawdown != null) {
-      const ddCompare = data.portfolio_max_drawdown >= data.compare_max_drawdown ? '較深' : '較淺';
+      const ddCompare = data.portfolio_max_drawdown <= data.compare_max_drawdown ? '較深' : '較淺';
       let volLine = '';
       if (data.portfolio_volatility != null && data.compare_volatility != null) {
         const volCompare = data.portfolio_volatility <= data.compare_volatility ? '較低' : '較高';
-        volLine = `年化波動度：你的組合 ${(data.portfolio_volatility * 100).toFixed(1)}% vs ${escapeHtml(data.compare_label)} ${(data.compare_volatility * 100).toFixed(1)}%（${volCompare}）。`;
+        volLine = `<p>年化波動度：你的組合 ${(data.portfolio_volatility * 100).toFixed(1)}% vs ${escapeHtml(data.compare_label)} ${(data.compare_volatility * 100).toFixed(1)}%（${volCompare}）。</p>`;
       }
       analysisBox.innerHTML =
         `<p>最大回撤：你的組合 ${fmtPct(data.portfolio_max_drawdown)} vs ${escapeHtml(data.compare_label)} ${fmtPct(data.compare_max_drawdown)}` +
-        `（你的組合下跌${ddCompare}）。${volLine}</p>`;
+        `（你的組合下跌${ddCompare}）。</p>${volLine}`;
     } else {
       analysisBox.innerHTML = '';
     }
@@ -462,7 +462,7 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
       .join('');
     movesBox.innerHTML =
       `<p class="font-medium mb-1">重大波動日（單日 ±3% 以上）</p><ul class="space-y-0.5 opacity-80">${items}</ul>` +
-      `<p class="opacity-50 mt-1">只標出「哪幾天波動大」，無法自動回溯當天的新聞原因（新聞來源只保留最新報導）——想知道原因可以自己查那天的日期。</p>`;
+      `<p class="opacity-50 mt-1">只標出「哪幾天波動大」，無法自動回溯當天的新聞原因（新聞來源只保留最新報導）。想知道原因可以自己查那天的日期。</p>`;
   } else {
     movesBox.innerHTML = '';
   }
