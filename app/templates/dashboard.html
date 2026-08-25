@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>StockOrbit</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M9 6 L25 27 L13 31 Z' fill='black'/%3E%3Cpath d='M55 6 L39 27 L51 31 Z' fill='black'/%3E%3Ccircle cx='32' cy='36' r='21' fill='black'/%3E%3Cpath d='M32 46 C22 46 18 39 18 33 C18 30 22 28 32 28 C42 28 46 30 46 33 C46 39 42 46 32 46 Z' fill='white'/%3E%3Ccircle cx='24.5' cy='33' r='2.6' fill='black'/%3E%3Ccircle cx='39.5' cy='33' r='2.6' fill='black'/%3E%3Cpath d='M32 38 L28.5 42 L35.5 42 Z' fill='black'/%3E%3C/svg%3E">
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -22,9 +23,13 @@
 
   <!-- Top bar -->
   <header class="flex items-center justify-between mb-6">
-    <div>
-      <h1 class="text-2xl font-bold">StockOrbit</h1>
-      <p class="text-sm opacity-60">Firstrade 持股追蹤與建議</p>
+    <div class="flex items-center gap-3">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M9 6 L25 27 L13 31 Z' fill='black'/%3E%3Cpath d='M55 6 L39 27 L51 31 Z' fill='black'/%3E%3Ccircle cx='32' cy='36' r='21' fill='black'/%3E%3Cpath d='M32 46 C22 46 18 39 18 33 C18 30 22 28 32 28 C42 28 46 30 46 33 C46 39 42 46 32 46 Z' fill='white'/%3E%3Ccircle cx='24.5' cy='33' r='2.6' fill='black'/%3E%3Ccircle cx='39.5' cy='33' r='2.6' fill='black'/%3E%3Cpath d='M32 38 L28.5 42 L35.5 42 Z' fill='black'/%3E%3C/svg%3E"
+        alt="StockOrbit" class="w-10 h-10 rounded-full bg-white p-1 shrink-0">
+      <div>
+        <h1 class="text-2xl font-bold">StockOrbit</h1>
+        <p class="text-sm opacity-60">Firstrade 持股追蹤與建議</p>
+      </div>
     </div>
     <div class="flex items-center gap-2">
       <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
