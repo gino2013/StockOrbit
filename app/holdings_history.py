@@ -14,6 +14,8 @@ def portfolio_value_history(holdings: dict[str, float], start: str, end: str) ->
     symbols = list(holdings.keys())
     data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
     data = data.dropna(how="all").ffill().dropna()
+    if len(data) < 2:
+        raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
     quantities = pd.Series(holdings)
     return (data[symbols] * quantities).sum(axis=1)
 
@@ -31,6 +33,8 @@ def weighted_return_series(weights: dict[str, float], start: str, end: str) -> p
     symbols = list(weights.keys())
     data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
     data = data.dropna(how="all").ffill().dropna()
+    if len(data) < 2:
+        raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
     normalized = data[symbols] / data[symbols].iloc[0]
     return (normalized * pd.Series(weights)).sum(axis=1)
 
