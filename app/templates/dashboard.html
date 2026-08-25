@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>StockOrbit</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M9 6 L25 27 L13 31 Z' fill='black'/%3E%3Cpath d='M55 6 L39 27 L51 31 Z' fill='black'/%3E%3Ccircle cx='32' cy='36' r='21' fill='black'/%3E%3Cpath d='M32 46 C22 46 18 39 18 33 C18 30 22 28 32 28 C42 28 46 30 46 33 C46 39 42 46 32 46 Z' fill='white'/%3E%3Ccircle cx='24.5' cy='33' r='2.6' fill='black'/%3E%3Ccircle cx='39.5' cy='33' r='2.6' fill='black'/%3E%3Cpath d='M32 38 L28.5 42 L35.5 42 Z' fill='black'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M18 12 C 18 9 21 8 23 10 L28 23 L20 25 C 18 22 17 16 18 12 Z' fill='black'/%3E%3Cpath d='M46 12 C 46 9 43 8 41 10 L36 23 L44 25 C 46 22 47 16 46 12 Z' fill='black'/%3E%3Ccircle cx='32' cy='35' r='19' fill='black'/%3E%3Cellipse cx='32' cy='44' rx='15' ry='12' fill='black'/%3E%3Cellipse cx='32' cy='45' rx='12.5' ry='9.5' fill='white'/%3E%3Cellipse cx='24' cy='33' rx='2.4' ry='3' fill='black' transform='rotate(-10 24 33)'/%3E%3Cellipse cx='40' cy='33' rx='2.4' ry='3' fill='black' transform='rotate(10 40 33)'/%3E%3Cpath d='M32 39 L29.3 42.5 L34.7 42.5 Z' fill='black'/%3E%3Cpath d='M32 42.5 L32 45 M32 45 C 29.5 47.5 27 47.5 25.5 46 M32 45 C 34.5 47.5 37 47.5 38.5 46' stroke='black' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
 <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -24,7 +24,7 @@
   <!-- Top bar -->
   <header class="flex items-center justify-between mb-6">
     <div class="flex items-center gap-3">
-      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M9 6 L25 27 L13 31 Z' fill='black'/%3E%3Cpath d='M55 6 L39 27 L51 31 Z' fill='black'/%3E%3Ccircle cx='32' cy='36' r='21' fill='black'/%3E%3Cpath d='M32 46 C22 46 18 39 18 33 C18 30 22 28 32 28 C42 28 46 30 46 33 C46 39 42 46 32 46 Z' fill='white'/%3E%3Ccircle cx='24.5' cy='33' r='2.6' fill='black'/%3E%3Ccircle cx='39.5' cy='33' r='2.6' fill='black'/%3E%3Cpath d='M32 38 L28.5 42 L35.5 42 Z' fill='black'/%3E%3C/svg%3E"
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M18 12 C 18 9 21 8 23 10 L28 23 L20 25 C 18 22 17 16 18 12 Z' fill='black'/%3E%3Cpath d='M46 12 C 46 9 43 8 41 10 L36 23 L44 25 C 46 22 47 16 46 12 Z' fill='black'/%3E%3Ccircle cx='32' cy='35' r='19' fill='black'/%3E%3Cellipse cx='32' cy='44' rx='15' ry='12' fill='black'/%3E%3Cellipse cx='32' cy='45' rx='12.5' ry='9.5' fill='white'/%3E%3Cellipse cx='24' cy='33' rx='2.4' ry='3' fill='black' transform='rotate(-10 24 33)'/%3E%3Cellipse cx='40' cy='33' rx='2.4' ry='3' fill='black' transform='rotate(10 40 33)'/%3E%3Cpath d='M32 39 L29.3 42.5 L34.7 42.5 Z' fill='black'/%3E%3Cpath d='M32 42.5 L32 45 M32 45 C 29.5 47.5 27 47.5 25.5 46 M32 45 C 34.5 47.5 37 47.5 38.5 46' stroke='black' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
         alt="StockOrbit" class="w-10 h-10 rounded-full bg-white p-1 shrink-0">
       <div>
         <h1 class="text-2xl font-bold">StockOrbit</h1>
@@ -112,7 +112,7 @@
                   <td class="font-medium">{{ s.symbol }}</td>
                   <td>{{ s.quantity }}</td>
                   <td>${{ "{:,.2f}".format(avg_cost) }}</td>
-                  <td>${{ "{:,.2f}".format(s.price) }}</td>
+                  <td class="{{ 'text-success' if s.price > avg_cost else 'text-error' if s.price < avg_cost else '' }}">${{ "{:,.2f}".format(s.price) }}</td>
                   <td>${{ "{:,.2f}".format(s.market_value) }}</td>
                   <td>{{ "{:.1%}".format(current) }}</td>
                   <td>{{ "{:.0%}".format(target) if target is not none else '-' }}</td>
@@ -131,7 +131,7 @@
               </tbody>
             </table>
           </div>
-          <div class="w-full max-w-xs h-64 mx-auto"><canvas id="allocationChart"></canvas></div>
+          <div class="w-full max-w-md h-96 mx-auto"><canvas id="allocationChart"></canvas></div>
         </div>
         {% else %}
         <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
@@ -176,10 +176,20 @@
           <p class="text-xs opacity-60 -mt-2">權重總和需為 100%。輸入已存在的代號會覆蓋原本的權重。</p>
           {% if targets %}
           <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>代號</th>
+                <th class="text-right">目前</th>
+                <th class="text-right">目標</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
               {% for symbol, weight in targets.items() %}
+              {% set current = advice.allocation.get(symbol, 0) if advice else 0 %}
               <tr>
                 <td class="font-medium">{{ symbol }}</td>
+                <td class="text-right opacity-70">{{ "{:.1f}%".format(current * 100) }}</td>
                 <td class="text-right">{{ "{:.0f}%".format(weight * 100) }}</td>
                 <td class="text-right whitespace-nowrap">
                   <button type="button" onclick="fillTargetForm('{{ symbol }}', {{ weight }})"
