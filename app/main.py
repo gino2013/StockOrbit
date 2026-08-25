@@ -80,6 +80,14 @@ def symbol_search(q: str = ""):
     return JSONResponse(results)
 
 
+def _usd_twd_rate() -> float | None:
+    try:
+        history = yf.Ticker("USDTWD=X").history(period="5d")["Close"]
+        return None if history.empty else float(history.iloc[-1])
+    except Exception:
+        return None
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     db = SessionLocal()
@@ -92,11 +100,14 @@ def dashboard(request: Request):
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
+    usd_twd_rate = _usd_twd_rate() if snapshots else None
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
         "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
         "position_count": len(snapshots),
+        "usd_twd_rate": usd_twd_rate,
+        "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
     }
     return templates.TemplateResponse(
         request,

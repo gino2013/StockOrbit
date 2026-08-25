@@ -64,6 +64,13 @@
       <div class="stat-title">持股檔數</div>
       <div class="stat-value text-2xl">{{ stats.position_count }}</div>
     </div>
+    {% if stats.total_value_twd is not none %}
+    <div class="stat">
+      <div class="stat-title">總市值 (TWD)</div>
+      <div class="stat-value text-2xl">NT$ {{ "{:,.2f}".format(stats.total_value_twd) }}</div>
+      <div class="stat-desc">參考匯率 {{ "{:.4f}".format(stats.usd_twd_rate) }}</div>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 
