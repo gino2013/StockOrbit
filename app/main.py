@@ -108,6 +108,7 @@ def dashboard(request: Request):
         "position_count": len(snapshots),
         "usd_twd_rate": usd_twd_rate,
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
+        "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
     }
     return templates.TemplateResponse(
         request,

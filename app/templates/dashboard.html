@@ -53,6 +53,11 @@
       <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain >= 0 else 'text-error' }}">
         {{ '+' if stats.total_gain >= 0 else '' }}${{ "{:,.0f}".format(stats.total_gain) }}
       </div>
+      {% if stats.total_gain_twd is not none %}
+      <div class="stat-desc {{ 'text-success' if stats.total_gain_twd >= 0 else 'text-error' }}">
+        {{ '+' if stats.total_gain_twd >= 0 else '' }}NT$ {{ "{:,.2f}".format(stats.total_gain_twd) }}
+      </div>
+      {% endif %}
     </div>
     <div class="stat">
       <div class="stat-title">報酬率</div>
