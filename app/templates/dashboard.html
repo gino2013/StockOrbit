@@ -97,6 +97,7 @@
                   <th>股數</th>
                   <th>買入均價 (USD)</th>
                   <th>現價 (USD)</th>
+                  <th>漲跌幅</th>
                   <th>市值</th>
                   <th>目前佔比</th>
                   <th>目標佔比</th>
@@ -113,6 +114,8 @@
                   <td>{{ s.quantity }}</td>
                   <td>${{ "{:,.2f}".format(avg_cost) }}</td>
                   <td class="{{ 'text-success' if s.price > avg_cost else 'text-error' if s.price < avg_cost else '' }}">${{ "{:,.2f}".format(s.price) }}</td>
+                  {% set price_change_pct = (s.price / avg_cost - 1) if avg_cost else 0 %}
+                  <td class="{{ 'text-success' if price_change_pct > 0 else 'text-error' if price_change_pct < 0 else '' }}">{{ "{:+.1%}".format(price_change_pct) }}</td>
                   <td>${{ "{:,.2f}".format(s.market_value) }}</td>
                   <td>{{ "{:.1%}".format(current) }}</td>
                   <td>{{ "{:.0%}".format(target) if target is not none else '-' }}</td>
