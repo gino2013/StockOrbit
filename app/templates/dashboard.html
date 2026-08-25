@@ -27,11 +27,11 @@
       <p class="text-sm opacity-60">Firstrade 持股追蹤與建議</p>
     </div>
     <div class="flex items-center gap-2">
-      <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost" aria-label="切換深色模式">
+      <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
         <span id="theme-icon"></span>
       </button>
       <form action="/api/refresh" method="post">
-        <button type="submit" class="btn btn-neutral">重新抓取持股</button>
+        <button type="submit" class="btn btn-neutral btn-sm">重新抓取持股</button>
       </form>
     </div>
   </header>
@@ -80,21 +80,38 @@
                   <th>股數</th>
                   <th>市值</th>
                   <th>價格</th>
+                  <th>目前佔比</th>
+                  <th>目標佔比</th>
+                  <th>差距</th>
                 </tr>
               </thead>
               <tbody>
                 {% for s in snapshots %}
+                {% set current = advice.allocation.get(s.symbol, 0) %}
+                {% set target = targets.get(s.symbol) %}
                 <tr>
                   <td class="font-medium">{{ s.symbol }}</td>
                   <td>{{ s.quantity }}</td>
                   <td>${{ "{:,.2f}".format(s.market_value) }}</td>
                   <td>${{ "{:,.2f}".format(s.price) }}</td>
+                  <td>{{ "{:.1%}".format(current) }}</td>
+                  <td>{{ "{:.0%}".format(target) if target is not none else '—' }}</td>
+                  <td>
+                    {% if target is not none %}
+                    {% set diff = current - target %}
+                    <span class="{{ 'text-error font-medium' if diff|abs > 0.05 else 'opacity-60' }}">
+                      {{ "{:+.1%}".format(diff) }}
+                    </span>
+                    {% else %}
+                    <span class="opacity-40">—</span>
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
-          <div class="w-full md:w-48 h-48 shrink-0 mx-auto"><canvas id="allocationChart"></canvas></div>
+          <div class="w-full md:w-64 h-64 shrink-0 mx-auto"><canvas id="allocationChart"></canvas></div>
         </div>
         {% else %}
         <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
@@ -115,6 +132,20 @@
             </li>
             {% endfor %}
           </ul>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if snapshots %}
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-base">近期市場動態</h2>
+            <button type="button" onclick="loadMarketMoves()" class="btn btn-ghost btn-xs">查詢</button>
+          </div>
+          <p class="text-xs opacity-60 -mt-2">規則判斷的大漲大跌提醒，加上各檔最新新聞標題原文列出（不做利多利空判斷）。</p>
+          <div id="market-moves-error" class="alert alert-error text-sm hidden"></div>
+          <div id="market-moves-content" class="text-sm space-y-3"></div>
         </div>
       </div>
       {% endif %}
@@ -167,10 +198,10 @@
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="history-form" class="flex flex-wrap gap-3 items-end">
           <label class="text-sm">開始<br>
-            <input name="start" type="date" required class="input input-bordered input-sm mt-1">
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1 w-40">
           </label>
           <label class="text-sm">結束<br>
-            <input name="end" type="date" required class="input input-bordered input-sm mt-1">
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1 w-40">
           </label>
           <label class="text-sm">顯示粒度<br>
             <select name="granularity" class="select select-bordered select-sm mt-1">
@@ -188,7 +219,9 @@
       </div>
       <div id="history-error" class="alert alert-error text-sm mt-3 hidden"></div>
       <div id="history-stats" class="flex flex-wrap gap-3 mt-3 mb-1"></div>
+      <div id="history-analysis" class="text-sm opacity-80 mb-2"></div>
       <div class="h-64 mt-2"><canvas id="historyChart"></canvas></div>
+      <div id="history-moves" class="text-xs mt-3"></div>
     </div>
   </div>
 
@@ -204,10 +237,10 @@
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="backtest-form" class="flex flex-wrap gap-3 items-end">
           <label class="text-sm">開始<br>
-            <input name="start" type="date" required class="input input-bordered input-sm mt-1">
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1 w-40">
           </label>
           <label class="text-sm">結束<br>
-            <input name="end" type="date" required class="input input-bordered input-sm mt-1">
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1 w-40">
           </label>
           <label class="text-sm">再平衡頻率<br>
             <select name="rebalance" class="select select-bordered select-sm mt-1">
@@ -251,15 +284,13 @@
 </div>
 
 <script>
-// Default every date range to "the past year", and don't let the picker
-// offer dates beyond today — backtests/history need real historical prices.
+// Default start date to when this portfolio started being tracked; don't
+// let the picker offer dates beyond today — need real historical prices.
 {
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
-  const oneYearAgo = new Date(today);
-  oneYearAgo.setFullYear(today.getFullYear() - 1);
-  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
-  document.querySelectorAll('input[name="start"]').forEach(el => { el.max = todayStr; el.value = oneYearAgoStr; });
+  const portfolioStartStr = '2026-03-24';
+  document.querySelectorAll('input[name="start"]').forEach(el => { el.max = todayStr; el.value = portfolioStartStr; });
   document.querySelectorAll('input[name="end"]').forEach(el => { el.max = todayStr; el.value = todayStr; });
 }
 
@@ -278,6 +309,58 @@ function fillTargetForm(symbol, weight) {
   document.getElementById('target-symbol').value = symbol;
   document.getElementById('target-weight').value = weight;
   document.getElementById('target-weight').focus();
+}
+
+// News titles/publishers come from an external feed — escape before
+// injecting into the DOM rather than trusting them in innerHTML.
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+async function loadMarketMoves() {
+  const errorBox = document.getElementById('market-moves-error');
+  const content = document.getElementById('market-moves-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/market-moves');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '';
+  if (data.swings.length) {
+    html += '<div><p class="font-medium mb-1">大漲大跌</p><ul class="space-y-1">';
+    for (const s of data.swings) {
+      html += `<li>• <b>${escapeHtml(s.symbol)}</b>：${escapeHtml(s.notes.join('，'))}</li>`;
+    }
+    html += '</ul></div>';
+  } else {
+    html += '<p class="opacity-60">目前沒有明顯的大漲大跌（單日 5% / 5 日 10% 門檻）。</p>';
+  }
+
+  const newsSymbols = Object.keys(data.news);
+  if (newsSymbols.length) {
+    html += '<div class="mt-3"><p class="font-medium mb-1">近期新聞</p><ul class="space-y-1.5">';
+    for (const sym of newsSymbols) {
+      for (const n of data.news[sym]) {
+        const safeTitle = escapeHtml(n.title);
+        const label = n.url && n.url.startsWith('http')
+          ? `<a href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer" class="link link-hover">${safeTitle}</a>`
+          : safeTitle;
+        const publisher = n.publisher ? ` <span class="opacity-50">(${escapeHtml(n.publisher)})</span>` : '';
+        html += `<li>• <b>${escapeHtml(sym)}</b>：${label}${publisher}</li>`;
+      }
+    }
+    html += '</ul></div>';
+  }
+  content.innerHTML = html;
 }
 
 // Chart.js doesn't read CSS variables, so pick readable defaults for the
@@ -301,7 +384,7 @@ if (Object.keys(allocation).length) {
       maintainAspectRatio: false,
       plugins: {
         colors: { forceOverride: true },
-        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -333,30 +416,72 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     return;
   }
 
+  const analysisBox = document.getElementById('history-analysis');
   let datasets;
   if (data.mode === 'compare') {
     document.getElementById('history-stats').innerHTML =
       `<span class="text-sm">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>` +
-      `<span class="text-sm">${data.compare_label}: <b class="${data.compare_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.compare_return)}</b></span>`;
+      `<span class="text-sm">${escapeHtml(data.compare_label)}: <b class="${data.compare_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.compare_return)}</b></span>`;
     datasets = [
       { label: '你的組合 (報酬 %)', data: data.portfolio_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
       { label: `${data.compare_label} (報酬 %)`, data: data.compare_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
     ];
+    if (data.portfolio_max_drawdown != null) {
+      const ddCompare = data.portfolio_max_drawdown >= data.compare_max_drawdown ? '較深' : '較淺';
+      let volLine = '';
+      if (data.portfolio_volatility != null && data.compare_volatility != null) {
+        const volCompare = data.portfolio_volatility <= data.compare_volatility ? '較低' : '較高';
+        volLine = `年化波動度：你的組合 ${(data.portfolio_volatility * 100).toFixed(1)}% vs ${escapeHtml(data.compare_label)} ${(data.compare_volatility * 100).toFixed(1)}%（${volCompare}）。`;
+      }
+      analysisBox.innerHTML =
+        `<p>最大回撤：你的組合 ${fmtPct(data.portfolio_max_drawdown)} vs ${escapeHtml(data.compare_label)} ${fmtPct(data.compare_max_drawdown)}` +
+        `（你的組合下跌${ddCompare}）。${volLine}</p>`;
+    } else {
+      analysisBox.innerHTML = '';
+    }
   } else {
     document.getElementById('history-stats').innerHTML =
       `<span class="text-sm">期間報酬: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
     datasets = [
       { label: '持股市值 ($)', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
     ];
+    analysisBox.innerHTML = '';
+  }
+
+  const movesBox = document.getElementById('history-moves');
+  const annotations = {};
+  if (data.notable_moves && data.notable_moves.length) {
+    data.notable_moves.forEach((m, i) => {
+      annotations[`move${i}`] = {
+        type: 'line', xMin: m.date, xMax: m.date,
+        borderColor: m.change >= 0 ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)', borderWidth: 1.5,
+      };
+    });
+    const items = data.notable_moves
+      .map(m => `<li>• ${m.date}：${m.change >= 0 ? '大漲' : '大跌'} ${Math.abs(m.change * 100).toFixed(1)}%</li>`)
+      .join('');
+    movesBox.innerHTML =
+      `<p class="font-medium mb-1">重大波動日（單日 ±3% 以上）</p><ul class="space-y-0.5 opacity-80">${items}</ul>` +
+      `<p class="opacity-50 mt-1">只標出「哪幾天波動大」，無法自動回溯當天的新聞原因（新聞來源只保留最新報導）——想知道原因可以自己查那天的日期。</p>`;
+  } else {
+    movesBox.innerHTML = '';
   }
 
   if (historyChart) historyChart.destroy();
   historyChart = new Chart(document.getElementById('historyChart'), {
     type: 'line',
     data: { labels: data.dates, datasets },
-    options: { maintainAspectRatio: false, scales: { x: { ticks: { maxTicksLimit: 10 } } } },
+    options: {
+      maintainAspectRatio: false,
+      scales: { x: { ticks: { maxTicksLimit: 10 } } },
+      plugins: { annotation: { annotations } },
+    },
   });
 });
+
+{% if snapshots %}
+document.getElementById('history-form').requestSubmit();
+{% endif %}
 
 // --- 再平衡策略回測 ---
 let backtestChart = null;

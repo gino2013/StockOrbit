@@ -10,15 +10,17 @@ from sqlalchemy import desc
 load_dotenv()
 
 from app.advice import build_advice
-from app.backtest import run_backtest
+from app.backtest import max_drawdown_details, run_backtest
 from app.db import PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
 from app.holdings_history import (
+    notable_moves,
     parse_weights,
     portfolio_value_history,
     resample_for_display,
     weighted_return_series,
 )
+from app.market_moves import price_swings, recent_news
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
@@ -100,6 +102,24 @@ def refresh():
     return RedirectResponse("/", status_code=303)
 
 
+@app.get("/api/market-moves")
+def market_moves():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    symbols = [s["symbol"] for s in snapshots]
+    try:
+        swings = price_swings(symbols)
+        news = recent_news(symbols)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"swings": swings, "news": news})
+
+
 @app.post("/api/targets")
 def set_target(symbol: str = Form(...), target_weight: float = Form(...)):
     db = SessionLocal()
@@ -145,11 +165,15 @@ def holdings_history(
     holdings = {s["symbol"]: s["quantity"] for s in snapshots}
 
     try:
-        portfolio = resample_for_display(portfolio_value_history(holdings, start, end), granularity)
+        portfolio_daily = portfolio_value_history(holdings, start, end)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    portfolio = resample_for_display(portfolio_daily, granularity)
     if portfolio.empty:
         return JSONResponse({"error": "查無資料，換個日期區間試試"}, status_code=400)
+    # Notable-move dates only make sense pinned to real daily labels, so we
+    # only surface them when the chart itself is showing daily granularity.
+    moves = notable_moves(portfolio_daily) if granularity == "D" else []
 
     compare_weights, error = _parse_weighted_basket(compare)
     if error:
@@ -160,6 +184,9 @@ def holdings_history(
             "dates": portfolio.index.strftime("%Y-%m-%d").tolist(),
             "portfolio_value": [round(v, 2) for v in portfolio.tolist()],
             "portfolio_return": portfolio.iloc[-1] / portfolio.iloc[0] - 1,
+            "notable_moves": [
+                {"date": m["date"].strftime("%Y-%m-%d"), "change": m["change"]} for m in moves
+            ],
         })
 
     compare_label = " + ".join(f"{s} {w:.0%}" for s, w in compare_weights.items())
@@ -173,6 +200,13 @@ def holdings_history(
     aligned = pd.DataFrame({"portfolio": portfolio, "compare": compare_series}).dropna()
     if aligned.empty:
         return JSONResponse({"error": "資料無法對齊，換個日期區間試試"}, status_code=400)
+
+    periods_per_year = {"D": 252, "M": 12, "Q": 4, "A": 1}[granularity]
+    portfolio_dd, _, _ = max_drawdown_details(aligned["portfolio"])
+    compare_dd, _, _ = max_drawdown_details(aligned["compare"])
+    portfolio_vol = aligned["portfolio"].pct_change().std() * periods_per_year**0.5
+    compare_vol = aligned["compare"].pct_change().std() * periods_per_year**0.5
+
     return JSONResponse({
         "mode": "compare",
         "compare_label": compare_label,
@@ -181,6 +215,15 @@ def holdings_history(
         "compare_pct": [(v / aligned["compare"].iloc[0] - 1) * 100 for v in aligned["compare"]],
         "portfolio_return": aligned["portfolio"].iloc[-1] / aligned["portfolio"].iloc[0] - 1,
         "compare_return": aligned["compare"].iloc[-1] / aligned["compare"].iloc[0] - 1,
+        "portfolio_max_drawdown": portfolio_dd,
+        "compare_max_drawdown": compare_dd,
+        "portfolio_volatility": None if pd.isna(portfolio_vol) else portfolio_vol,
+        "compare_volatility": None if pd.isna(compare_vol) else compare_vol,
+        "notable_moves": [
+            {"date": m["date"].strftime("%Y-%m-%d"), "change": m["change"]}
+            for m in moves
+            if m["date"] in aligned.index
+        ],
     })
 
 

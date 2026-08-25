@@ -39,6 +39,18 @@ def weighted_return_series(weights: dict[str, float], start: str, end: str) -> p
     return (normalized * pd.Series(weights)).sum(axis=1)
 
 
+def notable_moves(series: pd.Series, threshold: float = 0.03) -> list[dict]:
+    """Day-over-day moves in `series` bigger than `threshold` (3% default).
+    Objective/rule-based only — no claim about *why* a move happened; a
+    historical "why" would need a paid historical-news API (yfinance's
+    news feed only covers the last ~10 current stories, not the past)."""
+    daily_change = series.pct_change().dropna()
+    big_moves = daily_change[daily_change.abs() >= threshold]
+    return [
+        {"date": date, "change": float(change)} for date, change in big_moves.items()
+    ]
+
+
 def parse_weights(raw: str) -> dict[str, float]:
     """Parse "QQQ:0.6,VOO:0.4" (or a bare "QQQ", implying 100%) into a
     {symbol: weight} dict. Raises ValueError on a malformed weight."""
