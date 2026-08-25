@@ -3,249 +3,295 @@
 <head>
 <meta charset="utf-8">
 <title>StockOrbit</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+<script>
+  // Applied before body paints so there's no flash of the wrong theme.
+  document.documentElement.setAttribute('data-theme',
+    localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
 <style>
   body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }
 </style>
 </head>
-<body class="bg-slate-100 text-slate-800">
+<body class="bg-base-200 min-h-screen">
 <div class="max-w-6xl mx-auto px-4 py-6">
 
   <!-- Top bar -->
   <header class="flex items-center justify-between mb-6">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">StockOrbit</h1>
-      <p class="text-sm text-slate-500">Firstrade 持股追蹤與建議</p>
+      <h1 class="text-2xl font-bold">StockOrbit</h1>
+      <p class="text-sm opacity-60">Firstrade 持股追蹤與建議</p>
     </div>
-    <form action="/api/refresh" method="post">
-      <button type="submit"
-        class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm transition">
-        重新抓取持股
+    <div class="flex items-center gap-2">
+      <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost" aria-label="切換深色模式">
+        <span id="theme-icon"></span>
       </button>
-    </form>
+      <form action="/api/refresh" method="post">
+        <button type="submit" class="btn btn-primary">重新抓取持股</button>
+      </form>
+    </div>
   </header>
 
   {% if snapshots %}
   <!-- Stat cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow-sm p-4">
-      <p class="text-xs text-slate-500 mb-1">總市值</p>
-      <p class="text-xl font-semibold text-slate-900">${{ "{:,.0f}".format(stats.total_value) }}</p>
+  <div class="stats stats-vertical sm:stats-horizontal shadow w-full mb-8 bg-base-100">
+    <div class="stat">
+      <div class="stat-title">總市值</div>
+      <div class="stat-value text-2xl">${{ "{:,.0f}".format(stats.total_value) }}</div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4">
-      <p class="text-xs text-slate-500 mb-1">未實現損益</p>
-      <p class="text-xl font-semibold {{ 'text-emerald-600' if stats.total_gain >= 0 else 'text-rose-600' }}">
+    <div class="stat">
+      <div class="stat-title">未實現損益</div>
+      <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain >= 0 else 'text-error' }}">
         {{ '+' if stats.total_gain >= 0 else '' }}${{ "{:,.0f}".format(stats.total_gain) }}
-      </p>
+      </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4">
-      <p class="text-xs text-slate-500 mb-1">報酬率</p>
-      <p class="text-xl font-semibold {{ 'text-emerald-600' if stats.total_gain_pct >= 0 else 'text-rose-600' }}">
+    <div class="stat">
+      <div class="stat-title">報酬率</div>
+      <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain_pct >= 0 else 'text-error' }}">
         {{ "{:+.1%}".format(stats.total_gain_pct) }}
-      </p>
+      </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4">
-      <p class="text-xs text-slate-500 mb-1">持股檔數</p>
-      <p class="text-xl font-semibold text-slate-900">{{ stats.position_count }}</p>
+    <div class="stat">
+      <div class="stat-title">持股檔數</div>
+      <div class="stat-value text-2xl">{{ stats.position_count }}</div>
     </div>
   </div>
   {% endif %}
 
   <!-- Section: 持股與配置 -->
-  <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">持股與配置</p>
+  <p class="text-xs font-semibold text-primary uppercase tracking-wide mb-2">持股與配置</p>
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm p-5">
-      <h2 class="text-base font-semibold mb-4">目前持股</h2>
-      {% if snapshots %}
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-slate-500 border-b border-slate-200">
-              <th class="py-2 font-medium">代號</th>
-              <th class="py-2 font-medium">股數</th>
-              <th class="py-2 font-medium">市值</th>
-              <th class="py-2 font-medium">價格</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for s in snapshots %}
-            <tr class="border-b border-slate-100 last:border-0">
-              <td class="py-2 font-medium text-slate-900">{{ s.symbol }}</td>
-              <td class="py-2 text-slate-600">{{ s.quantity }}</td>
-              <td class="py-2 text-slate-600">${{ "{:,.2f}".format(s.market_value) }}</td>
-              <td class="py-2 text-slate-600">${{ "{:,.2f}".format(s.price) }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <div class="lg:col-span-2 card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-base">目前持股</h2>
+        {% if snapshots %}
+        <div class="flex flex-col md:flex-row gap-4 items-start">
+          <div class="overflow-x-auto flex-1">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>代號</th>
+                  <th>股數</th>
+                  <th>市值</th>
+                  <th>價格</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in snapshots %}
+                <tr>
+                  <td class="font-medium">{{ s.symbol }}</td>
+                  <td>{{ s.quantity }}</td>
+                  <td>${{ "{:,.2f}".format(s.market_value) }}</td>
+                  <td>${{ "{:,.2f}".format(s.price) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="w-full md:w-48 h-48 shrink-0 mx-auto"><canvas id="allocationChart"></canvas></div>
+        </div>
+        {% else %}
+        <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
+        {% endif %}
       </div>
-      <canvas id="allocationChart" class="mt-4" height="180"></canvas>
-      {% else %}
-      <p class="text-sm text-slate-500">還沒有資料，按右上角「重新抓取持股」開始。</p>
-      {% endif %}
     </div>
 
     <div class="flex flex-col gap-6">
       {% if advice %}
-      <div class="bg-white rounded-xl shadow-sm p-5">
-        <h2 class="text-base font-semibold mb-3">建議</h2>
-        <ul class="space-y-2 text-sm">
-          {% for note in advice.advice %}
-          <li class="flex gap-2">
-            <span class="text-indigo-500">•</span>
-            <span class="text-slate-700">{{ note }}</span>
-          </li>
-          {% endfor %}
-        </ul>
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base">建議</h2>
+          <ul class="space-y-2 text-sm">
+            {% for note in advice.advice %}
+            <li class="flex gap-2">
+              <span class="text-primary">•</span>
+              <span>{{ note }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
       </div>
       {% endif %}
 
-      <div class="bg-white rounded-xl shadow-sm p-5">
-        <h2 class="text-base font-semibold mb-1">目標配置</h2>
-        <p class="text-xs text-slate-400 mb-3">權重總和需為 100%。輸入已存在的代號會覆蓋原本的權重。</p>
-        {% if targets %}
-        <table class="w-full text-sm mb-3">
-          <tbody>
-            {% for symbol, weight in targets.items() %}
-            <tr class="border-b border-slate-100 last:border-0">
-              <td class="py-1.5 font-medium text-slate-900">{{ symbol }}</td>
-              <td class="py-1.5 text-slate-600 text-right">{{ "{:.0f}%".format(weight * 100) }}</td>
-              <td class="py-1.5 text-right whitespace-nowrap">
-                <button type="button" onclick="fillTargetForm('{{ symbol }}', {{ weight }})"
-                  class="text-xs text-indigo-600 hover:underline mr-2">編輯</button>
-                <form action="/api/targets/delete" method="post" class="inline">
-                  <input type="hidden" name="symbol" value="{{ symbol }}">
-                  <button type="submit" class="text-xs text-rose-500 hover:underline">刪除</button>
-                </form>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% endif %}
-        <form action="/api/targets" method="post" class="flex gap-2">
-          <input id="target-symbol" name="symbol" placeholder="AAPL" required
-            class="w-24 border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
-          <input id="target-weight" name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2" required
-            class="w-20 border border-slate-300 rounded-lg px-2 py-1.5 text-sm">
-          <button type="submit"
-            class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-3 py-1.5 rounded-lg">設定</button>
-        </form>
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base">目標配置</h2>
+          <p class="text-xs opacity-60 -mt-2">權重總和需為 100%。輸入已存在的代號會覆蓋原本的權重。</p>
+          {% if targets %}
+          <table class="table table-sm">
+            <tbody>
+              {% for symbol, weight in targets.items() %}
+              <tr>
+                <td class="font-medium">{{ symbol }}</td>
+                <td class="text-right">{{ "{:.0f}%".format(weight * 100) }}</td>
+                <td class="text-right whitespace-nowrap">
+                  <button type="button" onclick="fillTargetForm('{{ symbol }}', {{ weight }})"
+                    class="btn btn-ghost btn-xs">編輯</button>
+                  <form action="/api/targets/delete" method="post" class="inline">
+                    <input type="hidden" name="symbol" value="{{ symbol }}">
+                    <button type="submit" class="btn btn-ghost btn-xs text-error">刪除</button>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+          <form action="/api/targets" method="post" class="flex gap-2 mt-1">
+            <input id="target-symbol" name="symbol" placeholder="AAPL" required
+              class="input input-bordered input-sm w-24">
+            <input id="target-weight" name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2" required
+              class="input input-bordered input-sm w-20">
+            <button type="submit" class="btn btn-neutral btn-sm">設定</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Section: 持股歷史走勢 -->
-  <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">持股歷史走勢</p>
-  <div class="bg-white rounded-xl shadow-sm p-5 mb-8">
-    <p class="text-xs text-slate-400 mb-4">
-      用「目前」的持股股數回推過去的市值（假設股數在期間內沒變）。填「比較標的」可以看你的組合跟單買一檔股票/ETF 的報酬率比較。
-    </p>
-    <div class="bg-slate-50 rounded-lg p-4 mb-4">
-      <form id="history-form" class="flex flex-wrap gap-3 items-end">
-        <label class="text-sm text-slate-600">
-          開始<br>
-          <input name="start" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-        </label>
-        <label class="text-sm text-slate-600">
-          結束<br>
-          <input name="end" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-        </label>
-        <label class="text-sm text-slate-600">
-          顯示粒度<br>
-          <select name="granularity" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-            <option value="D" selected>每日</option>
-            <option value="M">每月</option>
-            <option value="Q">每季</option>
-            <option value="A">每年</option>
-          </select>
-        </label>
-        <label class="text-sm text-slate-600">
-          比較標的（選填）<br>
-          <input name="compare_symbol" placeholder="QQQ / VOO" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1 w-28">
-        </label>
-        <button type="submit"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">查詢</button>
-      </form>
+  <p class="text-xs font-semibold text-primary uppercase tracking-wide mb-2">持股歷史走勢</p>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用「目前」的持股股數回推過去的市值（假設股數在期間內沒變）。填「比較標的」可以看你的組合跟單一標的或自訂加權組合的報酬率比較，格式如 <code>QQQ:0.6,VOO:0.4</code> 或單純 <code>QQQ</code>。
+      </p>
+      <div class="bg-base-200 rounded-box p-4 mt-2">
+        <form id="history-form" class="flex flex-wrap gap-3 items-end">
+          <label class="text-sm">開始<br>
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1">
+          </label>
+          <label class="text-sm">結束<br>
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1">
+          </label>
+          <label class="text-sm">顯示粒度<br>
+            <select name="granularity" class="select select-bordered select-sm mt-1">
+              <option value="D" selected>每日</option>
+              <option value="M">每月</option>
+              <option value="Q">每季</option>
+              <option value="A">每年</option>
+            </select>
+          </label>
+          <label class="text-sm">比較標的（選填）<br>
+            <input name="compare" placeholder="QQQ:0.6,VOO:0.4" class="input input-bordered input-sm mt-1 w-40">
+          </label>
+          <button type="submit" class="btn btn-primary">查詢</button>
+        </form>
+      </div>
+      <div id="history-error" class="alert alert-error text-sm mt-3 hidden"></div>
+      <div id="history-stats" class="flex flex-wrap gap-3 mt-3 mb-1"></div>
+      <div class="h-64 mt-2"><canvas id="historyChart"></canvas></div>
     </div>
-    <p id="history-error" class="text-sm text-rose-600 mb-2"></p>
-    <div id="history-stats" class="flex flex-wrap gap-3 mb-3"></div>
-    <canvas id="historyChart" height="220"></canvas>
   </div>
 
   <!-- Section: 再平衡策略回測 -->
-  <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-2">再平衡策略回測</p>
-  <div class="bg-white rounded-xl shadow-sm p-5">
-    <p class="text-xs text-slate-400 mb-4">
-      用上面「目標配置」的權重模擬過去表現，跟 SPY 比較。不含手續費/稅金，僅供參考。
-    </p>
-    <div class="bg-slate-50 rounded-lg p-4 mb-4">
-      <form id="backtest-form" class="flex flex-wrap gap-3 items-end">
-        <label class="text-sm text-slate-600">
-          開始<br>
-          <input name="start" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-        </label>
-        <label class="text-sm text-slate-600">
-          結束<br>
-          <input name="end" type="date" required class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-        </label>
-        <label class="text-sm text-slate-600">
-          再平衡頻率<br>
-          <select name="rebalance" class="border border-slate-300 rounded-lg px-2 py-1.5 text-sm mt-1">
-            <option value="none">不再平衡</option>
-            <option value="M" selected>每月</option>
-            <option value="Q">每季</option>
-            <option value="A">每年</option>
-          </select>
-        </label>
-        <button type="submit"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded-lg">執行回測</button>
-      </form>
-    </div>
-    <p id="backtest-error" class="text-sm text-rose-600 mb-2"></p>
+  <p class="text-xs font-semibold text-primary uppercase tracking-wide mb-2">再平衡策略回測</p>
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用上面「目標配置」的權重模擬過去表現。「比較基準」預設 SPY，也可以填自訂加權組合，格式如 <code>QQQ:0.6,VOO:0.4</code>。不含手續費/稅金，僅供參考。
+      </p>
+      <div class="bg-base-200 rounded-box p-4 mt-2">
+        <form id="backtest-form" class="flex flex-wrap gap-3 items-end">
+          <label class="text-sm">開始<br>
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1">
+          </label>
+          <label class="text-sm">結束<br>
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1">
+          </label>
+          <label class="text-sm">再平衡頻率<br>
+            <select name="rebalance" class="select select-bordered select-sm mt-1">
+              <option value="none">不再平衡</option>
+              <option value="M" selected>每月</option>
+              <option value="Q">每季</option>
+              <option value="A">每年</option>
+            </select>
+          </label>
+          <label class="text-sm">比較基準<br>
+            <input name="benchmark" placeholder="SPY" value="SPY" class="input input-bordered input-sm mt-1 w-32">
+          </label>
+          <button type="submit" class="btn btn-primary">執行回測</button>
+        </form>
+      </div>
+      <div id="backtest-error" class="alert alert-error text-sm mt-3 hidden"></div>
 
-    <div id="backtest-stats" class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 hidden">
-      <div class="bg-slate-50 rounded-lg p-3">
-        <p class="text-xs text-slate-500 mb-1">總報酬</p>
-        <p id="stat-total-return" class="text-lg font-semibold"></p>
+      <div id="backtest-stats" class="stats shadow mt-3 hidden">
+        <div class="stat">
+          <div class="stat-title">總報酬</div>
+          <div id="stat-total-return" class="stat-value text-lg"></div>
+        </div>
+        <div class="stat">
+          <div id="stat-benchmark-title" class="stat-title">比較基準</div>
+          <div id="stat-benchmark-return" class="stat-value text-lg"></div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">最大回撤</div>
+          <div id="stat-max-drawdown" class="stat-value text-lg text-error"></div>
+        </div>
       </div>
-      <div class="bg-slate-50 rounded-lg p-3">
-        <p class="text-xs text-slate-500 mb-1">基準報酬 (SPY)</p>
-        <p id="stat-benchmark-return" class="text-lg font-semibold text-slate-700"></p>
-      </div>
-      <div class="bg-slate-50 rounded-lg p-3">
-        <p class="text-xs text-slate-500 mb-1">最大回撤</p>
-        <p id="stat-max-drawdown" class="text-lg font-semibold text-rose-600"></p>
-      </div>
-    </div>
 
-    <canvas id="backtestChart" height="220"></canvas>
-    <div id="backtest-legend" class="flex flex-wrap gap-4 mt-3 text-xs text-slate-500 hidden">
-      <span class="flex items-center gap-1.5"><span class="inline-block w-3 border-t-2 border-dashed border-indigo-300"></span>再平衡日</span>
-      <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-rose-100 border border-rose-200"></span>最大回撤區間</span>
+      <div class="h-64 mt-4"><canvas id="backtestChart"></canvas></div>
+      <div id="backtest-legend" class="flex flex-wrap gap-4 mt-3 text-xs opacity-60 hidden">
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 border-t-2 border-dashed border-primary"></span>再平衡日</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-error/20 border border-error/40"></span>最大回撤區間</span>
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
+document.getElementById('theme-icon').textContent =
+  document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.theme = next;
+  location.reload();
+}
+
 function fillTargetForm(symbol, weight) {
   document.getElementById('target-symbol').value = symbol;
   document.getElementById('target-weight').value = weight;
   document.getElementById('target-weight').focus();
 }
 
+// Chart.js doesn't read CSS variables, so pick readable defaults for the
+// current theme once, up front, rather than per-chart.
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
+Chart.defaults.borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+
 const allocation = {{ advice.allocation | default({}) | tojson }};
+const snapshotBySymbol = Object.fromEntries(
+  {{ snapshots | default([]) | tojson }}.map(s => [s.symbol, s])
+);
 if (Object.keys(allocation).length) {
   new Chart(document.getElementById('allocationChart'), {
     type: 'doughnut',
     data: {
       labels: Object.keys(allocation),
-      datasets: [{ data: Object.values(allocation).map(v => (v * 100).toFixed(1)) }],
+      datasets: [{ data: Object.values(allocation).map(v => v * 100) }],
     },
-    options: { plugins: { legend: { position: 'right' } } },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const s = snapshotBySymbol[ctx.label];
+              const mv = s ? ` ($${Math.round(s.market_value).toLocaleString()})` : '';
+              return ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%${mv}`;
+            },
+          },
+        },
+      },
+    },
   });
 }
 
@@ -255,27 +301,29 @@ const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
 let historyChart = null;
 document.getElementById('history-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  document.getElementById('history-error').textContent = '';
+  const errorBox = document.getElementById('history-error');
+  errorBox.classList.add('hidden');
   const body = new FormData(e.target);
   const res = await fetch('/api/holdings-history', { method: 'POST', body });
   const data = await res.json();
   if (data.error) {
-    document.getElementById('history-error').textContent = data.error;
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
     return;
   }
 
   let datasets;
   if (data.mode === 'compare') {
     document.getElementById('history-stats').innerHTML =
-      `<span class="text-sm text-slate-600">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${fmtPct(data.portfolio_return)}</b></span>` +
-      `<span class="text-sm text-slate-600">${data.compare_symbol}: <b class="${data.compare_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${fmtPct(data.compare_return)}</b></span>`;
+      `<span class="text-sm">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>` +
+      `<span class="text-sm">${data.compare_label}: <b class="${data.compare_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.compare_return)}</b></span>`;
     datasets = [
       { label: '你的組合 (報酬 %)', data: data.portfolio_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-      { label: `${data.compare_symbol} (報酬 %)`, data: data.compare_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
+      { label: `${data.compare_label} (報酬 %)`, data: data.compare_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
     ];
   } else {
     document.getElementById('history-stats').innerHTML =
-      `<span class="text-sm text-slate-600">期間報酬: <b class="${data.portfolio_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${fmtPct(data.portfolio_return)}</b></span>`;
+      `<span class="text-sm">期間報酬: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
     datasets = [
       { label: '持股市值 ($)', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
     ];
@@ -285,7 +333,7 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
   historyChart = new Chart(document.getElementById('historyChart'), {
     type: 'line',
     data: { labels: data.dates, datasets },
-    options: { scales: { x: { ticks: { maxTicksLimit: 10 } } } },
+    options: { maintainAspectRatio: false, scales: { x: { ticks: { maxTicksLimit: 10 } } } },
   });
 });
 
@@ -293,12 +341,14 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
 let backtestChart = null;
 document.getElementById('backtest-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  document.getElementById('backtest-error').textContent = '';
+  const errorBox = document.getElementById('backtest-error');
+  errorBox.classList.add('hidden');
   const body = new FormData(e.target);
   const res = await fetch('/api/backtest', { method: 'POST', body });
   const data = await res.json();
   if (data.error) {
-    document.getElementById('backtest-error').textContent = data.error;
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
     document.getElementById('backtest-stats').classList.add('hidden');
     document.getElementById('backtest-legend').classList.add('hidden');
     return;
@@ -308,7 +358,8 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
   document.getElementById('backtest-legend').classList.remove('hidden');
   const totalEl = document.getElementById('stat-total-return');
   totalEl.textContent = fmtPct(data.total_return);
-  totalEl.className = `text-lg font-semibold ${data.total_return >= 0 ? 'text-emerald-600' : 'text-rose-600'}`;
+  totalEl.className = `stat-value text-lg ${data.total_return >= 0 ? 'text-success' : 'text-error'}`;
+  document.getElementById('stat-benchmark-title').textContent = `比較基準 (${data.benchmark_label})`;
   document.getElementById('stat-benchmark-return').textContent = fmtPct(data.benchmark_return);
   document.getElementById('stat-max-drawdown').textContent = fmtPct(data.max_drawdown);
 
@@ -335,10 +386,11 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
       labels: data.dates,
       datasets: [
         { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-        { label: '基準 (SPY)', data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
+        { label: data.benchmark_label, data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
       ],
     },
     options: {
+      maintainAspectRatio: false,
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
       plugins: { annotation: { annotations } },
     },

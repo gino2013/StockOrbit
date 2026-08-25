@@ -6,6 +6,8 @@ trading simulator.
 import pandas as pd
 import yfinance as yf
 
+from app.holdings_history import weighted_return_series
+
 # to_period codes (not the "ME"/"QE"/"YE" *anchored offset* aliases) so we can
 # group the real trading-day index and take actual observed dates as
 # rebalance dates — resample(...).first() instead returns synthetic
@@ -53,27 +55,30 @@ def run_backtest(
     end: str,
     rebalance: str = "M",
     initial_capital: float = 10000,
-    benchmark: str = "SPY",
+    benchmark_weights: dict[str, float] | None = None,
 ) -> dict:
     symbols = list(weights.keys())
-    data = yf.download(
-        symbols + [benchmark], start=start, end=end, auto_adjust=True, progress=False
-    )["Close"]
+    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
     data = data.dropna(how="all").ffill().dropna()
-
     portfolio = simulate_rebalanced_portfolio(data[symbols], weights, rebalance, initial_capital)
-    bench_shares = initial_capital / data[benchmark].iloc[0]
-    benchmark_series = data[benchmark] * bench_shares
-    drawdown, peak_date, trough_date = max_drawdown_details(portfolio)
+
+    benchmark_normalized = weighted_return_series(benchmark_weights or {"SPY": 1.0}, start, end)
+    aligned = pd.DataFrame({"portfolio": portfolio, "benchmark": benchmark_normalized}).dropna()
+    portfolio_aligned = aligned["portfolio"]
+    benchmark_aligned = aligned["benchmark"] / aligned["benchmark"].iloc[0] * initial_capital
+
+    drawdown, peak_date, trough_date = max_drawdown_details(portfolio_aligned)
 
     return {
-        "dates": data.index.strftime("%Y-%m-%d").tolist(),
-        "portfolio_value": [round(v, 2) for v in portfolio.tolist()],
-        "benchmark_value": [round(v, 2) for v in benchmark_series.tolist()],
-        "total_return": portfolio.iloc[-1] / initial_capital - 1,
-        "benchmark_return": benchmark_series.iloc[-1] / initial_capital - 1,
+        "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
+        "portfolio_value": [round(v, 2) for v in portfolio_aligned.tolist()],
+        "benchmark_value": [round(v, 2) for v in benchmark_aligned.tolist()],
+        "total_return": portfolio_aligned.iloc[-1] / portfolio_aligned.iloc[0] - 1,
+        "benchmark_return": benchmark_aligned.iloc[-1] / benchmark_aligned.iloc[0] - 1,
         "max_drawdown": drawdown,
         "drawdown_peak_date": peak_date.strftime("%Y-%m-%d"),
         "drawdown_trough_date": trough_date.strftime("%Y-%m-%d"),
-        "rebalance_dates": [d.strftime("%Y-%m-%d") for d in rebalance_dates(data.index, rebalance)],
+        "rebalance_dates": [
+            d.strftime("%Y-%m-%d") for d in rebalance_dates(portfolio_aligned.index, rebalance)
+        ],
     }

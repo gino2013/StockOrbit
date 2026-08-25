@@ -13,11 +13,31 @@ from app.advice import build_advice
 from app.backtest import run_backtest
 from app.db import PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
-from app.holdings_history import portfolio_value_history, resample_for_display
+from app.holdings_history import (
+    parse_weights,
+    portfolio_value_history,
+    resample_for_display,
+    weighted_return_series,
+)
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
 init_db()
+
+
+def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | None]:
+    """Parse a "SYM:weight,SYM:weight" string, validating it sums to 100%.
+    Returns (weights, None) or (None, error_message)."""
+    try:
+        weights = parse_weights(raw)
+    except ValueError:
+        return None, "格式錯誤，範例：QQQ:0.6,VOO:0.4 或單純 QQQ"
+    if not weights:
+        return None, None
+    total = sum(weights.values())
+    if abs(total - 1) > 0.01:
+        return None, f"權重總和需為 100%，目前為 {total:.0%}"
+    return weights, None
 
 
 def _latest_snapshots(db) -> list[dict]:
@@ -113,7 +133,7 @@ def holdings_history(
     start: str = Form(...),
     end: str = Form(...),
     granularity: str = Form("D"),
-    compare_symbol: str = Form(""),
+    compare: str = Form(""),
 ):
     db = SessionLocal()
     try:
@@ -131,8 +151,10 @@ def holdings_history(
     if portfolio.empty:
         return JSONResponse({"error": "查無資料，換個日期區間試試"}, status_code=400)
 
-    compare_symbol = compare_symbol.strip().upper()
-    if not compare_symbol:
+    compare_weights, error = _parse_weighted_basket(compare)
+    if error:
+        return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
+    if not compare_weights:
         return JSONResponse({
             "mode": "value",
             "dates": portfolio.index.strftime("%Y-%m-%d").tolist(),
@@ -140,19 +162,20 @@ def holdings_history(
             "portfolio_return": portfolio.iloc[-1] / portfolio.iloc[0] - 1,
         })
 
+    compare_label = " + ".join(f"{s} {w:.0%}" for s, w in compare_weights.items())
     try:
         compare_series = resample_for_display(
-            portfolio_value_history({compare_symbol: 1}, start, end), granularity
+            weighted_return_series(compare_weights, start, end), granularity
         )
     except Exception as e:
-        return JSONResponse({"error": f"比較標的 {compare_symbol} 查詢失敗: {e}"}, status_code=400)
+        return JSONResponse({"error": f"比較標的查詢失敗: {e}"}, status_code=400)
 
     aligned = pd.DataFrame({"portfolio": portfolio, "compare": compare_series}).dropna()
     if aligned.empty:
         return JSONResponse({"error": "資料無法對齊，換個日期區間試試"}, status_code=400)
     return JSONResponse({
         "mode": "compare",
-        "compare_symbol": compare_symbol,
+        "compare_label": compare_label,
         "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
         "portfolio_pct": [(v / aligned["portfolio"].iloc[0] - 1) * 100 for v in aligned["portfolio"]],
         "compare_pct": [(v / aligned["compare"].iloc[0] - 1) * 100 for v in aligned["compare"]],
@@ -162,7 +185,12 @@ def holdings_history(
 
 
 @app.post("/api/backtest")
-def backtest(start: str = Form(...), end: str = Form(...), rebalance: str = Form("M")):
+def backtest(
+    start: str = Form(...),
+    end: str = Form(...),
+    rebalance: str = Form("M"),
+    benchmark: str = Form("SPY"),
+):
     db = SessionLocal()
     try:
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
@@ -175,8 +203,16 @@ def backtest(start: str = Form(...), end: str = Form(...), rebalance: str = Form
         return JSONResponse(
             {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
         )
+
+    benchmark_weights, error = _parse_weighted_basket(benchmark or "SPY")
+    if error:
+        return JSONResponse({"error": f"比較基準：{error}"}, status_code=400)
+    benchmark_weights = benchmark_weights or {"SPY": 1.0}
+    benchmark_label = " + ".join(f"{s} {w:.0%}" for s, w in benchmark_weights.items())
+
     try:
-        result = run_backtest(targets, start, end, rebalance)
+        result = run_backtest(targets, start, end, rebalance, benchmark_weights=benchmark_weights)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    result["benchmark_label"] = benchmark_label
     return JSONResponse(result)

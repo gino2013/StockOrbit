@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from app.holdings_history import resample_for_display
+from app.holdings_history import parse_weights, resample_for_display
 
 
 def demo():
@@ -19,6 +19,11 @@ def demo():
     monthly = resample_for_display(series, "M")
     assert len(monthly) == 3
     assert monthly.iloc[-1] == series.iloc[-1]
+
+    assert parse_weights("QQQ") == {"QQQ": 1.0}
+    assert parse_weights("QQQ:0.6,VOO:0.4") == {"QQQ": 0.6, "VOO": 0.4}
+    assert parse_weights(" qqq : 0.6 , voo : 0.4 ") == {"QQQ": 0.6, "VOO": 0.4}
+    assert parse_weights("") == {}
 
 
 if __name__ == "__main__":
