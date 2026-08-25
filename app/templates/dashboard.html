@@ -122,7 +122,7 @@
                   <td>
                     {% if target is not none %}
                     {% set diff = current - target %}
-                    <span class="{{ 'text-error font-medium' if diff|abs > 0.05 else 'opacity-60' }}">
+                    <span class="{{ 'text-success' if diff > 0 else 'text-error' if diff < 0 else 'opacity-60' }} {{ 'font-medium' if diff|abs > 0.05 else '' }}">
                       {{ "{:+.1%}".format(diff) }}
                     </span>
                     {% else %}
