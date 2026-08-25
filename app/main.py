@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc
+
+load_dotenv()
 
 from app.advice import build_advice
 from app.backtest import run_backtest

@@ -40,9 +40,9 @@ def fetch_positions() -> list[dict]:
                     "account_number": account_number,
                     "symbol": item.get("symbol"),
                     "quantity": float(item.get("quantity", 0) or 0),
-                    "cost_basis": float(item.get("cost_basis", 0) or 0),
+                    "cost_basis": float(item.get("cost", 0) or 0),
                     "market_value": float(item.get("market_value", 0) or 0),
-                    "price": float(item.get("last_price", item.get("price", 0)) or 0),
+                    "price": float(item.get("last", 0) or 0),
                     "raw_json": json.dumps(item),
                 }
             )

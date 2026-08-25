@@ -22,8 +22,9 @@ class PositionSnapshot(Base):
     cost_basis = Column(Float, default=0)
     market_value = Column(Float, default=0)
     price = Column(Float, default=0)
-    # ponytail: raw item JSON kept in case firstrade-api's real field names
-    # differ from our guesses; inspect this to fix mappings after first live refresh.
+    # ponytail: raw item JSON kept as a fallback in case Firstrade changes
+    # field names again — cost_basis/market_value/price map to its
+    # cost/market_value/last keys as of the 2026-08-25 live test.
     raw_json = Column(Text)
     snapshot_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
