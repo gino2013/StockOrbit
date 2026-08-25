@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -12,6 +13,7 @@ from app.advice import build_advice
 from app.backtest import run_backtest
 from app.db import PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
+from app.holdings_history import portfolio_value_history, resample_for_display
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
@@ -91,6 +93,72 @@ def set_target(symbol: str = Form(...), target_weight: float = Form(...)):
     finally:
         db.close()
     return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/targets/delete")
+def delete_target(symbol: str = Form(...)):
+    db = SessionLocal()
+    try:
+        existing = db.get(TargetAllocation, symbol.upper())
+        if existing:
+            db.delete(existing)
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/holdings-history")
+def holdings_history(
+    start: str = Form(...),
+    end: str = Form(...),
+    granularity: str = Form("D"),
+    compare_symbol: str = Form(""),
+):
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    holdings = {s["symbol"]: s["quantity"] for s in snapshots}
+
+    try:
+        portfolio = resample_for_display(portfolio_value_history(holdings, start, end), granularity)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if portfolio.empty:
+        return JSONResponse({"error": "查無資料，換個日期區間試試"}, status_code=400)
+
+    compare_symbol = compare_symbol.strip().upper()
+    if not compare_symbol:
+        return JSONResponse({
+            "mode": "value",
+            "dates": portfolio.index.strftime("%Y-%m-%d").tolist(),
+            "portfolio_value": [round(v, 2) for v in portfolio.tolist()],
+            "portfolio_return": portfolio.iloc[-1] / portfolio.iloc[0] - 1,
+        })
+
+    try:
+        compare_series = resample_for_display(
+            portfolio_value_history({compare_symbol: 1}, start, end), granularity
+        )
+    except Exception as e:
+        return JSONResponse({"error": f"比較標的 {compare_symbol} 查詢失敗: {e}"}, status_code=400)
+
+    aligned = pd.DataFrame({"portfolio": portfolio, "compare": compare_series}).dropna()
+    if aligned.empty:
+        return JSONResponse({"error": "資料無法對齊，換個日期區間試試"}, status_code=400)
+    return JSONResponse({
+        "mode": "compare",
+        "compare_symbol": compare_symbol,
+        "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
+        "portfolio_pct": [(v / aligned["portfolio"].iloc[0] - 1) * 100 for v in aligned["portfolio"]],
+        "compare_pct": [(v / aligned["compare"].iloc[0] - 1) * 100 for v in aligned["compare"]],
+        "portfolio_return": aligned["portfolio"].iloc[-1] / aligned["portfolio"].iloc[0] - 1,
+        "compare_return": aligned["compare"].iloc[-1] / aligned["compare"].iloc[0] - 1,
+    })
 
 
 @app.post("/api/backtest")
