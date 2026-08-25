@@ -6,7 +6,7 @@ trading simulator.
 import pandas as pd
 import yfinance as yf
 
-from app.holdings_history import weighted_return_series
+from app.holdings_history import notable_moves, weighted_return_series
 
 # to_period codes (not the "ME"/"QE"/"YE" *anchored offset* aliases) so we can
 # group the real trading-day index and take actual observed dates as
@@ -93,6 +93,10 @@ def run_backtest(
         "drawdown_trough_date": trough_date.strftime("%Y-%m-%d"),
         "rebalance_dates": [
             d.strftime("%Y-%m-%d") for d in rebalance_dates(portfolio_aligned.index, rebalance)
+        ],
+        "notable_moves": [
+            {"date": m["date"].strftime("%Y-%m-%d"), "change": m["change"]}
+            for m in notable_moves(portfolio_aligned)
         ],
     }
     if no_rebalance is not None:

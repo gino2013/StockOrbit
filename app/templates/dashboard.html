@@ -318,7 +318,10 @@
       <div id="backtest-legend" class="flex flex-wrap gap-4 mt-3 text-xs opacity-60 hidden">
         <span class="flex items-center gap-1.5"><span class="inline-block w-3 border-t-2 border-dashed border-primary"></span>再平衡日</span>
         <span class="flex items-center gap-1.5"><span class="inline-block w-3 h-3 bg-error/20 border border-error/40"></span>最大回撤區間</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 border-t-2 border-success/60"></span>重大波動日（大漲）</span>
+        <span class="flex items-center gap-1.5"><span class="inline-block w-3 border-t-2 border-error/60"></span>重大波動日（大跌）</span>
       </div>
+      <div id="backtest-moves" class="text-xs mt-3"></div>
     </div>
   </div>
 
@@ -642,6 +645,26 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     };
   }
 
+  const movesBox = document.getElementById('backtest-moves');
+  const backtestMovesByDate = {};
+  if (data.notable_moves && data.notable_moves.length) {
+    data.notable_moves.forEach((m, i) => {
+      backtestMovesByDate[m.date] = m.change;
+      annotations[`move${i}`] = {
+        type: 'line', xMin: m.date, xMax: m.date,
+        borderColor: m.change >= 0 ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)', borderWidth: 1.5,
+      };
+    });
+    const items = data.notable_moves
+      .map(m => `<li>• ${m.date}：${m.change >= 0 ? '大漲' : '大跌'} ${Math.abs(m.change * 100).toFixed(1)}%</li>`)
+      .join('');
+    movesBox.innerHTML =
+      `<p class="font-medium mb-1">重大波動日（單日 ±3% 以上）</p><ul class="space-y-0.5 opacity-80">${items}</ul>` +
+      `<p class="opacity-50 mt-1">只標出「哪幾天波動大」，無法自動回溯當天的新聞原因（新聞來源只保留最新報導）。想知道原因可以自己查那天的日期。</p>`;
+  } else {
+    movesBox.innerHTML = '';
+  }
+
   const backtestDatasets = [
     { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
     { label: data.benchmark_label, data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
@@ -663,7 +686,18 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     options: {
       maintainAspectRatio: false,
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
-      plugins: { annotation: { annotations } },
+      plugins: {
+        annotation: { annotations },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const change = backtestMovesByDate[ctx.label];
+              if (change === undefined) return '';
+              return `重大波動：${change >= 0 ? '大漲' : '大跌'} ${Math.abs(change * 100).toFixed(1)}%`;
+            },
+          },
+        },
+      },
     },
   });
 });
