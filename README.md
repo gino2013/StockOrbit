@@ -4,7 +4,7 @@
 
 ## 畫面
 
-<!-- TODO: 貼一張目前 dashboard 的截圖到這裡 -->
+![StockOrbit dashboard](docs/screenshot.png)
 
 ## 功能
 
