@@ -63,15 +63,26 @@ def run_backtest(
     if len(data) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
     portfolio = simulate_rebalanced_portfolio(data[symbols], weights, rebalance, initial_capital)
+    # Always compute the no-rebalance curve too (when a rebalance frequency
+    # was actually chosen) so the chart can show what rebalancing itself
+    # bought you, not just the portfolio vs. the benchmark.
+    no_rebalance = (
+        simulate_rebalanced_portfolio(data[symbols], weights, "none", initial_capital)
+        if rebalance != "none"
+        else None
+    )
 
     benchmark_normalized = weighted_return_series(benchmark_weights or {"SPY": 1.0}, start, end)
-    aligned = pd.DataFrame({"portfolio": portfolio, "benchmark": benchmark_normalized}).dropna()
+    series = {"portfolio": portfolio, "benchmark": benchmark_normalized}
+    if no_rebalance is not None:
+        series["no_rebalance"] = no_rebalance
+    aligned = pd.DataFrame(series).dropna()
     portfolio_aligned = aligned["portfolio"]
     benchmark_aligned = aligned["benchmark"] / aligned["benchmark"].iloc[0] * initial_capital
 
     drawdown, peak_date, trough_date = max_drawdown_details(portfolio_aligned)
 
-    return {
+    result = {
         "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
         "portfolio_value": [round(v, 2) for v in portfolio_aligned.tolist()],
         "benchmark_value": [round(v, 2) for v in benchmark_aligned.tolist()],
@@ -84,3 +95,10 @@ def run_backtest(
             d.strftime("%Y-%m-%d") for d in rebalance_dates(portfolio_aligned.index, rebalance)
         ],
     }
+    if no_rebalance is not None:
+        no_rebalance_aligned = aligned["no_rebalance"]
+        result["no_rebalance_value"] = [round(v, 2) for v in no_rebalance_aligned.tolist()]
+        result["no_rebalance_return"] = (
+            no_rebalance_aligned.iloc[-1] / no_rebalance_aligned.iloc[0] - 1
+        )
+    return result

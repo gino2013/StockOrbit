@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import pandas as pd
+import yfinance as yf
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -57,6 +58,26 @@ def _latest_snapshots(db) -> list[dict]:
         }
         for r in rows
     ]
+
+
+@app.get("/api/symbol-search")
+def symbol_search(q: str = ""):
+    q = q.strip()
+    if len(q) < 2:
+        return JSONResponse([])
+    try:
+        quotes = yf.Search(q, max_results=8).quotes
+    except Exception:
+        return JSONResponse([])
+    seen = set()
+    results = []
+    for quote in quotes:
+        symbol = quote.get("symbol")
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        results.append({"symbol": symbol, "name": quote.get("shortname") or quote.get("longname") or ""})
+    return JSONResponse(results)
 
 
 @app.get("/", response_class=HTMLResponse)

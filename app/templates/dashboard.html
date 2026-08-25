@@ -175,8 +175,11 @@
           </table>
           {% endif %}
           <form action="/api/targets" method="post" class="flex gap-2 mt-1">
-            <input id="target-symbol" name="symbol" placeholder="AAPL" required
-              class="input input-bordered input-sm w-24">
+            <div class="relative">
+              <input id="target-symbol" name="symbol" placeholder="AAPL" required autocomplete="off"
+                class="input input-bordered input-sm w-24">
+              <ul id="target-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
             <input id="target-weight" name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2" required
               class="input input-bordered input-sm w-20">
             <button type="submit" class="btn btn-neutral btn-sm">設定</button>
@@ -212,7 +215,11 @@
             </select>
           </label>
           <label class="text-sm">比較標的（選填）<br>
-            <input name="compare" placeholder="QQQ:0.6,VOO:0.4" class="input input-bordered input-sm mt-1 w-40">
+            <div class="relative">
+              <input id="history-compare" name="compare" placeholder="QQQ:0.6,VOO:0.4" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-40">
+              <ul id="history-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
           </label>
           <button type="submit" class="btn btn-neutral">查詢</button>
         </form>
@@ -251,7 +258,11 @@
             </select>
           </label>
           <label class="text-sm">比較基準<br>
-            <input name="benchmark" placeholder="SPY" value="SPY" class="input input-bordered input-sm mt-1 w-32">
+            <div class="relative">
+              <input id="backtest-benchmark" name="benchmark" placeholder="SPY" value="SPY" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-32">
+              <ul id="backtest-benchmark-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
           </label>
           <button type="submit" class="btn btn-neutral">執行回測</button>
         </form>
@@ -318,6 +329,67 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// Ticker autocomplete. `multi: true` handles the "QQQ:0.6,VOO:0.4" weighted
+// basket syntax — it autocompletes whichever symbol segment is currently
+// being typed, not the whole field.
+function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  if (!input || !list) return;
+  let debounceTimer = null;
+
+  function currentQuery() {
+    const value = input.value;
+    if (!multi) return value.trim();
+    const lastSegment = value.split(',').pop();
+    if (lastSegment.includes(':')) return null; // already past the symbol, typing a weight
+    return lastSegment.trim();
+  }
+
+  function hide() {
+    list.classList.add('hidden');
+    list.innerHTML = '';
+  }
+
+  function choose(symbol) {
+    if (multi) {
+      const parts = input.value.split(',');
+      parts[parts.length - 1] = symbol;
+      input.value = parts.join(',');
+    } else {
+      input.value = symbol;
+    }
+    hide();
+    input.focus();
+  }
+
+  input.addEventListener('input', () => {
+    const query = currentQuery();
+    clearTimeout(debounceTimer);
+    if (!query || query.length < 2) { hide(); return; }
+    debounceTimer = setTimeout(async () => {
+      const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query)}`);
+      const results = await res.json();
+      if (!results.length) { hide(); return; }
+      list.innerHTML = results.map(r =>
+        `<li><a data-symbol="${escapeHtml(r.symbol)}"><b>${escapeHtml(r.symbol)}</b> <span class="opacity-60 text-xs">${escapeHtml(r.name)}</span></a></li>`
+      ).join('');
+      list.classList.remove('hidden');
+    }, 250);
+  });
+
+  list.addEventListener('mousedown', (e) => {
+    const a = e.target.closest('a[data-symbol]');
+    if (a) { e.preventDefault(); choose(a.dataset.symbol); }
+  });
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+}
+
+attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
+attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
+attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
 
 async function loadMarketMoves() {
   const errorBox = document.getElementById('market-moves-error');
@@ -428,13 +500,15 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     ];
     if (data.portfolio_max_drawdown != null) {
       const ddCompare = data.portfolio_max_drawdown <= data.compare_max_drawdown ? '較深' : '較淺';
+      const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
       let volLine = '';
       if (data.portfolio_volatility != null && data.compare_volatility != null) {
         const volCompare = data.portfolio_volatility <= data.compare_volatility ? '較低' : '較高';
-        volLine = `<p>年化波動度：你的組合 ${(data.portfolio_volatility * 100).toFixed(1)}% vs ${escapeHtml(data.compare_label)} ${(data.compare_volatility * 100).toFixed(1)}%（${volCompare}）。</p>`;
+        const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+        volLine = `<p>年化波動度：你的組合 ${volNum(data.portfolio_volatility)} vs ${escapeHtml(data.compare_label)} ${volNum(data.compare_volatility)}（${volCompare}）。</p>`;
       }
       analysisBox.innerHTML =
-        `<p>最大回撤：你的組合 ${fmtPct(data.portfolio_max_drawdown)} vs ${escapeHtml(data.compare_label)} ${fmtPct(data.compare_max_drawdown)}` +
+        `<p>最大回撤：你的組合 ${ddNum(data.portfolio_max_drawdown)} vs ${escapeHtml(data.compare_label)} ${ddNum(data.compare_max_drawdown)}` +
         `（你的組合下跌${ddCompare}）。</p>${volLine}`;
     } else {
       analysisBox.innerHTML = '';
@@ -450,8 +524,10 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
 
   const movesBox = document.getElementById('history-moves');
   const annotations = {};
+  const movesByDate = {};
   if (data.notable_moves && data.notable_moves.length) {
     data.notable_moves.forEach((m, i) => {
+      movesByDate[m.date] = m.change;
       annotations[`move${i}`] = {
         type: 'line', xMin: m.date, xMax: m.date,
         borderColor: m.change >= 0 ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)', borderWidth: 1.5,
@@ -474,7 +550,18 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     options: {
       maintainAspectRatio: false,
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
-      plugins: { annotation: { annotations } },
+      plugins: {
+        annotation: { annotations },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const change = movesByDate[ctx.label];
+              if (change === undefined) return '';
+              return `重大波動：${change >= 0 ? '大漲' : '大跌'} ${Math.abs(change * 100).toFixed(1)}%`;
+            },
+          },
+        },
+      },
     },
   });
 });
@@ -525,15 +612,23 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     };
   }
 
+  const backtestDatasets = [
+    { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
+    { label: data.benchmark_label, data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
+  ];
+  if (data.no_rebalance_value) {
+    backtestDatasets.push({
+      label: '投資組合（不再平衡）', data: data.no_rebalance_value, borderWidth: 1.5, pointRadius: 0,
+      borderColor: '#a78bfa', borderDash: [3, 3],
+    });
+  }
+
   if (backtestChart) backtestChart.destroy();
   backtestChart = new Chart(document.getElementById('backtestChart'), {
     type: 'line',
     data: {
       labels: data.dates,
-      datasets: [
-        { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-        { label: data.benchmark_label, data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
-      ],
+      datasets: backtestDatasets,
     },
     options: {
       maintainAspectRatio: false,
