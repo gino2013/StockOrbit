@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>StockOrbit</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { margin-bottom: 0; }
+  section { margin: 2rem 0; padding-top: 1rem; border-top: 1px solid #ddd; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid #eee; }
+  button { cursor: pointer; padding: 0.5rem 1rem; }
+  .advice li { margin-bottom: 0.4rem; }
+  form.inline { display: flex; gap: 0.5rem; align-items: center; margin: 0.5rem 0; }
+  input { padding: 0.3rem; }
+  #backtest-stats span { margin-right: 1.5rem; }
+</style>
+</head>
+<body>
+<h1>StockOrbit</h1>
+<p>Firstrade 持股追蹤與建議</p>
+
+<form action="/api/refresh" method="post">
+  <button type="submit">重新抓取持股</button>
+</form>
+
+<section>
+  <h2>目前持股</h2>
+  {% if snapshots %}
+  <table>
+    <tr><th>代號</th><th>股數</th><th>市值</th><th>價格</th></tr>
+    {% for s in snapshots %}
+    <tr><td>{{ s.symbol }}</td><td>{{ s.quantity }}</td><td>${{ "%.2f"|format(s.market_value) }}</td><td>${{ "%.2f"|format(s.price) }}</td></tr>
+    {% endfor %}
+  </table>
+  <canvas id="allocationChart" height="200"></canvas>
+  {% else %}
+  <p>還沒有資料，按上面「重新抓取持股」開始。</p>
+  {% endif %}
+</section>
+
+{% if advice %}
+<section>
+  <h2>建議</h2>
+  <ul class="advice">
+    {% for note in advice.advice %}<li>{{ note }}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section>
+  <h2>目標配置</h2>
+  <table>
+    <tr><th>代號</th><th>目標權重</th></tr>
+    {% for symbol, weight in targets.items() %}
+    <tr><td>{{ symbol }}</td><td>{{ "%.0f"|format(weight * 100) }}%</td></tr>
+    {% endfor %}
+  </table>
+  <form class="inline" action="/api/targets" method="post">
+    <input name="symbol" placeholder="代號 e.g. AAPL" required>
+    <input name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2 代表 20%" required>
+    <button type="submit">設定</button>
+  </form>
+</section>
+
+<section>
+  <h2>再平衡策略回測</h2>
+  <form class="inline" id="backtest-form">
+    <label>開始 <input name="start" type="date" required></label>
+    <label>結束 <input name="end" type="date" required></label>
+    <label>再平衡頻率
+      <select name="rebalance">
+        <option value="none">不再平衡</option>
+        <option value="M" selected>每月</option>
+        <option value="Q">每季</option>
+        <option value="A">每年</option>
+      </select>
+    </label>
+    <button type="submit">執行回測</button>
+  </form>
+  <p id="backtest-error" style="color:crimson;"></p>
+  <div id="backtest-stats"></div>
+  <canvas id="backtestChart" height="250"></canvas>
+</section>
+
+<script>
+const allocation = {{ advice.allocation | default({}) | tojson }};
+if (Object.keys(allocation).length) {
+  new Chart(document.getElementById('allocationChart'), {
+    type: 'pie',
+    data: {
+      labels: Object.keys(allocation),
+      datasets: [{ data: Object.values(allocation).map(v => (v * 100).toFixed(1)) }],
+    },
+  });
+}
+
+let backtestChart = null;
+document.getElementById('backtest-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  document.getElementById('backtest-error').textContent = '';
+  const body = new FormData(e.target);
+  const res = await fetch('/api/backtest', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    document.getElementById('backtest-error').textContent = data.error;
+    return;
+  }
+  document.getElementById('backtest-stats').innerHTML =
+    `<span>總報酬: ${(data.total_return * 100).toFixed(1)}%</span>` +
+    `<span>基準報酬 (SPY): ${(data.benchmark_return * 100).toFixed(1)}%</span>` +
+    `<span>最大回撤: ${(data.max_drawdown * 100).toFixed(1)}%</span>`;
+
+  if (backtestChart) backtestChart.destroy();
+  backtestChart = new Chart(document.getElementById('backtestChart'), {
+    type: 'line',
+    data: {
+      labels: data.dates,
+      datasets: [
+        { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0 },
+        { label: '基準 (SPY)', data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0 },
+      ],
+    },
+    options: { scales: { x: { ticks: { maxTicksLimit: 10 } } } },
+  });
+});
+</script>
+</body>
+</html>

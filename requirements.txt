@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+jinja2
+python-multipart
+firstrade
+yfinance
+pandas

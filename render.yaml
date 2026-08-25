@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stockorbit
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FT_USERNAME
+        sync: false
+      - key: FT_PASSWORD
+        sync: false
+      - key: FT_MFA_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
