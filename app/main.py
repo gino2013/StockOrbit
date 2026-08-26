@@ -172,7 +172,10 @@ def market_moves():
         db.close()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
-    symbols = [s["symbol"] for s in snapshots]
+    # "CASH" is our synthetic cash-balance row, not a real ticker — but it
+    # collides with an actual Nasdaq symbol (Pathward Financial), so leaving
+    # it in would pull that unrelated company's price swings/news.
+    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
     try:
         swings = price_swings(symbols)
         news = recent_news(symbols)
