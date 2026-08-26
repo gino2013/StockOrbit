@@ -228,10 +228,13 @@
   </div>
 
   {% if rebalance_plan %}
+  <!-- Section: 再平衡建議金額 -->
+  <h2 class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>再平衡建議金額
+  </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <h2 class="card-title text-base">再平衡建議金額</h2>
-      <p class="text-xs opacity-60 -mt-2">
+      <p class="text-xs opacity-60">
         依目前總市值跟目標配置反推，每檔要加碼／減碼多少錢才能貼齊目標。持股裡沒有設定目標的（現金除外）視為目標 0%，建議全數賣出。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       {% if (target_weight_sum - 1)|abs > 0.01 %}
