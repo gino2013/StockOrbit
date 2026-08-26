@@ -272,7 +272,7 @@
   <div class="card bg-base-100 shadow-sm">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用上面「目標配置」的權重模擬過去表現。「比較基準」預設 SPY，也可以填自訂加權組合，格式如 <code>QQQ:0.6,VOO:0.4</code>。不含手續費/稅金，僅供參考。
+        用上面「目標配置」的權重模擬過去表現。「比較基準」預設 SPY，也可以填一個或多個比較標的，用分號分隔多條線，例如 <code>SPY; QQQ:0.6,VOO:0.4</code>。不含手續費/稅金，僅供參考。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="backtest-form" class="flex flex-wrap gap-3 items-end">
@@ -292,8 +292,8 @@
           </label>
           <label class="text-sm">比較基準<br>
             <div class="relative">
-              <input id="backtest-benchmark" name="benchmark" placeholder="SPY" value="SPY" autocomplete="off"
-                class="input input-bordered input-sm mt-1 w-32">
+              <input id="backtest-benchmark" name="benchmark" placeholder="SPY; QQQ:0.6,VOO:0.4" value="SPY" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-56">
               <ul id="backtest-benchmark-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
             </div>
           </label>
@@ -302,20 +302,8 @@
       </div>
       <div id="backtest-error" class="alert alert-error text-sm mt-3 hidden"></div>
 
-      <div id="backtest-stats" class="stats shadow mt-3 hidden">
-        <div class="stat">
-          <div class="stat-title">總報酬</div>
-          <div id="stat-total-return" class="stat-value text-lg"></div>
-        </div>
-        <div class="stat">
-          <div id="stat-benchmark-title" class="stat-title">比較基準</div>
-          <div id="stat-benchmark-return" class="stat-value text-lg"></div>
-        </div>
-        <div class="stat">
-          <div class="stat-title">最大回撤</div>
-          <div id="stat-max-drawdown" class="stat-value text-lg text-error"></div>
-        </div>
-      </div>
+      <div id="backtest-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div id="backtest-analysis" class="text-sm opacity-80 mt-3"></div>
 
       <div class="h-64 mt-4"><canvas id="backtestChart"></canvas></div>
       <div id="backtest-legend" class="flex flex-wrap gap-4 mt-3 text-xs opacity-60 hidden">
@@ -511,6 +499,7 @@ if (Object.keys(allocation).length) {
 }
 
 const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+const compareColors = ['#f59e0b', '#22c55e', '#ec4899', '#06b6d4', '#eab308', '#f97316'];
 
 // --- 持股歷史走勢 ---
 let historyChart = null;
@@ -528,7 +517,6 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
   }
 
   const analysisBox = document.getElementById('history-analysis');
-  const compareColors = ['#f59e0b', '#22c55e', '#ec4899', '#06b6d4', '#eab308', '#f97316'];
   let datasets;
   if (data.mode === 'compare') {
     const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
@@ -631,14 +619,29 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     return;
   }
 
-  document.getElementById('backtest-stats').classList.remove('hidden');
+  const statsBox = document.getElementById('backtest-stats');
+  const analysisBox = document.getElementById('backtest-analysis');
+  statsBox.classList.remove('hidden');
   document.getElementById('backtest-legend').classList.remove('hidden');
-  const totalEl = document.getElementById('stat-total-return');
-  totalEl.textContent = fmtPct(data.total_return);
-  totalEl.className = `stat-value text-lg ${data.total_return >= 0 ? 'text-success' : 'text-error'}`;
-  document.getElementById('stat-benchmark-title').textContent = `比較基準 (${data.benchmark_label})`;
-  document.getElementById('stat-benchmark-return').textContent = fmtPct(data.benchmark_return);
-  document.getElementById('stat-max-drawdown').textContent = fmtPct(data.max_drawdown);
+
+  const retClass = v => v >= 0 ? 'text-success' : 'text-error';
+  let statsHtml =
+    `<div class="stat"><div class="stat-title">總報酬</div><div class="stat-value text-lg ${retClass(data.total_return)}">${fmtPct(data.total_return)}</div></div>` +
+    `<div class="stat"><div class="stat-title">最大回撤</div><div class="stat-value text-lg text-error">${fmtPct(data.max_drawdown)}</div></div>`;
+  let analysisHtml = '';
+  const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
+  const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+  (data.benchmarks || []).forEach((b) => {
+    statsHtml += `<div class="stat"><div class="stat-title">${escapeHtml(b.label)}</div><div class="stat-value text-lg ${retClass(b.return)}">${fmtPct(b.return)}</div></div>`;
+    const ddCompare = data.max_drawdown <= b.max_drawdown ? '較深' : '較淺';
+    analysisHtml += `<p>最大回撤：投資組合 ${ddNum(data.max_drawdown)} vs ${escapeHtml(b.label)} ${ddNum(b.max_drawdown)}（投資組合下跌${ddCompare}）。</p>`;
+    if (data.volatility != null && b.volatility != null) {
+      const volCompare = data.volatility <= b.volatility ? '較低' : '較高';
+      analysisHtml += `<p>年化波動度：投資組合 ${volNum(data.volatility)} vs ${escapeHtml(b.label)} ${volNum(b.volatility)}（${volCompare}）。</p>`;
+    }
+  });
+  statsBox.innerHTML = statsHtml;
+  analysisBox.innerHTML = analysisHtml;
 
   // Only draw individual rebalance-day lines when there aren't too many to read.
   const annotations = {};
@@ -678,8 +681,13 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
 
   const backtestDatasets = [
     { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-    { label: data.benchmark_label, data: data.benchmark_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8' },
   ];
+  (data.benchmarks || []).forEach((b, i) => {
+    backtestDatasets.push({
+      label: b.label, data: b.value, borderWidth: 1.5, pointRadius: 0,
+      borderColor: compareColors[i % compareColors.length],
+    });
+  });
   if (data.no_rebalance_value) {
     backtestDatasets.push({
       label: '投資組合（不再平衡）', data: data.no_rebalance_value, borderWidth: 1.5, pointRadius: 0,

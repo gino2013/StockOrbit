@@ -308,15 +308,13 @@ def backtest(
             {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
         )
 
-    benchmark_weights, error = _parse_weighted_basket(benchmark or "SPY")
+    benchmarks, error = _parse_multi_basket(benchmark or "SPY")
     if error:
         return JSONResponse({"error": f"比較基準：{error}"}, status_code=400)
-    benchmark_weights = benchmark_weights or {"SPY": 1.0}
-    benchmark_label = " + ".join(f"{s} {w:.0%}" for s, w in benchmark_weights.items())
+    benchmarks = benchmarks or [("SPY 100%", {"SPY": 1.0})]
 
     try:
-        result = run_backtest(targets, start, end, rebalance, benchmark_weights=benchmark_weights)
+        result = run_backtest(targets, start, end, rebalance, benchmarks=benchmarks)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    result["benchmark_label"] = benchmark_label
     return JSONResponse(result)

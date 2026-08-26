@@ -55,7 +55,7 @@ def run_backtest(
     end: str,
     rebalance: str = "M",
     initial_capital: float = 10000,
-    benchmark_weights: dict[str, float] | None = None,
+    benchmarks: list[tuple[str, dict[str, float]]] | None = None,
 ) -> dict:
     symbols = list(weights.keys())
     data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
@@ -65,30 +65,44 @@ def run_backtest(
     portfolio = simulate_rebalanced_portfolio(data[symbols], weights, rebalance, initial_capital)
     # Always compute the no-rebalance curve too (when a rebalance frequency
     # was actually chosen) so the chart can show what rebalancing itself
-    # bought you, not just the portfolio vs. the benchmark.
+    # bought you, not just the portfolio vs. the benchmark(s).
     no_rebalance = (
         simulate_rebalanced_portfolio(data[symbols], weights, "none", initial_capital)
         if rebalance != "none"
         else None
     )
 
-    benchmark_normalized = weighted_return_series(benchmark_weights or {"SPY": 1.0}, start, end)
-    series = {"portfolio": portfolio, "benchmark": benchmark_normalized}
+    benchmarks = benchmarks or [("SPY 100%", {"SPY": 1.0})]
+    benchmark_series = {label: weighted_return_series(bw, start, end) for label, bw in benchmarks}
+    series = {"portfolio": portfolio, **benchmark_series}
     if no_rebalance is not None:
         series["no_rebalance"] = no_rebalance
     aligned = pd.DataFrame(series).dropna()
     portfolio_aligned = aligned["portfolio"]
-    benchmark_aligned = aligned["benchmark"] / aligned["benchmark"].iloc[0] * initial_capital
 
     drawdown, peak_date, trough_date = max_drawdown_details(portfolio_aligned)
+    portfolio_vol = aligned["portfolio"].pct_change().std() * 252**0.5
+
+    benchmark_results = []
+    for label, _ in benchmarks:
+        b = aligned[label] / aligned[label].iloc[0] * initial_capital
+        b_dd, _, _ = max_drawdown_details(b)
+        b_vol = b.pct_change().std() * 252**0.5
+        benchmark_results.append({
+            "label": label,
+            "value": [round(v, 2) for v in b.tolist()],
+            "return": b.iloc[-1] / b.iloc[0] - 1,
+            "max_drawdown": b_dd,
+            "volatility": None if pd.isna(b_vol) else b_vol,
+        })
 
     result = {
         "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
         "portfolio_value": [round(v, 2) for v in portfolio_aligned.tolist()],
-        "benchmark_value": [round(v, 2) for v in benchmark_aligned.tolist()],
+        "benchmarks": benchmark_results,
         "total_return": portfolio_aligned.iloc[-1] / portfolio_aligned.iloc[0] - 1,
-        "benchmark_return": benchmark_aligned.iloc[-1] / benchmark_aligned.iloc[0] - 1,
         "max_drawdown": drawdown,
+        "volatility": None if pd.isna(portfolio_vol) else portfolio_vol,
         "drawdown_peak_date": peak_date.strftime("%Y-%m-%d"),
         "drawdown_trough_date": trough_date.strftime("%Y-%m-%d"),
         "rebalance_dates": [
