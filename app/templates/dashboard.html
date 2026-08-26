@@ -255,8 +255,13 @@
             </div>
           </label>
           <button type="submit" class="btn btn-neutral">查詢</button>
+          <label class="label cursor-pointer gap-2 text-sm ml-auto self-end pb-2">
+            <input type="checkbox" name="exclude_portfolio" value="true" class="checkbox checkbox-sm">
+            移除我的持股組合
+          </label>
         </form>
       </div>
+      <p id="history-exclude-hint" class="text-xs opacity-50 mt-2 hidden">已移除你的持股組合。這樣比較線就不會被你某檔較晚上市的持股限制住最早的起始日期。</p>
       <div id="history-error" class="alert alert-error text-sm mt-3 hidden"></div>
       <div id="history-stats" class="flex flex-wrap gap-3 mt-3 mb-1"></div>
       <div id="history-analysis" class="text-sm opacity-80 mb-2"></div>
@@ -298,8 +303,13 @@
             </div>
           </label>
           <button type="submit" class="btn btn-neutral">執行回測</button>
+          <label class="label cursor-pointer gap-2 text-sm ml-auto self-end pb-2">
+            <input type="checkbox" name="exclude_portfolio" value="true" class="checkbox checkbox-sm">
+            移除我的持股組合
+          </label>
         </form>
       </div>
+      <p id="backtest-exclude-hint" class="text-xs opacity-50 mt-2 hidden">已移除你的投資組合。這樣比較基準就不會被你目標配置裡某檔較晚上市的標的限制住最早的起始日期。</p>
       <div id="backtest-error" class="alert alert-error text-sm mt-3 hidden"></div>
 
       <div id="backtest-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
@@ -516,9 +526,30 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     return;
   }
 
+  document.getElementById('history-exclude-hint').classList.toggle('hidden', !data.portfolio_excluded);
+
   const analysisBox = document.getElementById('history-analysis');
   let datasets;
-  if (data.mode === 'compare') {
+  if (data.mode === 'compare' && data.portfolio_excluded) {
+    const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
+    const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+
+    let statsHtml = '';
+    let analysisHtml = '';
+    data.compare_stats.forEach((c) => {
+      statsHtml += `<span class="text-sm">${escapeHtml(c.label)}: <b class="${c.return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(c.return)}</b></span>`;
+      analysisHtml += `<p>${escapeHtml(c.label)} 最大回撤：${ddNum(c.max_drawdown)}`;
+      if (c.volatility != null) analysisHtml += `，年化波動度：${volNum(c.volatility)}`;
+      analysisHtml += `。</p>`;
+    });
+    document.getElementById('history-stats').innerHTML = statsHtml;
+    analysisBox.innerHTML = analysisHtml;
+
+    datasets = Object.keys(data.compare_series).map((label, i) => ({
+      label: `${label} (報酬 %)`, data: data.compare_series[label], borderWidth: 1.5, pointRadius: 0,
+      borderColor: compareColors[i % compareColors.length],
+    }));
+  } else if (data.mode === 'compare') {
     const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
     const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
 
@@ -619,27 +650,40 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     return;
   }
 
+  document.getElementById('backtest-exclude-hint').classList.toggle('hidden', !data.portfolio_excluded);
+
   const statsBox = document.getElementById('backtest-stats');
   const analysisBox = document.getElementById('backtest-analysis');
   statsBox.classList.remove('hidden');
-  document.getElementById('backtest-legend').classList.remove('hidden');
+  document.getElementById('backtest-legend').classList.toggle('hidden', !!data.portfolio_excluded);
 
   const retClass = v => v >= 0 ? 'text-success' : 'text-error';
-  let statsHtml =
-    `<div class="stat"><div class="stat-title">總報酬</div><div class="stat-value text-lg ${retClass(data.total_return)}">${fmtPct(data.total_return)}</div></div>` +
-    `<div class="stat"><div class="stat-title">最大回撤</div><div class="stat-value text-lg text-error">${fmtPct(data.max_drawdown)}</div></div>`;
-  let analysisHtml = '';
   const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
   const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
-  (data.benchmarks || []).forEach((b) => {
-    statsHtml += `<div class="stat"><div class="stat-title">${escapeHtml(b.label)}</div><div class="stat-value text-lg ${retClass(b.return)}">${fmtPct(b.return)}</div></div>`;
-    const ddCompare = data.max_drawdown <= b.max_drawdown ? '較深' : '較淺';
-    analysisHtml += `<p>最大回撤：投資組合 ${ddNum(data.max_drawdown)} vs ${escapeHtml(b.label)} ${ddNum(b.max_drawdown)}（投資組合下跌${ddCompare}）。</p>`;
-    if (data.volatility != null && b.volatility != null) {
-      const volCompare = data.volatility <= b.volatility ? '較低' : '較高';
-      analysisHtml += `<p>年化波動度：投資組合 ${volNum(data.volatility)} vs ${escapeHtml(b.label)} ${volNum(b.volatility)}（${volCompare}）。</p>`;
-    }
-  });
+  let statsHtml = '';
+  let analysisHtml = '';
+
+  if (data.portfolio_excluded) {
+    (data.benchmarks || []).forEach((b) => {
+      statsHtml += `<div class="stat"><div class="stat-title">${escapeHtml(b.label)}</div><div class="stat-value text-lg ${retClass(b.return)}">${fmtPct(b.return)}</div></div>`;
+      analysisHtml += `<p>${escapeHtml(b.label)} 最大回撤：${ddNum(b.max_drawdown)}`;
+      if (b.volatility != null) analysisHtml += `，年化波動度：${volNum(b.volatility)}`;
+      analysisHtml += `。</p>`;
+    });
+  } else {
+    statsHtml =
+      `<div class="stat"><div class="stat-title">總報酬</div><div class="stat-value text-lg ${retClass(data.total_return)}">${fmtPct(data.total_return)}</div></div>` +
+      `<div class="stat"><div class="stat-title">最大回撤</div><div class="stat-value text-lg text-error">${fmtPct(data.max_drawdown)}</div></div>`;
+    (data.benchmarks || []).forEach((b) => {
+      statsHtml += `<div class="stat"><div class="stat-title">${escapeHtml(b.label)}</div><div class="stat-value text-lg ${retClass(b.return)}">${fmtPct(b.return)}</div></div>`;
+      const ddCompare = data.max_drawdown <= b.max_drawdown ? '較深' : '較淺';
+      analysisHtml += `<p>最大回撤：投資組合 ${ddNum(data.max_drawdown)} vs ${escapeHtml(b.label)} ${ddNum(b.max_drawdown)}（投資組合下跌${ddCompare}）。</p>`;
+      if (data.volatility != null && b.volatility != null) {
+        const volCompare = data.volatility <= b.volatility ? '較低' : '較高';
+        analysisHtml += `<p>年化波動度：投資組合 ${volNum(data.volatility)} vs ${escapeHtml(b.label)} ${volNum(b.volatility)}（${volCompare}）。</p>`;
+      }
+    });
+  }
   statsBox.innerHTML = statsHtml;
   analysisBox.innerHTML = analysisHtml;
 
@@ -679,9 +723,9 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     movesBox.innerHTML = '';
   }
 
-  const backtestDatasets = [
-    { label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-  ];
+  const backtestDatasets = data.portfolio_excluded
+    ? []
+    : [{ label: '投資組合', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' }];
   (data.benchmarks || []).forEach((b, i) => {
     backtestDatasets.push({
       label: b.label, data: b.value, borderWidth: 1.5, pointRadius: 0,

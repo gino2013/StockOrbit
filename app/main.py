@@ -11,7 +11,7 @@ from sqlalchemy import desc
 load_dotenv()
 
 from app.advice import build_advice
-from app.backtest import max_drawdown_details, run_backtest
+from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
 from app.holdings_history import (
@@ -205,7 +205,56 @@ def holdings_history(
     end: str = Form(...),
     granularity: str = Form("D"),
     compare: str = Form(""),
+    exclude_portfolio: bool = Form(False),
 ):
+    baskets, error = _parse_multi_basket(compare)
+    if error:
+        return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
+
+    if exclude_portfolio:
+        # Skip fetching the user's own holdings entirely — useful because
+        # portfolio_value_history() requires every held symbol to have data
+        # on every date, so one recently-listed holding (e.g. an ETF that
+        # IPO'd in 2024) otherwise truncates how far back ANY comparison can
+        # go, even when the comparison tickers themselves have longer history.
+        if not baskets:
+            return JSONResponse({"error": "已移除你的持股組合，至少要填一個比較標的才有東西可畫"}, status_code=400)
+        compare_series_by_label = {}
+        for label, weights in baskets:
+            try:
+                compare_series_by_label[label] = resample_for_display(
+                    weighted_return_series(weights, start, end), granularity
+                )
+            except Exception as e:
+                return JSONResponse({"error": f"比較標的「{label}」查詢失敗: {e}"}, status_code=400)
+        aligned = pd.DataFrame(compare_series_by_label).dropna()
+        if aligned.empty:
+            return JSONResponse({"error": "資料無法對齊，換個日期區間試試"}, status_code=400)
+
+        periods_per_year = {"D": 252, "M": 12, "Q": 4, "A": 1}[granularity]
+        compare_stats = []
+        compare_pct_series = {}
+        for label, _ in baskets:
+            series = aligned[label]
+            dd, _, _ = max_drawdown_details(series)
+            vol = series.pct_change().std() * periods_per_year**0.5
+            compare_stats.append({
+                "label": label,
+                "return": series.iloc[-1] / series.iloc[0] - 1,
+                "max_drawdown": dd,
+                "volatility": None if pd.isna(vol) else vol,
+            })
+            compare_pct_series[label] = [(v / series.iloc[0] - 1) * 100 for v in series]
+
+        return JSONResponse({
+            "mode": "compare",
+            "portfolio_excluded": True,
+            "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
+            "compare_series": compare_pct_series,
+            "compare_stats": compare_stats,
+            "notable_moves": [],
+        })
+
     db = SessionLocal()
     try:
         snapshots = _latest_snapshots(db)
@@ -226,9 +275,6 @@ def holdings_history(
     # only surface them when the chart itself is showing daily granularity.
     moves = notable_moves(portfolio_daily) if granularity == "D" else []
 
-    baskets, error = _parse_multi_basket(compare)
-    if error:
-        return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
     if not baskets:
         return JSONResponse({
             "mode": "value",
@@ -294,7 +340,20 @@ def backtest(
     end: str = Form(...),
     rebalance: str = Form("M"),
     benchmark: str = Form("SPY"),
+    exclude_portfolio: bool = Form(False),
 ):
+    benchmarks, error = _parse_multi_basket(benchmark or "SPY")
+    if error:
+        return JSONResponse({"error": f"比較基準：{error}"}, status_code=400)
+    benchmarks = benchmarks or [("SPY 100%", {"SPY": 1.0})]
+
+    if exclude_portfolio:
+        try:
+            result = run_benchmarks_only(benchmarks, start, end)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse(result)
+
     db = SessionLocal()
     try:
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
@@ -307,11 +366,6 @@ def backtest(
         return JSONResponse(
             {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
         )
-
-    benchmarks, error = _parse_multi_basket(benchmark or "SPY")
-    if error:
-        return JSONResponse({"error": f"比較基準：{error}"}, status_code=400)
-    benchmarks = benchmarks or [("SPY 100%", {"SPY": 1.0})]
 
     try:
         result = run_backtest(targets, start, end, rebalance, benchmarks=benchmarks)

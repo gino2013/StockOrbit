@@ -49,6 +49,37 @@ def max_drawdown_details(series: pd.Series) -> tuple[float, object, object]:
     return float(drawdown.loc[trough_date]), peak_date, trough_date
 
 
+def run_benchmarks_only(
+    benchmarks: list[tuple[str, dict[str, float]]], start: str, end: str, initial_capital: float = 10000
+) -> dict:
+    """Like run_backtest but skips the user's own portfolio entirely — lets
+    benchmark tickers show their full history instead of being truncated to
+    whatever date range the portfolio's own (possibly recently-listed)
+    holdings support."""
+    series = {label: weighted_return_series(bw, start, end) for label, bw in benchmarks}
+    aligned = pd.DataFrame(series).dropna()
+    if aligned.empty:
+        raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
+
+    benchmark_results = []
+    for label, _ in benchmarks:
+        b = aligned[label] / aligned[label].iloc[0] * initial_capital
+        b_dd, _, _ = max_drawdown_details(b)
+        b_vol = b.pct_change().std() * 252**0.5
+        benchmark_results.append({
+            "label": label,
+            "value": [round(v, 2) for v in b.tolist()],
+            "return": b.iloc[-1] / b.iloc[0] - 1,
+            "max_drawdown": b_dd,
+            "volatility": None if pd.isna(b_vol) else b_vol,
+        })
+    return {
+        "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
+        "benchmarks": benchmark_results,
+        "portfolio_excluded": True,
+    }
+
+
 def run_backtest(
     weights: dict[str, float],
     start: str,
