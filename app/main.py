@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import yfinance as yf
@@ -113,8 +113,50 @@ def _latest_usd_twd_rate(db) -> float | None:
     return row.rate if row else None
 
 
+def _latest_snapshot_at(db) -> datetime | None:
+    row = db.query(PositionSnapshot.snapshot_at).order_by(desc(PositionSnapshot.snapshot_at)).first()
+    return row[0] if row else None
+
+
+# ponytail: refreshing on every page load would mean a full Firstrade login
+# (password + TOTP) per visit — slow, and risks Firstrade flagging repeated
+# logins. Only auto-refresh when the last snapshot is older than this.
+AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
+
+
+def _refresh_and_save() -> None:
+    """Log into Firstrade, fetch positions + USD/TWD rate, save a new snapshot.
+    Raises on failure — callers decide whether that's fatal."""
+    positions = fetch_positions()
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        for p in positions:
+            db.add(PositionSnapshot(snapshot_at=now, **p))
+        rate = _fetch_usd_twd_rate()
+        if rate is not None:
+            db.add(ExchangeRateSnapshot(pair="USDTWD", rate=rate, fetched_at=now))
+        db.commit()
+    finally:
+        db.close()
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
+    db = SessionLocal()
+    try:
+        last_snapshot_at = _latest_snapshot_at(db)
+    finally:
+        db.close()
+
+    if last_snapshot_at is not None:
+        stale = last_snapshot_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) - AUTO_REFRESH_STALE_AFTER
+        if stale:
+            try:
+                _refresh_and_save()
+            except Exception:
+                pass  # fall back to showing the stale snapshot rather than breaking the page
+
     db = SessionLocal()
     try:
         snapshots = _latest_snapshots(db)
@@ -145,21 +187,9 @@ def dashboard(request: Request):
 @app.post("/api/refresh")
 def refresh():
     try:
-        positions = fetch_positions()
+        _refresh_and_save()
     except Exception as e:
         return HTMLResponse(f"<p>抓取失敗: {e}</p><p><a href='/'>返回</a></p>", status_code=400)
-
-    db = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        for p in positions:
-            db.add(PositionSnapshot(snapshot_at=now, **p))
-        rate = _fetch_usd_twd_rate()
-        if rate is not None:
-            db.add(ExchangeRateSnapshot(pair="USDTWD", rate=rate, fetched_at=now))
-        db.commit()
-    finally:
-        db.close()
     return RedirectResponse("/", status_code=303)
 
 
