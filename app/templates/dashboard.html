@@ -222,6 +222,51 @@
     </div>
   </div>
 
+  {% if rebalance_plan %}
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-base">再平衡建議金額</h2>
+      <p class="text-xs opacity-60 -mt-2">
+        依目前總市值跟目標配置反推，每檔要加碼／減碼多少錢才能貼齊目標。持股裡沒有設定目標的（現金除外）視為目標 0%，建議全數賣出。不含手續費/稅金，僅供參考，不是投資建議。
+      </p>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th class="text-right">目前市值</th>
+              <th class="text-right">目前佔比</th>
+              <th class="text-right">目標佔比</th>
+              <th class="text-right">目標市值</th>
+              <th class="text-right">建議動作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in rebalance_plan %}
+            <tr>
+              <td class="font-medium">{{ p.symbol }}</td>
+              <td class="text-right">${{ "{:,.0f}".format(p.current_value) }}</td>
+              <td class="text-right opacity-70">{{ "{:.1f}%".format(p.current_weight * 100) }}</td>
+              <td class="text-right opacity-70">{{ "{:.0f}%".format(p.target_weight * 100) }}</td>
+              <td class="text-right opacity-70">${{ "{:,.0f}".format(p.target_value) }}</td>
+              <td class="text-right whitespace-nowrap">
+                {% if p.diff|abs < 1 %}
+                <span class="opacity-40">已達標</span>
+                {% elif p.diff > 0 %}
+                <span class="text-success font-medium">+${{ "{:,.0f}".format(p.diff) }} 買入</span>
+                {% else %}
+                <span class="text-error font-medium">-${{ "{:,.0f}".format(-p.diff) }} 賣出</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Section: 持股歷史走勢 -->
   <h2 class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股歷史走勢

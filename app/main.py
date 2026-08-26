@@ -10,7 +10,7 @@ from sqlalchemy import desc
 
 load_dotenv()
 
-from app.advice import build_advice
+from app.advice import build_advice, build_rebalance_plan
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import ExchangeRateSnapshot, PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
@@ -165,6 +165,7 @@ def dashboard(request: Request):
     finally:
         db.close()
     advice = build_advice(snapshots, targets) if snapshots else None
+    rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
@@ -180,7 +181,13 @@ def dashboard(request: Request):
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        {"snapshots": snapshots, "advice": advice, "targets": targets, "stats": stats},
+        {
+            "snapshots": snapshots,
+            "advice": advice,
+            "targets": targets,
+            "stats": stats,
+            "rebalance_plan": rebalance_plan,
+        },
     )
 
 

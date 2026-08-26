@@ -46,3 +46,33 @@ def build_advice(
         notes.append("目前配置在門檻範圍內，沒有明顯建議調整項目。")
 
     return {"allocation": allocation, "total_value": total_value, "advice": notes}
+
+
+def build_rebalance_plan(snapshots: list[dict], targets: dict[str, float]) -> list[dict]:
+    """For every symbol that's either currently held or has a target weight
+    (excluding CASH, which is funding source/destination, not a position),
+    work out how many dollars to buy or sell to hit the target allocation.
+    A held symbol with no target is treated as target 0% (full sell) —
+    it's not part of the plan, so rebalancing it out is the correct call.
+    """
+    total_value = sum(s["market_value"] for s in snapshots)
+    current_value_by_symbol: dict[str, float] = defaultdict(float)
+    for s in snapshots:
+        if s["symbol"] != "CASH":
+            current_value_by_symbol[s["symbol"]] += s["market_value"]
+
+    symbols = sorted(set(current_value_by_symbol) | set(targets))
+    plan = []
+    for symbol in symbols:
+        current_value = current_value_by_symbol.get(symbol, 0.0)
+        target_weight = targets.get(symbol, 0.0)
+        target_value = target_weight * total_value
+        plan.append({
+            "symbol": symbol,
+            "current_value": current_value,
+            "current_weight": (current_value / total_value) if total_value else 0.0,
+            "target_weight": target_weight,
+            "target_value": target_value,
+            "diff": target_value - current_value,
+        })
+    return sorted(plan, key=lambda p: -abs(p["diff"]))
