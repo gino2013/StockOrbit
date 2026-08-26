@@ -166,6 +166,12 @@ def dashboard(request: Request):
         db.close()
     advice = build_advice(snapshots, targets) if snapshots else None
     rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
+    # Targets are edited one symbol at a time, so nothing stops the stored
+    # set from drifting away from summing to 100% (e.g. adding a 6th target
+    # without re-trimming the other five). When that happens, each row's
+    # dollar figure is still individually correct, but total buys won't
+    # equal total sells — the plan silently implies a deposit/withdrawal.
+    target_weight_sum = sum(targets.values()) if targets else 0
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
@@ -187,6 +193,7 @@ def dashboard(request: Request):
             "targets": targets,
             "stats": stats,
             "rebalance_plan": rebalance_plan,
+            "target_weight_sum": target_weight_sum,
         },
     )
 

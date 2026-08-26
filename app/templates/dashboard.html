@@ -177,6 +177,11 @@
         <div class="card-body">
           <h2 class="card-title text-base">目標配置</h2>
           <p class="text-xs opacity-60 -mt-2">權重總和需為 100%。輸入已存在的代號會覆蓋原本的權重。</p>
+          {% if targets and (target_weight_sum - 1)|abs > 0.01 %}
+          <div class="alert alert-warning text-sm py-2">
+            目前權重總和是 {{ "{:.1f}%".format(target_weight_sum * 100) }}，不是 100%。「再平衡建議金額」的計算會照這個總和換算，買入/賣出總額不會剛好抵銷，等於隱含要另外存入或領出現金。建議調整到剛好 100%。
+          </div>
+          {% endif %}
           {% if targets %}
           <table class="table table-sm">
             <thead>
@@ -229,6 +234,11 @@
       <p class="text-xs opacity-60 -mt-2">
         依目前總市值跟目標配置反推，每檔要加碼／減碼多少錢才能貼齊目標。持股裡沒有設定目標的（現金除外）視為目標 0%，建議全數賣出。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
+      {% if (target_weight_sum - 1)|abs > 0.01 %}
+      <div class="alert alert-warning text-sm py-2">
+        目標配置權重總和是 {{ "{:.1f}%".format(target_weight_sum * 100) }}，不是 100%，以下買入/賣出金額不會剛好互相抵銷。
+      </div>
+      {% endif %}
       <div class="overflow-x-auto">
         <table class="table table-sm">
           <thead>
