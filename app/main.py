@@ -43,6 +43,24 @@ def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | Non
     return weights, None
 
 
+def _parse_multi_basket(raw: str) -> tuple[list[tuple[str, dict[str, float]]] | None, str | None]:
+    """Parse one or more ";"-separated baskets (each "SYM:weight,..." or a
+    bare symbol) for multi-line comparison. Returns (list of (label, weights))
+    or (None, error_message)."""
+    baskets = []
+    for segment in raw.split(";"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        weights, error = _parse_weighted_basket(segment)
+        if error:
+            return None, f"「{segment}」{error}"
+        if weights:
+            label = " + ".join(f"{s} {w:.0%}" for s, w in weights.items())
+            baskets.append((label, weights))
+    return baskets, None
+
+
 def _latest_snapshots(db) -> list[dict]:
     latest = db.query(PositionSnapshot.snapshot_at).order_by(desc(PositionSnapshot.snapshot_at)).first()
     if not latest:
@@ -208,10 +226,10 @@ def holdings_history(
     # only surface them when the chart itself is showing daily granularity.
     moves = notable_moves(portfolio_daily) if granularity == "D" else []
 
-    compare_weights, error = _parse_weighted_basket(compare)
+    baskets, error = _parse_multi_basket(compare)
     if error:
         return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
-    if not compare_weights:
+    if not baskets:
         return JSONResponse({
             "mode": "value",
             "dates": portfolio.index.strftime("%Y-%m-%d").tolist(),
@@ -222,36 +240,46 @@ def holdings_history(
             ],
         })
 
-    compare_label = " + ".join(f"{s} {w:.0%}" for s, w in compare_weights.items())
-    try:
-        compare_series = resample_for_display(
-            weighted_return_series(compare_weights, start, end), granularity
-        )
-    except Exception as e:
-        return JSONResponse({"error": f"比較標的查詢失敗: {e}"}, status_code=400)
+    compare_series_by_label = {}
+    for label, weights in baskets:
+        try:
+            compare_series_by_label[label] = resample_for_display(
+                weighted_return_series(weights, start, end), granularity
+            )
+        except Exception as e:
+            return JSONResponse({"error": f"比較標的「{label}」查詢失敗: {e}"}, status_code=400)
 
-    aligned = pd.DataFrame({"portfolio": portfolio, "compare": compare_series}).dropna()
+    aligned = pd.DataFrame({"portfolio": portfolio, **compare_series_by_label}).dropna()
     if aligned.empty:
         return JSONResponse({"error": "資料無法對齊，換個日期區間試試"}, status_code=400)
 
     periods_per_year = {"D": 252, "M": 12, "Q": 4, "A": 1}[granularity]
     portfolio_dd, _, _ = max_drawdown_details(aligned["portfolio"])
-    compare_dd, _, _ = max_drawdown_details(aligned["compare"])
     portfolio_vol = aligned["portfolio"].pct_change().std() * periods_per_year**0.5
-    compare_vol = aligned["compare"].pct_change().std() * periods_per_year**0.5
+
+    compare_stats = []
+    compare_pct_series = {}
+    for label, _ in baskets:
+        series = aligned[label]
+        dd, _, _ = max_drawdown_details(series)
+        vol = series.pct_change().std() * periods_per_year**0.5
+        compare_stats.append({
+            "label": label,
+            "return": series.iloc[-1] / series.iloc[0] - 1,
+            "max_drawdown": dd,
+            "volatility": None if pd.isna(vol) else vol,
+        })
+        compare_pct_series[label] = [(v / series.iloc[0] - 1) * 100 for v in series]
 
     return JSONResponse({
         "mode": "compare",
-        "compare_label": compare_label,
         "dates": aligned.index.strftime("%Y-%m-%d").tolist(),
         "portfolio_pct": [(v / aligned["portfolio"].iloc[0] - 1) * 100 for v in aligned["portfolio"]],
-        "compare_pct": [(v / aligned["compare"].iloc[0] - 1) * 100 for v in aligned["compare"]],
+        "compare_series": compare_pct_series,
         "portfolio_return": aligned["portfolio"].iloc[-1] / aligned["portfolio"].iloc[0] - 1,
-        "compare_return": aligned["compare"].iloc[-1] / aligned["compare"].iloc[0] - 1,
         "portfolio_max_drawdown": portfolio_dd,
-        "compare_max_drawdown": compare_dd,
         "portfolio_volatility": None if pd.isna(portfolio_vol) else portfolio_vol,
-        "compare_volatility": None if pd.isna(compare_vol) else compare_vol,
+        "compare_stats": compare_stats,
         "notable_moves": [
             {"date": m["date"].strftime("%Y-%m-%d"), "change": m["change"]}
             for m in moves

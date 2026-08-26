@@ -229,7 +229,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用「目前」的持股股數回推過去的市值（假設股數在期間內沒變）。填「比較標的」可以看你的組合跟單一標的或自訂加權組合的報酬率比較，格式如 <code>QQQ:0.6,VOO:0.4</code> 或單純 <code>QQQ</code>。
+        用「目前」的持股股數回推過去的市值（假設股數在期間內沒變）。填「比較標的」可以看你的組合跟一個或多個標的的報酬率比較，用分號分隔多條線，例如 <code>QQQ; VOO; QQQ:0.6,VOO:0.4</code>。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="history-form" class="flex flex-wrap gap-3 items-end">
@@ -249,8 +249,8 @@
           </label>
           <label class="text-sm">比較標的（選填）<br>
             <div class="relative">
-              <input id="history-compare" name="compare" placeholder="QQQ:0.6,VOO:0.4" autocomplete="off"
-                class="input input-bordered input-sm mt-1 w-40">
+              <input id="history-compare" name="compare" placeholder="QQQ; VOO; QQQ:0.6,VOO:0.4" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-64">
               <ul id="history-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
             </div>
           </label>
@@ -375,10 +375,13 @@ function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
   if (!input || !list) return;
   let debounceTimer = null;
 
+  // "," separates symbol:weight pairs within one basket, ";" separates
+  // multiple comparison baskets/lines — split on both, keeping delimiters
+  // (capturing group) so choose() can splice the last segment back in place.
   function currentQuery() {
     const value = input.value;
     if (!multi) return value.trim();
-    const lastSegment = value.split(',').pop();
+    const lastSegment = value.split(/[,;]/).pop();
     if (lastSegment.includes(':')) return null; // already past the symbol, typing a weight
     return lastSegment.trim();
   }
@@ -390,9 +393,9 @@ function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
 
   function choose(symbol) {
     if (multi) {
-      const parts = input.value.split(',');
-      parts[parts.length - 1] = symbol;
-      input.value = parts.join(',');
+      const tokens = input.value.split(/([,;])/);
+      tokens[tokens.length - 1] = symbol;
+      input.value = tokens.join('');
     } else {
       input.value = symbol;
     }
@@ -525,30 +528,35 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
   }
 
   const analysisBox = document.getElementById('history-analysis');
+  const compareColors = ['#f59e0b', '#22c55e', '#ec4899', '#06b6d4', '#eab308', '#f97316'];
   let datasets;
   if (data.mode === 'compare') {
-    document.getElementById('history-stats').innerHTML =
-      `<span class="text-sm">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>` +
-      `<span class="text-sm">${escapeHtml(data.compare_label)}: <b class="${data.compare_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.compare_return)}</b></span>`;
+    const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
+    const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+
+    let statsHtml = `<span class="text-sm">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
+    let analysisHtml = '';
+    data.compare_stats.forEach((c) => {
+      statsHtml += `<span class="text-sm">${escapeHtml(c.label)}: <b class="${c.return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(c.return)}</b></span>`;
+      const ddCompare = data.portfolio_max_drawdown <= c.max_drawdown ? '較深' : '較淺';
+      analysisHtml += `<p>最大回撤：你的組合 ${ddNum(data.portfolio_max_drawdown)} vs ${escapeHtml(c.label)} ${ddNum(c.max_drawdown)}（你的組合下跌${ddCompare}）。</p>`;
+      if (data.portfolio_volatility != null && c.volatility != null) {
+        const volCompare = data.portfolio_volatility <= c.volatility ? '較低' : '較高';
+        analysisHtml += `<p>年化波動度：你的組合 ${volNum(data.portfolio_volatility)} vs ${escapeHtml(c.label)} ${volNum(c.volatility)}（${volCompare}）。</p>`;
+      }
+    });
+    document.getElementById('history-stats').innerHTML = statsHtml;
+    analysisBox.innerHTML = analysisHtml;
+
     datasets = [
       { label: '你的組合 (報酬 %)', data: data.portfolio_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-      { label: `${data.compare_label} (報酬 %)`, data: data.compare_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
     ];
-    if (data.portfolio_max_drawdown != null) {
-      const ddCompare = data.portfolio_max_drawdown <= data.compare_max_drawdown ? '較深' : '較淺';
-      const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
-      let volLine = '';
-      if (data.portfolio_volatility != null && data.compare_volatility != null) {
-        const volCompare = data.portfolio_volatility <= data.compare_volatility ? '較低' : '較高';
-        const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
-        volLine = `<p>年化波動度：你的組合 ${volNum(data.portfolio_volatility)} vs ${escapeHtml(data.compare_label)} ${volNum(data.compare_volatility)}（${volCompare}）。</p>`;
-      }
-      analysisBox.innerHTML =
-        `<p>最大回撤：你的組合 ${ddNum(data.portfolio_max_drawdown)} vs ${escapeHtml(data.compare_label)} ${ddNum(data.compare_max_drawdown)}` +
-        `（你的組合下跌${ddCompare}）。</p>${volLine}`;
-    } else {
-      analysisBox.innerHTML = '';
-    }
+    Object.keys(data.compare_series).forEach((label, i) => {
+      datasets.push({
+        label: `${label} (報酬 %)`, data: data.compare_series[label], borderWidth: 1.5, pointRadius: 0,
+        borderColor: compareColors[i % compareColors.length],
+      });
+    });
   } else {
     document.getElementById('history-stats').innerHTML =
       `<span class="text-sm">期間報酬: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
