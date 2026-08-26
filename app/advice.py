@@ -24,6 +24,8 @@ def build_advice(
     notes = []
 
     for symbol, weight in sorted(allocation.items(), key=lambda kv: -kv[1]):
+        if symbol == "CASH":
+            continue  # holding cash isn't a concentration risk
         if weight > concentration_threshold:
             notes.append(
                 f"{symbol} 佔投資組合 {weight:.1%}，超過集中度門檻 "
