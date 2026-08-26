@@ -36,5 +36,14 @@ class TargetAllocation(Base):
     target_weight = Column(Float, nullable=False)
 
 
+class ExchangeRateSnapshot(Base):
+    __tablename__ = "exchange_rate_snapshots"
+
+    id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    pair = Column(String, nullable=False, default="USDTWD")
+    rate = Column(Float, nullable=False)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
 def init_db():
     Base.metadata.create_all(engine)

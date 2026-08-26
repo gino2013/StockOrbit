@@ -12,7 +12,7 @@ load_dotenv()
 
 from app.advice import build_advice
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
-from app.db import PositionSnapshot, SessionLocal, TargetAllocation, init_db
+from app.db import ExchangeRateSnapshot, PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
 from app.holdings_history import (
     notable_moves,
@@ -98,12 +98,19 @@ def symbol_search(q: str = ""):
     return JSONResponse(results)
 
 
-def _usd_twd_rate() -> float | None:
+def _fetch_usd_twd_rate() -> float | None:
     try:
         history = yf.Ticker("USDTWD=X").history(period="5d")["Close"]
         return None if history.empty else float(history.iloc[-1])
     except Exception:
         return None
+
+
+def _latest_usd_twd_rate(db) -> float | None:
+    row = db.query(ExchangeRateSnapshot).filter(ExchangeRateSnapshot.pair == "USDTWD").order_by(
+        desc(ExchangeRateSnapshot.fetched_at)
+    ).first()
+    return row.rate if row else None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -112,13 +119,13 @@ def dashboard(request: Request):
     try:
         snapshots = _latest_snapshots(db)
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
+        usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
     finally:
         db.close()
     advice = build_advice(snapshots, targets) if snapshots else None
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
-    usd_twd_rate = _usd_twd_rate() if snapshots else None
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
@@ -147,6 +154,9 @@ def refresh():
         now = datetime.now(timezone.utc)
         for p in positions:
             db.add(PositionSnapshot(snapshot_at=now, **p))
+        rate = _fetch_usd_twd_rate()
+        if rate is not None:
+            db.add(ExchangeRateSnapshot(pair="USDTWD", rate=rate, fetched_at=now))
         db.commit()
     finally:
         db.close()

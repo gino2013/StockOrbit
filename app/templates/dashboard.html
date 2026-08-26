@@ -764,6 +764,10 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     },
   });
 });
+
+{% if targets %}
+document.getElementById('backtest-form').requestSubmit();
+{% endif %}
 </script>
 </body>
 </html>
