@@ -31,6 +31,11 @@ from app.holdings_history import (
     weighted_return_series,
 )
 from app.market_moves import price_swings, recent_news
+from app.overseas_income import (
+    dividend_income_for_year,
+    estimate_overseas_income,
+    realized_gains_for_year,
+)
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
 from app.trending import SCREENERS, trending_tickers
@@ -125,6 +130,31 @@ def _latest_usd_twd_rate(db) -> float | None:
     return row.rate if row else None
 
 
+def _average_usdtwd_rate(year: int) -> float | None:
+    try:
+        end = min(datetime.now(), datetime(year, 12, 31)).strftime("%Y-%m-%d")
+        history = yf.download(
+            "USDTWD=X", start=f"{year}-01-01", end=end, auto_adjust=True, progress=False
+        )["Close"]
+        return None if history.empty else float(history.mean().iloc[0])
+    except Exception:
+        return None
+
+
+def _all_transactions(db) -> list[dict]:
+    return [
+        {
+            "symbol": t.symbol,
+            "trans_type": t.trans_type,
+            "report_date": t.report_date,
+            "quantity": t.quantity,
+            "trade_price": t.trade_price,
+            "amount": t.amount,
+        }
+        for t in db.query(Transaction).all()
+    ]
+
+
 def _latest_snapshot_at(db) -> datetime | None:
     row = db.query(PositionSnapshot.snapshot_at).order_by(desc(PositionSnapshot.snapshot_at)).first()
     return row[0] if row else None
@@ -200,17 +230,7 @@ def dashboard(request: Request):
         snapshots = _latest_snapshots(db)
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
-        transactions = [
-            {
-                "symbol": t.symbol,
-                "trans_type": t.trans_type,
-                "report_date": t.report_date,
-                "quantity": t.quantity,
-                "trade_price": t.trade_price,
-                "amount": t.amount,
-            }
-            for t in db.query(Transaction).all()
-        ]
+        transactions = _all_transactions(db)
     finally:
         db.close()
     realized = compute_realized_gains(transactions)
@@ -349,6 +369,23 @@ def risk():
     finally:
         db.close()
     return JSONResponse({"items": items})
+
+
+@app.get("/api/overseas-income")
+def overseas_income(year: int | None = None):
+    year = year or datetime.now().year
+    db = SessionLocal()
+    try:
+        transactions = _all_transactions(db)
+    finally:
+        db.close()
+    realized = compute_realized_gains(transactions)
+    capital_gains = realized_gains_for_year(realized, year)
+    dividends = dividend_income_for_year(transactions, year)
+    rate = _average_usdtwd_rate(year)
+    result = estimate_overseas_income(capital_gains, dividends, rate)
+    result["year"] = year
+    return JSONResponse(result)
 
 
 @app.get("/api/trending")
