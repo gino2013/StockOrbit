@@ -706,7 +706,7 @@ async function loadRisk() {
       <td class="text-right">${fmtPctOrDash(r.volatility_30d)}</td>
       <td class="text-right">${fmtPctOrDash(r.volatility_90d)}</td>
       <td class="text-right text-error">${fmtPctOrDash(r.max_drawdown_1y)}</td>
-      <td class="text-right">${fmtNum(r.beta, 2)}</td>
+      <td class="text-right ${betaClass(r.beta)}">${fmtNum(r.beta, 2)}</td>
       <td class="whitespace-nowrap">${earningsLabel}</td>
     </tr>`;
   }
@@ -715,9 +715,22 @@ async function loadRisk() {
   makeSortable(content.querySelector('table'));
 }
 
-function fmtPctOrDash(v) { return v === null || v === undefined ? '—' : `${(v * 100).toFixed(1)}%`; }
-function fmtNum(v, digits = 1) { return v === null || v === undefined ? '—' : v.toFixed(digits); }
-function fmtPrice(v) { return v === null || v === undefined ? '—' : `$${v.toFixed(2)}`; }
+function fmtPctOrDash(v) { return v === null || v === undefined ? '-' : `${(v * 100).toFixed(1)}%`; }
+function fmtNum(v, digits = 1) { return v === null || v === undefined ? '-' : v.toFixed(digits); }
+function fmtPrice(v) { return v === null || v === undefined ? '-' : `$${v.toFixed(2)}`; }
+
+// Simple, objective color cues (positive/negative, high/low risk) — not a
+// buy/sell signal, just makes the table faster to scan at a glance.
+function posNegClass(v) { return v == null ? '' : v > 0 ? 'text-success' : v < 0 ? 'text-error' : ''; }
+function pegClass(v) { return v == null ? '' : v < 1 ? 'text-success' : v > 2 ? 'text-error' : ''; }
+function debtEquityClass(v) { return v == null ? '' : v < 100 ? 'text-success' : v > 200 ? 'text-error' : 'text-warning'; }
+function betaClass(v) { return v == null ? '' : v < 0.8 ? 'text-success' : v > 1.5 ? 'text-error' : 'text-warning'; }
+function recommendationClass(key) {
+  if (!key) return '';
+  if (['strong_buy', 'buy'].includes(key)) return 'text-success';
+  if (['sell', 'strong_sell', 'underperform'].includes(key)) return 'text-error';
+  return 'text-warning';
+}
 
 async function loadFundamentals() {
   const errorBox = document.getElementById('fundamentals-error');
@@ -741,7 +754,7 @@ async function loadFundamentals() {
     '<th class="text-right">分析師目標價</th><th class="text-right">分析師評等</th></tr></thead><tbody>';
   for (const [symbol, f] of Object.entries(data.fundamentals)) {
     const range = (f.fiftyTwoWeekLow != null && f.fiftyTwoWeekHigh != null)
-      ? `${fmtPrice(f.fiftyTwoWeekLow)} ~ ${fmtPrice(f.fiftyTwoWeekHigh)}` : '—';
+      ? `${fmtPrice(f.fiftyTwoWeekLow)} ~ ${fmtPrice(f.fiftyTwoWeekHigh)}` : '-';
     // ETFs never have PE/PEG/ROE etc regardless of live vs cached, so the
     // badge there would just read as "fetch failed" noise — only show it
     // when there's an actual company (has a sector) behind the cached data.
@@ -750,17 +763,17 @@ async function loadFundamentals() {
       : '';
     html += `<tr>
       <td class="font-medium">${escapeHtml(symbol)}${cacheNote}</td>
-      <td class="opacity-70">${escapeHtml(f.industry || f.sector || '—')}</td>
+      <td class="opacity-70">${escapeHtml(f.industry || f.sector || '-')}</td>
       <td class="text-right">${fmtNum(f.trailingPE)}</td>
-      <td class="text-right">${fmtNum(f.pegRatio)}</td>
-      <td class="text-right">${fmtPctOrDash(f.returnOnEquity)}</td>
-      <td class="text-right">${fmtPctOrDash(f.profitMargins)}</td>
-      <td class="text-right">${fmtPctOrDash(f.revenueGrowth)}</td>
-      <td class="text-right">${fmtNum(f.debtToEquity)}</td>
-      <td class="text-right">${fmtNum(f.beta, 2)}</td>
+      <td class="text-right ${pegClass(f.pegRatio)}">${fmtNum(f.pegRatio)}</td>
+      <td class="text-right ${posNegClass(f.returnOnEquity)}">${fmtPctOrDash(f.returnOnEquity)}</td>
+      <td class="text-right ${posNegClass(f.profitMargins)}">${fmtPctOrDash(f.profitMargins)}</td>
+      <td class="text-right ${posNegClass(f.revenueGrowth)}">${fmtPctOrDash(f.revenueGrowth)}</td>
+      <td class="text-right ${debtEquityClass(f.debtToEquity)}">${fmtNum(f.debtToEquity)}</td>
+      <td class="text-right ${betaClass(f.beta)}">${fmtNum(f.beta, 2)}</td>
       <td class="text-right whitespace-nowrap">${range}</td>
       <td class="text-right">${fmtPrice(f.targetMeanPrice)}</td>
-      <td class="text-right">${escapeHtml(f.recommendationKey || '—')}</td>
+      <td class="text-right ${recommendationClass(f.recommendationKey)}">${escapeHtml(f.recommendationKey || '-')}</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -788,7 +801,7 @@ async function loadTrending() {
   for (const item of data.items) {
     const pct = item.change_pct;
     const pctClass = pct > 0 ? 'text-success' : pct < 0 ? 'text-error' : '';
-    const pctLabel = pct === null || pct === undefined ? '—' : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
+    const pctLabel = pct === null || pct === undefined ? '-' : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
     html += `<li class="border-b border-base-200 pb-2">
       <div class="flex items-center justify-between">
         <span><b>${escapeHtml(item.symbol)}</b> <span class="opacity-60">${escapeHtml(item.name || '')}</span></span>
