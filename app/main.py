@@ -38,6 +38,7 @@ from app.overseas_income import (
 )
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
+from app.xirr import portfolio_cashflows, xirr
 from app.trending import SCREENERS, trending_tickers
 
 app = FastAPI(title="StockOrbit")
@@ -251,10 +252,13 @@ def dashboard(request: Request):
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
+    cashflows = portfolio_cashflows(transactions, total_value, datetime.now().date())
+    annualized_return = xirr(cashflows)
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
         "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
+        "annualized_return": annualized_return,
         "position_count": len(snapshots),
         "usd_twd_rate": usd_twd_rate,
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,

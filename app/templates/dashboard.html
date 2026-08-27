@@ -78,6 +78,15 @@
         {{ "{:+.1%}".format(stats.total_gain_pct) }}
       </div>
     </div>
+    {% if stats.annualized_return is not none %}
+    <div class="stat">
+      <div class="stat-title">年化報酬率（XIRR）</div>
+      <div class="stat-value text-2xl {{ 'text-success' if stats.annualized_return >= 0 else 'text-error' }}">
+        {{ "{:+.1%}".format(stats.annualized_return) }}
+      </div>
+      <div class="stat-desc">考慮每筆入金時間點</div>
+    </div>
+    {% endif %}
     <div class="stat">
       <div class="stat-title">持股檔數</div>
       <div class="stat-value text-2xl">{{ stats.position_count }}</div>
