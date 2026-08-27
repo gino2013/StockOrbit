@@ -43,4 +43,6 @@ def fetch_fundamentals(symbols: list[str], debug: bool = False) -> dict[str, dic
         result[symbol] = {field: info.get(field) for field in FIELDS}
         if debug:
             result[symbol]["_error"] = error
+            result[symbol]["_key_count"] = len(info)
+            result[symbol]["_sample_keys"] = sorted(info.keys())[:15]
     return result
