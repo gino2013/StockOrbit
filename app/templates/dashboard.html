@@ -251,7 +251,7 @@
       </div>
       {% endif %}
       <div class="overflow-x-auto">
-        <table class="table table-sm">
+        <table id="rebalance-table" class="table table-sm">
           <thead>
             <tr>
               <th>代號</th>
@@ -522,6 +522,52 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Click a <th> to sort the table body by that column (click again to
+// reverse). Parses "$1,234", "12.3%", "1.38" etc. by stripping symbols;
+// falls back to alphabetical for non-numeric columns (代號, 產業, 建議動作...).
+// Rows whose cell isn't numeric always sort to the end regardless of column.
+function makeSortable(table) {
+  if (!table) return;
+  const headers = table.querySelectorAll('thead th');
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  headers.forEach((th, idx) => {
+    th.classList.add('cursor-pointer', 'select-none', 'hover:bg-base-200');
+    th.addEventListener('click', () => {
+      const dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+      headers.forEach((h) => {
+        delete h.dataset.sortDir;
+        h.querySelector('.sort-arrow')?.remove();
+      });
+      th.dataset.sortDir = dir;
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow opacity-60';
+      arrow.textContent = dir === 'asc' ? ' ▲' : ' ▼';
+      th.appendChild(arrow);
+
+      const parseCell = (row) => {
+        const text = row.children[idx]?.textContent.trim() ?? '';
+        const num = parseFloat(text.replace(/[$,%+]/g, ''));
+        return { text, num: Number.isNaN(num) ? null : num };
+      };
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const av = parseCell(a);
+        const bv = parseCell(b);
+        if (av.num !== null && bv.num !== null) {
+          return dir === 'asc' ? av.num - bv.num : bv.num - av.num;
+        }
+        if (av.num !== null) return -1;
+        if (bv.num !== null) return 1;
+        return dir === 'asc' ? av.text.localeCompare(bv.text) : bv.text.localeCompare(av.text);
+      });
+      rows.forEach((r) => tbody.appendChild(r));
+    });
+  });
+}
+makeSortable(document.getElementById('holdings-table'));
+makeSortable(document.getElementById('rebalance-table'));
+
 // Ticker autocomplete. `multi: true` handles the "QQQ:0.6,VOO:0.4" weighted
 // basket syntax — it autocompletes whichever symbol segment is currently
 // being typed, not the whole field.
@@ -666,6 +712,7 @@ async function loadRisk() {
   }
   html += '</tbody></table>';
   content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
 }
 
 function fmtPctOrDash(v) { return v === null || v === undefined ? '—' : `${(v * 100).toFixed(1)}%`; }
@@ -718,6 +765,7 @@ async function loadFundamentals() {
   }
   html += '</tbody></table>';
   content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
 }
 
 async function loadTrending() {
