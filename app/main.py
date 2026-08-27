@@ -232,7 +232,7 @@ def market_moves():
 
 
 @app.get("/api/fundamentals")
-def fundamentals():
+def fundamentals(debug: bool = False):
     db = SessionLocal()
     try:
         snapshots = _latest_snapshots(db)
@@ -242,7 +242,7 @@ def fundamentals():
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
     try:
-        data = fetch_fundamentals(symbols)
+        data = fetch_fundamentals(symbols, debug=debug)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"fundamentals": data})

@@ -8,10 +8,13 @@ date) that historically tends to coincide with bigger moves, so the user can
 judge risk for themselves.
 """
 
+import logging
 from datetime import date, datetime
 
 import pandas as pd
 import yfinance as yf
+
+logger = logging.getLogger(__name__)
 
 from app.backtest import max_drawdown_details
 
@@ -39,9 +42,12 @@ def _next_earnings_date(symbol: str) -> date | None:
     try:
         calendar = yf.Ticker(symbol).calendar
         dates = calendar.get("Earnings Date") if calendar else None
-    except Exception:
+    except Exception as e:
+        logger.warning("calendar(%s) failed: %s: %s", symbol, type(e).__name__, e)
         dates = None
     if not dates:
+        if dates is None:
+            logger.warning("calendar(%s) returned no Earnings Date — likely blocked/rate-limited by Yahoo", symbol)
         return None
     return min(d for d in dates if isinstance(d, date))
 
