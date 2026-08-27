@@ -45,10 +45,17 @@ def fetch_fundamentals(symbols: list[str], debug: bool = False) -> dict[str, dic
             logger.warning("get_info(%s) failed: %s: %s", symbol, type(e).__name__, e)
             info = {}
             error = f"{type(e).__name__}: {e}"
-        if not info:
-            error = error or "empty response (Yahoo likely rejected the auth crumb)"
-        result[symbol] = {field: info.get(field) for field in FIELDS}
-        result[symbol]["_fetch_ok"] = bool(info)
+        fields = {field: info.get(field) for field in FIELDS}
+        # info can be non-empty yet still useless: the "complementary" PEG
+        # fetch (a different, unauthenticated endpoint) succeeds even when
+        # the main quoteSummary call was blocked, leaving a dict with only
+        # {"trailingPegRatio": ...} — none of our FIELDS. So "did this work"
+        # means at least one of our fields actually got populated.
+        fetch_ok = any(v is not None for v in fields.values())
+        if not fetch_ok:
+            error = error or "no fields populated (Yahoo likely rejected the auth crumb)"
+        result[symbol] = fields
+        result[symbol]["_fetch_ok"] = fetch_ok
         if debug:
             result[symbol]["_error"] = error
     return result
