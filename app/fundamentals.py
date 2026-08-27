@@ -17,6 +17,7 @@ import yfinance as yf
 logger = logging.getLogger(__name__)
 
 FIELDS = [
+    "quoteType",
     "sector",
     "industry",
     "trailingPE",

@@ -58,6 +58,7 @@ class FundamentalsCache(Base):
     __tablename__ = "fundamentals_cache"
 
     symbol = Column(String, primary_key=True)
+    quoteType = Column(String)
     sector = Column(String)
     industry = Column(String)
     trailingPE = Column(Float)

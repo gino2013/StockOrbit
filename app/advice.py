@@ -77,7 +77,7 @@ def build_advice(
     if sector_allocation:
         sector_total = sum(sector_allocation.values()) or 1
         for sector, value in sorted(sector_allocation.items(), key=lambda kv: -kv[1]):
-            if sector in ("現金", "ETF／其他"):
+            if sector in ("CASH", "ETF"):
                 continue
             weight = value / sector_total
             if weight > sector_concentration_threshold:
