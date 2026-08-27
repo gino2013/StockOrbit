@@ -41,13 +41,25 @@ def suggest_cash_deployment(snapshots: list[dict], targets: dict[str, float], ca
         # symbols by splitting proportionally to each one's deficit size.
         buys = {symbol: cash_amount * (deficit / total_deficit) for symbol, deficit in deficits.items()}
 
-    plan = [
-        {
-            "symbol": symbol,
-            "current_value": current_value_by_symbol.get(symbol, 0.0),
-            "buy_amount": amount,
-        }
-        for symbol, amount in buys.items()
-        if amount > 0.01
-    ]
+    # Every targeted symbol is included — even a $0 buy — because growing
+    # new_total dilutes everyone's weight a little, not just the symbols
+    # that got cash. The resulting new_weight lets the caller see exactly
+    # how close (or not) this gets to target, rather than assuming a
+    # buy-only pass lands exactly on it.
+    plan = []
+    for symbol, target_weight in targets.items():
+        current_value = current_value_by_symbol.get(symbol, 0.0)
+        buy_amount = buys.get(symbol, 0.0)
+        new_value = current_value + buy_amount
+        plan.append(
+            {
+                "symbol": symbol,
+                "current_value": current_value,
+                "current_weight": (current_value / current_total) if current_total else 0.0,
+                "buy_amount": buy_amount,
+                "new_value": new_value,
+                "new_weight": (new_value / new_total) if new_total else 0.0,
+                "target_weight": target_weight,
+            }
+        )
     return sorted(plan, key=lambda p: -p["buy_amount"])
