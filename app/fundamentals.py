@@ -19,6 +19,26 @@ def _dependency_versions() -> dict[str, str]:
         versions["curl_cffi"] = f"unavailable: {e}"
     return versions
 
+
+def _raw_quote_summary_error(symbol: str) -> str | None:
+    """yfinance silently swallows the HTTPError from the quoteSummary call
+    (YfConfig.debug.hide_exceptions defaults True) and returns None, which is
+    why get_info() can come back near-empty with no exception on our side.
+    Force it to raise so we can see the real status/body for diagnosis.
+    """
+    from yfinance.config import YfConfig
+
+    previous = YfConfig.debug.hide_exceptions
+    YfConfig.debug.hide_exceptions = False
+    try:
+        yf.Ticker(symbol)._quote._fetch(modules=["summaryDetail"])
+        return None
+    except Exception as e:
+        body = getattr(getattr(e, "response", None), "text", "")
+        return f"{type(e).__name__}: {e} | body[:300]={body[:300]!r}"
+    finally:
+        YfConfig.debug.hide_exceptions = previous
+
 FIELDS = [
     "sector",
     "industry",
@@ -42,6 +62,7 @@ def fetch_fundamentals(symbols: list[str], debug: bool = False) -> dict[str, dic
     result = {}
     if debug:
         result["_versions"] = _dependency_versions()
+        result["_raw_quote_summary_error"] = _raw_quote_summary_error(symbols[0]) if symbols else None
     for symbol in symbols:
         error = None
         try:
