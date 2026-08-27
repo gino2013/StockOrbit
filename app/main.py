@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 import yfinance as yf
@@ -15,6 +15,7 @@ from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import ExchangeRateSnapshot, PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
 from app.fundamentals import fetch_fundamentals
+from app.fundamentals_cache import load_fundamentals
 from app.holdings_history import (
     notable_moves,
     parse_weights,
@@ -236,15 +237,23 @@ def fundamentals(debug: bool = False):
     db = SessionLocal()
     try:
         snapshots = _latest_snapshots(db)
+        if not snapshots:
+            return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+        symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+        try:
+            data = fetch_fundamentals(symbols, debug=debug)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        # Render can't reach Yahoo's quoteSummary API (issue #9) — fall back to
+        # the last cache a GitHub Actions job (unaffected by that block) wrote.
+        stale_symbols = [s for s in symbols if not data.get(s, {}).get("_fetch_ok")]
+        if stale_symbols:
+            cached = load_fundamentals(db, stale_symbols)
+            for symbol, cached_fields in cached.items():
+                fetched_at = cached_fields.pop("fetched_at", None)
+                data[symbol] = {**data[symbol], **cached_fields, "_cached_at": fetched_at}
     finally:
         db.close()
-    if not snapshots:
-        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
-    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
-    try:
-        data = fetch_fundamentals(symbols, debug=debug)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"fundamentals": data})
 
 
@@ -253,15 +262,28 @@ def risk():
     db = SessionLocal()
     try:
         snapshots = _latest_snapshots(db)
+        if not snapshots:
+            return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+        symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+        try:
+            items = compute_risk_metrics(symbols)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        # Render can't reach Yahoo's calendar API (issue #9) — fall back to the
+        # last cache a GitHub Actions job (unaffected by that block) wrote.
+        stale_symbols = [item["symbol"] for item in items if not item.pop("earnings_fetch_ok")]
+        if stale_symbols:
+            cached = load_fundamentals(db, stale_symbols)
+            by_symbol = {item["symbol"]: item for item in items}
+            for symbol, cached_fields in cached.items():
+                next_earnings = cached_fields.get("next_earnings_date")
+                if next_earnings:
+                    days = (date.fromisoformat(next_earnings) - datetime.now().date()).days
+                    by_symbol[symbol]["next_earnings_date"] = next_earnings
+                    by_symbol[symbol]["earnings_soon"] = 0 <= days <= 14
+                    by_symbol[symbol]["_cached_at"] = cached_fields.get("fetched_at")
     finally:
         db.close()
-    if not snapshots:
-        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
-    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
-    try:
-        items = compute_risk_metrics(symbols)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
 
 

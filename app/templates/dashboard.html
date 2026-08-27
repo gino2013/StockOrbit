@@ -649,8 +649,11 @@ async function loadRisk() {
     '<th>代號</th><th class="text-right">波動度(30日)</th><th class="text-right">波動度(90日)</th>' +
     '<th class="text-right">近1年最大回撤</th><th class="text-right">Beta (vs SPY)</th><th>下次財報</th></tr></thead><tbody>';
   for (const r of data.items) {
+    const cacheNote = r._cached_at
+      ? ` <span class="opacity-40 text-xs" title="即時查詢失敗，顯示上次快取資料">(快取 ${r._cached_at.slice(0, 10)})</span>`
+      : '';
     const earningsLabel = r.next_earnings_date
-      ? `${r.next_earnings_date}${r.earnings_soon ? ' <span class="badge badge-warning badge-sm">近期有財報</span>' : ''}`
+      ? `${r.next_earnings_date}${r.earnings_soon ? ' <span class="badge badge-warning badge-sm">近期有財報</span>' : ''}${cacheNote}`
       : '—';
     html += `<tr>
       <td class="font-medium">${escapeHtml(r.symbol)}</td>
@@ -692,8 +695,11 @@ async function loadFundamentals() {
   for (const [symbol, f] of Object.entries(data.fundamentals)) {
     const range = (f.fiftyTwoWeekLow != null && f.fiftyTwoWeekHigh != null)
       ? `${fmtPrice(f.fiftyTwoWeekLow)} ~ ${fmtPrice(f.fiftyTwoWeekHigh)}` : '—';
+    const cacheNote = f._cached_at
+      ? ` <span class="opacity-40 text-xs" title="即時查詢失敗，顯示上次快取資料">(快取 ${f._cached_at.slice(0, 10)})</span>`
+      : '';
     html += `<tr>
-      <td class="font-medium">${escapeHtml(symbol)}</td>
+      <td class="font-medium">${escapeHtml(symbol)}${cacheNote}</td>
       <td class="opacity-70">${escapeHtml(f.industry || f.sector || '—')}</td>
       <td class="text-right">${fmtNum(f.trailingPE)}</td>
       <td class="text-right">${fmtNum(f.pegRatio)}</td>

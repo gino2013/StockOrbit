@@ -38,18 +38,23 @@ def beta_vs_benchmark(returns: pd.Series, benchmark_returns: pd.Series) -> float
     return float(aligned.iloc[:, 0].cov(aligned.iloc[:, 1]) / variance)
 
 
-def _next_earnings_date(symbol: str) -> date | None:
+def fetch_next_earnings_date(symbol: str) -> tuple[date | None, bool]:
+    """Returns (date, fetch_ok). fetch_ok=False means the calendar call itself
+    failed/came back empty (Yahoo blocked us) — as opposed to succeeding with
+    a genuine "no upcoming earnings" answer — so callers know when it's worth
+    falling back to a cached value instead of trusting this "None"."""
     try:
         calendar = yf.Ticker(symbol).calendar
-        dates = calendar.get("Earnings Date") if calendar else None
     except Exception as e:
         logger.warning("calendar(%s) failed: %s: %s", symbol, type(e).__name__, e)
-        dates = None
+        return None, False
+    if not calendar:
+        logger.warning("calendar(%s) returned empty — likely blocked/rate-limited by Yahoo", symbol)
+        return None, False
+    dates = calendar.get("Earnings Date")
     if not dates:
-        if dates is None:
-            logger.warning("calendar(%s) returned no Earnings Date — likely blocked/rate-limited by Yahoo", symbol)
-        return None
-    return min(d for d in dates if isinstance(d, date))
+        return None, True
+    return min(d for d in dates if isinstance(d, date)), True
 
 
 def compute_risk_metrics(
@@ -76,7 +81,7 @@ def compute_risk_metrics(
             if benchmark_returns is not None
             else None
         )
-        next_earnings = _next_earnings_date(symbol)
+        next_earnings, earnings_fetch_ok = fetch_next_earnings_date(symbol)
         days_to_earnings = (next_earnings - today).days if next_earnings else None
         results.append(
             {
@@ -86,6 +91,7 @@ def compute_risk_metrics(
                 "max_drawdown_1y": max_dd,
                 "beta": beta,
                 "next_earnings_date": next_earnings.isoformat() if next_earnings else None,
+                "earnings_fetch_ok": earnings_fetch_ok,
                 "earnings_soon": days_to_earnings is not None
                 and 0 <= days_to_earnings <= earnings_window_days,
             }

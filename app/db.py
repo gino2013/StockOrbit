@@ -45,5 +45,36 @@ class ExchangeRateSnapshot(Base):
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
+class FundamentalsCache(Base):
+    """Last-known-good yfinance fundamentals/earnings-date per symbol.
+
+    Render's outbound IP gets a 401 Invalid Crumb from Yahoo's quoteSummary
+    API (see issue #9) so it can never populate this itself — a scheduled
+    GitHub Actions job (unaffected by that block) refreshes this table, and
+    the dashboard falls back to it whenever a live fetch comes back empty.
+    """
+
+    __tablename__ = "fundamentals_cache"
+
+    symbol = Column(String, primary_key=True)
+    sector = Column(String)
+    industry = Column(String)
+    trailingPE = Column(Float)
+    forwardPE = Column(Float)
+    pegRatio = Column(Float)
+    returnOnEquity = Column(Float)
+    profitMargins = Column(Float)
+    revenueGrowth = Column(Float)
+    earningsGrowth = Column(Float)
+    debtToEquity = Column(Float)
+    beta = Column(Float)
+    fiftyTwoWeekLow = Column(Float)
+    fiftyTwoWeekHigh = Column(Float)
+    targetMeanPrice = Column(Float)
+    recommendationKey = Column(String)
+    next_earnings_date = Column(String)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_db():
     Base.metadata.create_all(engine)

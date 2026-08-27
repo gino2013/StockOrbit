@@ -4,8 +4,10 @@ shown as reference data. No buy/sell interpretation added.
 Known limitation: on Render, Yahoo Finance rejects the crumb-authenticated
 quoteSummary API this relies on (401 Invalid Crumb) — an IP-reputation block
 on their side that neither retrying nor switching yfinance's cookie strategy
-('basic' vs 'csrf') gets around. Works fine locally. `debug=1` surfaces the
-raw error per symbol for whenever this is worth revisiting.
+('basic' vs 'csrf') gets around. Works fine locally, and from GitHub Actions
+runners (unaffected — see the scheduled cache-refresh workflow), so callers
+should fall back to `FundamentalsCache` (app/db.py) when `_fetch_ok` is
+False. `debug=1` additionally surfaces the raw error per symbol.
 """
 
 import logging
@@ -46,6 +48,7 @@ def fetch_fundamentals(symbols: list[str], debug: bool = False) -> dict[str, dic
         if not info:
             error = error or "empty response (Yahoo likely rejected the auth crumb)"
         result[symbol] = {field: info.get(field) for field in FIELDS}
+        result[symbol]["_fetch_ok"] = bool(info)
         if debug:
             result[symbol]["_error"] = error
     return result
