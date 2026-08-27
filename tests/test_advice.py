@@ -60,10 +60,10 @@ def demo():
         sector_allocation={"Technology": 8000, "Healthcare": 1000},
     )
     assert any("Technology 類股" in note for note in sector_advice["advice"])
-    # "現金"/"其他" buckets from compute_sector_allocation() are never flagged.
+    # "現金"/"ETF／其他" buckets from compute_sector_allocation() are never flagged.
     no_sector_flag = build_advice(
         balanced_snapshots, targets={"AAPL": 1 / 3, "MSFT": 1 / 3, "GOOG": 1 / 3}, concentration_threshold=0.9,
-        sector_allocation={"現金": 8000, "其他": 1000},
+        sector_allocation={"現金": 8000, "ETF／其他": 1000},
     )
     assert "沒有明顯建議" in no_sector_flag["advice"][0]
 

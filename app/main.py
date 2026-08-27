@@ -41,7 +41,7 @@ from app.overseas_income import (
 )
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
-from app.sector_allocation import compute_sector_allocation
+from app.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
 
@@ -244,6 +244,7 @@ def dashboard(request: Request):
     finally:
         db.close()
     sector_allocation = compute_sector_allocation(snapshots, sector_by_symbol) if snapshots else {}
+    symbol_sector_buckets = symbol_buckets(snapshots, sector_by_symbol) if snapshots else {}
     allocation_chart_data = chart_series(allocation_history(snapshot_rows)) if snapshot_rows else None
     realized = compute_realized_gains(transactions)
     realized_summary = {
@@ -293,6 +294,7 @@ def dashboard(request: Request):
             "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
             "dividend_rows": dividend_rows,
             "sector_allocation": sector_allocation,
+            "symbol_sector_buckets": symbol_sector_buckets,
             "allocation_chart_data": allocation_chart_data,
             "total_ttm_dividends": total_ttm_dividends,
         },
