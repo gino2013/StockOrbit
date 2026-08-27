@@ -299,6 +299,71 @@
   </div>
   {% endif %}
 
+  {% if realized_summary %}
+  <!-- Section: 已實現損益 -->
+  <h2 id="section-realized" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>已實現損益
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">從 Firstrade 交易紀錄用 FIFO（先買先賣）算出的已實現損益，只算賣出的部位，跟上面「未實現損益」是分開的兩個數字。</p>
+      <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200">
+        <div class="stat">
+          <div class="stat-title">今年度已實現損益</div>
+          <div class="stat-value text-xl {{ 'text-success' if realized_summary.this_year.total_gain >= 0 else 'text-error' }}">
+            {{ '+' if realized_summary.this_year.total_gain >= 0 else '' }}${{ "{:,.0f}".format(realized_summary.this_year.total_gain) }}
+          </div>
+          <div class="stat-desc">{{ realized_summary.this_year.trade_count }} 筆交易</div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">累計已實現損益</div>
+          <div class="stat-value text-xl {{ 'text-success' if realized_summary.all_time.total_gain >= 0 else 'text-error' }}">
+            {{ '+' if realized_summary.all_time.total_gain >= 0 else '' }}${{ "{:,.0f}".format(realized_summary.all_time.total_gain) }}
+          </div>
+          <div class="stat-desc">{{ realized_summary.all_time.trade_count }} 筆交易</div>
+        </div>
+      </div>
+      {% if realized_summary.all_time.has_unmatched %}
+      <div class="alert alert-warning text-sm py-2 mt-2">
+        有賣出數量超過我們交易紀錄中買入數量的情況（可能是歷史紀錄抓取範圍之前買的），這部分的成本算作 0，已實現損益可能被高估。
+      </div>
+      {% endif %}
+      {% if realized_trades %}
+      <div class="overflow-x-auto mt-2">
+        <table id="realized-table" class="table table-sm">
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th>賣出日期</th>
+              <th class="text-right">股數</th>
+              <th class="text-right">賣出金額</th>
+              <th class="text-right">成本</th>
+              <th class="text-right">損益</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in realized_trades %}
+            <tr>
+              <td class="font-medium">{{ r.symbol }}</td>
+              <td>{{ r.report_date }}</td>
+              <td class="text-right">{{ "{:.4f}".format(r.quantity) }}</td>
+              <td class="text-right">${{ "{:,.2f}".format(r.proceeds) }}</td>
+              <td class="text-right">${{ "{:,.2f}".format(r.cost_basis) }}</td>
+              <td class="text-right {{ 'text-success' if r.gain >= 0 else 'text-error' }}">
+                {{ '+' if r.gain >= 0 else '' }}${{ "{:,.2f}".format(r.gain) }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-sm opacity-60 mt-2">目前沒有已實現損益紀錄（尚未賣出任何持股）。</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if snapshots %}
   <!-- Section: 風險與波動指標 -->
   <h2 id="section-risk" class="flex items-center gap-2 text-lg font-bold mb-3">
@@ -470,6 +535,7 @@
         <ul>
           <li><a href="#section-holdings">持股與配置</a></li>
           <li><a href="#section-rebalance">再平衡建議金額</a></li>
+          <li><a href="#section-realized">已實現損益</a></li>
         </ul>
       </details>
     </li>
@@ -585,6 +651,7 @@ function makeSortable(table) {
 }
 makeSortable(document.getElementById('holdings-table'));
 makeSortable(document.getElementById('rebalance-table'));
+makeSortable(document.getElementById('realized-table'));
 
 // Ticker autocomplete. `multi: true` handles the "QQQ:0.6,VOO:0.4" weighted
 // basket syntax — it autocompletes whichever symbol segment is currently
