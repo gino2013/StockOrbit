@@ -159,7 +159,10 @@
       {% if advice %}
       <div class="card bg-base-100 shadow-sm">
         <div class="card-body">
-          <h2 class="card-title text-base">建議</h2>
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-base">建議</h2>
+            <button type="button" onclick="loadAdvancedAdvice()" class="btn btn-ghost btn-xs">查詢進階建議</button>
+          </div>
           <ul class="space-y-2 text-sm">
             {% for note in advice.advice %}
             <li class="flex gap-2">
@@ -168,6 +171,9 @@
             </li>
             {% endfor %}
           </ul>
+          <p class="text-xs opacity-50 mt-1">進階建議會查最近大漲大跌、即將公布的財報、近一年最大回撤，都是回顧過去的客觀數據，不是預測未來走勢或黑天鵝事件，不構成投資建議。</p>
+          <div id="advanced-advice-error" class="alert alert-error text-sm hidden mt-2"></div>
+          <ul id="advanced-advice-list" class="space-y-2 text-sm mt-2"></ul>
         </div>
       </div>
       {% endif %}
@@ -644,6 +650,63 @@ attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
 attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
 
+// Combines already-existing endpoints (market-moves' price swings, risk's
+// earnings-date/drawdown) with the allocation/targets already embedded in
+// this page, rather than adding new backend logic — cross-referencing a
+// swing against how far that symbol already is from its target turns "IONQ
+// is up 24%" into "...and it's now 1.3pp over target, maybe trim it".
+async function loadAdvancedAdvice() {
+  const errorBox = document.getElementById('advanced-advice-error');
+  const list = document.getElementById('advanced-advice-list');
+  errorBox.classList.add('hidden');
+  list.innerHTML = '<li class="opacity-60">查詢中…</li>';
+
+  const [movesRes, riskRes] = await Promise.all([
+    fetch('/api/market-moves'),
+    fetch('/api/risk'),
+  ]);
+  const moves = await movesRes.json();
+  const risk = await riskRes.json();
+  if (moves.error || risk.error) {
+    list.innerHTML = '';
+    errorBox.textContent = moves.error || risk.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const notes = [];
+  for (const s of moves.swings) {
+    const symbol = s.symbol;
+    const swingText = s.notes.join('，');
+    const current = allocation[symbol];
+    const target = targets[symbol];
+    if (target != null && current != null) {
+      const drift = current - target;
+      if (Math.abs(drift) > 0.02) {
+        const action = drift > 0 ? '減碼' : '加碼';
+        notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}，目前佔比 ${(current * 100).toFixed(1)}% 跟目標 ${(target * 100).toFixed(0)}% 偏離 ${(Math.abs(drift) * 100).toFixed(1)}%，可留意是否要${action}貼近目標。`);
+      } else {
+        notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}，目前佔比仍貼近目標，先觀察即可。`);
+      }
+    } else {
+      notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}（沒有設定目標配置，僅供留意）。`);
+    }
+  }
+
+  for (const r of risk.items) {
+    if (r.earnings_soon) {
+      notes.push(`<b>${escapeHtml(r.symbol)}</b> 即將公布財報（${escapeHtml(r.next_earnings_date)}），歷史上財報前後波動可能放大，留意持股部位。`);
+    }
+    if (r.max_drawdown_1y != null && r.max_drawdown_1y < -0.4) {
+      notes.push(`<b>${escapeHtml(r.symbol)}</b> 近一年最大回撤達 ${Math.abs(r.max_drawdown_1y * 100).toFixed(0)}%，波動風險偏高（歷史數據，不是預測）。`);
+    }
+  }
+
+  list.innerHTML = notes.length
+    ? notes.map((n) => `<li class="flex gap-2"><span class="text-warning">•</span><span>${n}</span></li>`).join('')
+    : '<li class="opacity-60">目前沒有明顯的大漲大跌、近期財報、或高波動提醒。</li>';
+}
+
 async function loadMarketMoves() {
   const errorBox = document.getElementById('market-moves-error');
   const content = document.getElementById('market-moves-content');
@@ -846,6 +909,7 @@ Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
 Chart.defaults.borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
 
 const allocation = {{ advice.allocation | default({}) | tojson }};
+const targets = {{ targets | default({}) | tojson }};
 const snapshotBySymbol = Object.fromEntries(
   {{ snapshots | default([]) | tojson }}.map(s => [s.symbol, s])
 );
