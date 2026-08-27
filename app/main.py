@@ -135,12 +135,14 @@ FLEX_MODE_MULTIPLIER = 10.1
 
 
 def _apply_flex_mode(snapshots: list[dict]) -> list[dict]:
+    # round() to avoid float artifacts (e.g. 23.85817 * 10.1 == 240.967517000000002)
+    # showing up raw in the un-formatted {{ s.quantity }} template cell.
     return [
         {
             **s,
-            "quantity": s["quantity"] * FLEX_MODE_MULTIPLIER,
-            "cost_basis": s["cost_basis"] * FLEX_MODE_MULTIPLIER,
-            "market_value": s["market_value"] * FLEX_MODE_MULTIPLIER,
+            "quantity": round(s["quantity"] * FLEX_MODE_MULTIPLIER, 6),
+            "cost_basis": round(s["cost_basis"] * FLEX_MODE_MULTIPLIER, 2),
+            "market_value": round(s["market_value"] * FLEX_MODE_MULTIPLIER, 2),
         }
         for s in snapshots
     ]
