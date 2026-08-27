@@ -496,6 +496,19 @@
     </div>
   </div>
 
+  {% if allocation_chart_data %}
+  <!-- Section: 配置歷史走勢 -->
+  <h2 id="section-allocation-history" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>配置歷史走勢
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">每次刷新持股都會留一筆快照，這裡顯示各標的佔比隨時間怎麼變化（堆疊面積圖）。資料點數取決於歷史快照次數，剛開始用可能只有幾個點。</p>
+      <div class="h-80"><canvas id="allocationHistoryChart"></canvas></div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Section: 持股歷史走勢 -->
   <h2 id="section-history" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股歷史走勢
@@ -633,6 +646,7 @@
       <details open>
         <summary>歷史分析</summary>
         <ul>
+          <li><a href="#section-allocation-history">配置歷史走勢</a></li>
           <li><a href="#section-history">持股歷史走勢</a></li>
           <li><a href="#section-backtest">再平衡策略回測</a></li>
         </ul>
@@ -1145,6 +1159,39 @@ if (Object.keys(sectorAllocation).length) {
             label: (ctx) => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}% ($${Math.round(sectorAllocation[ctx.label]).toLocaleString()})`,
           },
         },
+      },
+    },
+  });
+}
+
+const allocationChartData = {{ allocation_chart_data | default(none) | tojson }};
+if (allocationChartData && allocationChartData.labels.length) {
+  const historyLabels = allocationChartData.labels.map((l) => l.slice(0, 16).replace('T', ' '));
+  const historyDatasets = Object.entries(allocationChartData.series).map(([symbol, data]) => ({
+    label: symbol,
+    data,
+    fill: true,
+    tension: 0.2,
+    pointRadius: 0,
+  }));
+  new Chart(document.getElementById('allocationHistoryChart'), {
+    type: 'line',
+    data: { labels: historyLabels, datasets: historyDatasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        colors: { forceOverride: true },
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, min: 0, max: 100, ticks: { callback: (v) => `${v}%` } },
       },
     },
   });

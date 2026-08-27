@@ -11,6 +11,7 @@ from sqlalchemy import desc
 load_dotenv()
 
 from app.advice import build_advice, build_rebalance_plan
+from app.allocation_history import allocation_history, chart_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import (
     ExchangeRateSnapshot,
@@ -236,9 +237,14 @@ def dashboard(request: Request):
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
         transactions = _all_transactions(db)
         sector_by_symbol = dict(db.query(FundamentalsCache.symbol, FundamentalsCache.sector).all())
+        snapshot_rows = [
+            {"snapshot_at": r.snapshot_at, "symbol": r.symbol, "market_value": r.market_value}
+            for r in db.query(PositionSnapshot).all()
+        ]
     finally:
         db.close()
     sector_allocation = compute_sector_allocation(snapshots, sector_by_symbol) if snapshots else {}
+    allocation_chart_data = chart_series(allocation_history(snapshot_rows)) if snapshot_rows else None
     realized = compute_realized_gains(transactions)
     realized_summary = {
         "all_time": summarize_realized_gains(realized),
@@ -287,6 +293,7 @@ def dashboard(request: Request):
             "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
             "dividend_rows": dividend_rows,
             "sector_allocation": sector_allocation,
+            "allocation_chart_data": allocation_chart_data,
             "total_ttm_dividends": total_ttm_dividends,
         },
     )
