@@ -1,13 +1,48 @@
 """On-demand check for held symbols: recent price swings (rule-based,
-objective) and raw news headlines (shown as-is — no bullish/bearish
-sentiment classification, that would need an LLM to read and judge each
-story, which is a separate feature).
+objective) and news headlines with a lightweight keyword-based sentiment tag.
+
+The sentiment tag is a simple keyword count on the headline text, not real
+NLP/LLM judgment — it exists to make an obviously-bullish or obviously-
+bearish headline easier to spot at a glance, not as a reliable signal.
+Mixed/unclear headlines are left neutral (no color) rather than guessed at.
 """
+
+import re
 
 import yfinance as yf
 
 SWING_1D_THRESHOLD = 0.05
 SWING_5D_THRESHOLD = 0.10
+
+_BULLISH_WORDS = [
+    "beat", "beats", "tops", "topping", "exceed", "exceeds", "surge", "surges",
+    "surging", "rally", "rallies", "soar", "soars", "soaring", "jump", "jumps",
+    "gain", "gains", "rise", "rises", "rising", "upgrade", "upgrades",
+    "upgraded", "outperform", "strong", "robust", "record", "growth", "boom",
+    "bullish", "raises guidance", "raises forecast", "better-than-expected",
+    "beats expectations", "momentum", "impressive", "strengthens",
+]
+_BEARISH_WORDS = [
+    "miss", "misses", "missed", "falls", "fall", "drop", "drops", "dropping",
+    "plunge", "plunges", "plunging", "decline", "declines", "declining",
+    "downgrade", "downgrades", "downgraded", "weak", "weakness", "cut", "cuts",
+    "lawsuit", "recall", "investigation", "probe", "bearish", "warns",
+    "warning", "slump", "slumps", "tumble", "tumbles", "layoffs",
+    "bankruptcy", "loss", "losses", "underperform", "disappointing",
+    "slashes", "sinks", "sink",
+]
+_BULLISH_PATTERN = re.compile(r"\b(" + "|".join(_BULLISH_WORDS) + r")\b", re.IGNORECASE)
+_BEARISH_PATTERN = re.compile(r"\b(" + "|".join(_BEARISH_WORDS) + r")\b", re.IGNORECASE)
+
+
+def classify_sentiment(title: str) -> str:
+    bullish_hits = len(_BULLISH_PATTERN.findall(title))
+    bearish_hits = len(_BEARISH_PATTERN.findall(title))
+    if bullish_hits > bearish_hits:
+        return "bullish"
+    if bearish_hits > bullish_hits:
+        return "bearish"
+    return "neutral"
 
 
 def price_swings(symbols: list[str]) -> list[dict]:
@@ -50,7 +85,12 @@ def recent_news(symbols: list[str], limit_per_symbol: int = 2) -> dict[str, list
                 content.get("clickThroughUrl") or {}
             ).get("url")
             publisher = (content.get("provider") or {}).get("displayName", "")
-            headlines.append({"title": title, "url": url, "publisher": publisher})
+            headlines.append({
+                "title": title,
+                "url": url,
+                "publisher": publisher,
+                "sentiment": classify_sentiment(title),
+            })
         if headlines:
             result[symbol] = headlines
     return result

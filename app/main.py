@@ -127,6 +127,24 @@ def _latest_snapshot_at(db) -> datetime | None:
 # logins. Only auto-refresh when the last snapshot is older than this.
 AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 
+# ponytail: hidden easter-egg toggle (see the invisible button next to the
+# "StockOrbit" header) — a purely cosmetic display multiplier, never written
+# to the database, so toggling it can never corrupt real holdings data.
+FLEX_MODE_COOKIE = "flex_mode"
+FLEX_MODE_MULTIPLIER = 10.1
+
+
+def _apply_flex_mode(snapshots: list[dict]) -> list[dict]:
+    return [
+        {
+            **s,
+            "quantity": s["quantity"] * FLEX_MODE_MULTIPLIER,
+            "cost_basis": s["cost_basis"] * FLEX_MODE_MULTIPLIER,
+            "market_value": s["market_value"] * FLEX_MODE_MULTIPLIER,
+        }
+        for s in snapshots
+    ]
+
 
 def _refresh_and_save() -> None:
     """Log into Firstrade, fetch positions + USD/TWD rate, save a new snapshot.
@@ -168,6 +186,8 @@ def dashboard(request: Request):
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
     finally:
         db.close()
+    if request.cookies.get(FLEX_MODE_COOKIE) == "1":
+        snapshots = _apply_flex_mode(snapshots)
     advice = build_advice(snapshots, targets) if snapshots else None
     rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
     # Targets are edited one symbol at a time, so nothing stops the stored
@@ -209,6 +229,16 @@ def refresh():
     except Exception as e:
         return HTMLResponse(f"<p>抓取失敗: {e}</p><p><a href='/'>返回</a></p>", status_code=400)
     return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/toggle-flex-mode")
+def toggle_flex_mode(request: Request):
+    response = RedirectResponse("/", status_code=303)
+    if request.cookies.get(FLEX_MODE_COOKIE) == "1":
+        response.delete_cookie(FLEX_MODE_COOKIE)
+    else:
+        response.set_cookie(FLEX_MODE_COOKIE, "1", max_age=60 * 60 * 24 * 365)
+    return response
 
 
 @app.get("/api/market-moves")
