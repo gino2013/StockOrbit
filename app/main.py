@@ -12,8 +12,15 @@ load_dotenv()
 
 from app.advice import build_advice, build_rebalance_plan
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
-from app.db import ExchangeRateSnapshot, PositionSnapshot, SessionLocal, TargetAllocation, init_db
-from app.firstrade_client import fetch_positions
+from app.db import (
+    ExchangeRateSnapshot,
+    PositionSnapshot,
+    SessionLocal,
+    TargetAllocation,
+    Transaction,
+    init_db,
+)
+from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
 from app.holdings_history import (
@@ -24,6 +31,7 @@ from app.holdings_history import (
     weighted_return_series,
 )
 from app.market_moves import price_swings, recent_news
+from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
 from app.trending import SCREENERS, trending_tickers
 
@@ -149,14 +157,20 @@ def _apply_flex_mode(snapshots: list[dict]) -> list[dict]:
 
 
 def _refresh_and_save() -> None:
-    """Log into Firstrade, fetch positions + USD/TWD rate, save a new snapshot.
-    Raises on failure — callers decide whether that's fatal."""
-    positions = fetch_positions()
+    """Log into Firstrade, fetch positions + transactions + USD/TWD rate, save
+    a new snapshot. Raises on failure — callers decide whether that's fatal."""
+    session = _login()
+    positions = fetch_positions(session)
+    transactions = fetch_transactions(session)
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
         for p in positions:
             db.add(PositionSnapshot(snapshot_at=now, **p))
+        for t in transactions:
+            tid = Transaction.make_id(t)
+            if db.get(Transaction, tid) is None:
+                db.add(Transaction(id=tid, fetched_at=now, **t))
         rate = _fetch_usd_twd_rate()
         if rate is not None:
             db.add(ExchangeRateSnapshot(pair="USDTWD", rate=rate, fetched_at=now))
@@ -186,8 +200,24 @@ def dashboard(request: Request):
         snapshots = _latest_snapshots(db)
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
+        transactions = [
+            {
+                "symbol": t.symbol,
+                "trans_type": t.trans_type,
+                "report_date": t.report_date,
+                "quantity": t.quantity,
+                "trade_price": t.trade_price,
+                "amount": t.amount,
+            }
+            for t in db.query(Transaction).all()
+        ]
     finally:
         db.close()
+    realized = compute_realized_gains(transactions)
+    realized_summary = {
+        "all_time": summarize_realized_gains(realized),
+        "this_year": summarize_realized_gains(realized, year=datetime.now().year),
+    }
     if request.cookies.get(FLEX_MODE_COOKIE) == "1":
         snapshots = _apply_flex_mode(snapshots)
     advice = build_advice(snapshots, targets) if snapshots else None
@@ -220,6 +250,8 @@ def dashboard(request: Request):
             "stats": stats,
             "rebalance_plan": rebalance_plan,
             "target_weight_sum": target_weight_sum,
+            "realized_summary": realized_summary,
+            "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
         },
     )
 

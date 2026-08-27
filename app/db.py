@@ -1,7 +1,8 @@
+import hashlib
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, String, Text, create_engine
+from sqlalchemy import Column, Date, DateTime, Float, String, Text, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./stockorbit.db")
@@ -74,6 +75,41 @@ class FundamentalsCache(Base):
     recommendationKey = Column(String)
     next_earnings_date = Column(String)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Transaction(Base):
+    """Raw account history from Firstrade's get_account_history() — trades,
+    dividends, interest, deposits, etc. Append-only, like PositionSnapshot.
+
+    Firstrade's API gives no transaction id, so `id` is a hash of the fields
+    that make a row unique, letting repeated fetches of overlapping date
+    ranges upsert instead of duplicating (see fetch_transactions()).
+    """
+
+    __tablename__ = "transactions"
+
+    id = Column(String, primary_key=True)
+    account_number = Column(String, nullable=False)
+    symbol = Column(String, index=True)
+    trans_type = Column(String, nullable=False, index=True)  # BOUGHT/SOLD/DIV/INTEREST/DEPOSIT/OTHER
+    report_date = Column(Date, nullable=False, index=True)
+    quantity = Column(Float, default=0)
+    trade_price = Column(Float, default=0)
+    amount = Column(Float, default=0)  # signed cash flow: negative = cash out (buy), positive = cash in
+    description = Column(Text)
+    raw_json = Column(Text)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @staticmethod
+    def make_id(row: dict) -> str:
+        key = "|".join(
+            str(row.get(k, ""))
+            for k in (
+                "account_number", "report_date", "trans_type", "symbol",
+                "quantity", "trade_price", "amount", "description",
+            )
+        )
+        return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
 def init_db():
