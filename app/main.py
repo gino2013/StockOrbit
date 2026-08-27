@@ -13,6 +13,7 @@ load_dotenv()
 from app.advice import build_advice, build_rebalance_plan
 from app.allocation_history import allocation_history, chart_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
+from app.cash_deployment import suggest_cash_deployment
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -422,6 +423,22 @@ def trending(screener: str = "day_gainers"):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/cash-deployment")
+def cash_deployment(amount: float):
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    if not targets:
+        return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
+    plan = suggest_cash_deployment(snapshots, targets, amount)
+    return JSONResponse({"plan": plan})
 
 
 @app.post("/api/targets")

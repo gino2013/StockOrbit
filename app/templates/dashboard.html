@@ -315,6 +315,16 @@
           </tbody>
         </table>
       </div>
+
+      <div class="divider text-xs opacity-50">或者：只有一筆閒置現金，不想賣出任何持股</div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm opacity-70">我有</span>
+        <input id="cash-deployment-amount" type="number" min="0" step="100" placeholder="10000" class="input input-bordered input-sm w-32">
+        <span class="text-sm opacity-70">元現金，該加碼哪些？</span>
+        <button type="button" onclick="loadCashDeployment()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="cash-deployment-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="cash-deployment-content" class="mt-2"></div>
     </div>
   </div>
   {% endif %}
@@ -911,6 +921,42 @@ async function loadMarketMoves() {
     }
     html += '</ul></div>';
   }
+  content.innerHTML = html;
+}
+
+async function loadCashDeployment() {
+  const errorBox = document.getElementById('cash-deployment-error');
+  const content = document.getElementById('cash-deployment-content');
+  const amountInput = document.getElementById('cash-deployment-amount');
+  errorBox.classList.add('hidden');
+
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) {
+    content.innerHTML = '';
+    errorBox.textContent = '請輸入大於 0 的金額';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch(`/api/cash-deployment?amount=${encodeURIComponent(amount)}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (!data.plan.length) {
+    content.innerHTML = '<p class="text-sm opacity-60">目前配置已經貼齊或超過目標，沒有需要加碼的標的。</p>';
+    return;
+  }
+  let html = '<ul class="space-y-1.5 text-sm">';
+  for (const p of data.plan) {
+    html += `<li class="flex justify-between"><span><b>${escapeHtml(p.symbol)}</b></span><span class="text-success font-medium">+$${p.buy_amount.toLocaleString('en-US', {maximumFractionDigits: 0})} 買入</span></li>`;
+  }
+  html += '</ul>';
   content.innerHTML = html;
 }
 
