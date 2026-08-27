@@ -34,10 +34,8 @@ def fetch_positions() -> list[dict]:
     rows = []
     for account_number in accounts.account_numbers:
         positions = accounts.get_positions(account=account_number)
-        account_positions_value = 0.0
         for item in positions.get("items", []):
             market_value = float(item.get("market_value", 0) or 0)
-            account_positions_value += market_value
             rows.append(
                 {
                     "account_number": account_number,
@@ -50,13 +48,12 @@ def fetch_positions() -> list[dict]:
                 }
             )
 
-        # account_balances holds the account's total value (positions + cash,
-        # same number Firstrade's own UI shows as "帳戶總值"). The remainder
-        # after subtracting position market values is uninvested cash —
-        # recorded as a synthetic CASH row so it counts toward total value
-        # without distorting per-symbol gain/loss (cost_basis == market_value).
-        account_total = float(accounts.account_balances.get(account_number, 0) or 0)
-        cash = account_total - account_positions_value
+        # Use the account's own "cash_balance" field (same number Firstrade's
+        # UI shows as "現金結餘") rather than deriving it as account_total minus
+        # position market values — the two figures come from different quote
+        # snapshots and drift apart by tens of dollars as live prices move.
+        balances = accounts.get_account_balances(account=account_number).get("result", {})
+        cash = float(balances.get("cash_balance", 0) or 0)
         if abs(cash) > 0.01:
             rows.append(
                 {
@@ -66,7 +63,7 @@ def fetch_positions() -> list[dict]:
                     "cost_basis": cash,
                     "market_value": cash,
                     "price": cash,
-                    "raw_json": json.dumps({"account_total_value": account_total}),
+                    "raw_json": json.dumps(balances),
                 }
             )
     return rows
