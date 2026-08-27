@@ -113,5 +113,16 @@ class Transaction(Base):
         return hashlib.sha256(key.encode()).hexdigest()[:32]
 
 
+class PositionNote(Base):
+    """Freeform note per symbol — why you bought it, target price, whatever
+    you want to remember later. Upserted by symbol, no history kept."""
+
+    __tablename__ = "position_notes"
+
+    symbol = Column(String, primary_key=True)
+    note = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_db():
     Base.metadata.create_all(engine)

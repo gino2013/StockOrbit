@@ -17,6 +17,7 @@ from app.cash_deployment import suggest_cash_deployment
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
+    PositionNote,
     PositionSnapshot,
     SessionLocal,
     TargetAllocation,
@@ -245,6 +246,7 @@ def dashboard(request: Request):
             {"snapshot_at": r.snapshot_at, "symbol": r.symbol, "market_value": r.market_value}
             for r in db.query(PositionSnapshot).all()
         ]
+        notes_by_symbol = dict(db.query(PositionNote.symbol, PositionNote.note).all())
     finally:
         db.close()
     sector_allocation = compute_sector_allocation(snapshots, fundamentals_info_by_symbol) if snapshots else {}
@@ -300,6 +302,7 @@ def dashboard(request: Request):
             "sector_allocation": sector_allocation,
             "symbol_sector_buckets": symbol_sector_buckets,
             "allocation_chart_data": allocation_chart_data,
+            "notes_by_symbol": notes_by_symbol,
             "total_ttm_dividends": total_ttm_dividends,
         },
     )
@@ -442,6 +445,22 @@ def cash_deployment(amount: float):
         return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
     plan = suggest_cash_deployment(snapshots, targets, amount)
     return JSONResponse({"plan": plan})
+
+
+@app.post("/api/notes")
+def set_note(symbol: str = Form(...), note: str = Form("")):
+    db = SessionLocal()
+    try:
+        existing = db.get(PositionNote, symbol.upper())
+        if existing:
+            existing.note = note
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(PositionNote(symbol=symbol.upper(), note=note))
+        db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/#section-notes", status_code=303)
 
 
 @app.post("/api/targets")
