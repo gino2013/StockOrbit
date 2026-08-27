@@ -20,12 +20,7 @@ def _dependency_versions() -> dict[str, str]:
     return versions
 
 
-def _raw_quote_summary_error(symbol: str) -> str | None:
-    """yfinance silently swallows the HTTPError from the quoteSummary call
-    (YfConfig.debug.hide_exceptions defaults True) and returns None, which is
-    why get_info() can come back near-empty with no exception on our side.
-    Force it to raise so we can see the real status/body for diagnosis.
-    """
+def _try_fetch(symbol: str) -> str | None:
     from yfinance.config import YfConfig
 
     previous = YfConfig.debug.hide_exceptions
@@ -38,6 +33,22 @@ def _raw_quote_summary_error(symbol: str) -> str | None:
         return f"{type(e).__name__}: {e} | body[:300]={body[:300]!r}"
     finally:
         YfConfig.debug.hide_exceptions = previous
+
+
+def _raw_quote_summary_error(symbol: str) -> dict:
+    """yfinance silently swallows the HTTPError from the quoteSummary call
+    (YfConfig.debug.hide_exceptions defaults True) and returns None, which is
+    why get_info() can come back near-empty with no exception on our side.
+    Force it to raise so we can see the real status/body for diagnosis, and
+    try forcing the 'csrf' cookie strategy to see if that avoids the error
+    some cloud hosts hit with the default 'basic' strategy.
+    """
+    from yfinance.data import YfData
+
+    basic_error = _try_fetch(symbol)
+    YfData()._set_cookie_strategy("csrf")
+    csrf_error = _try_fetch(symbol)
+    return {"basic": basic_error, "csrf": csrf_error}
 
 FIELDS = [
     "sector",
