@@ -393,6 +393,44 @@
   </div>
   {% endif %}
 
+  {% if dividend_rows %}
+  <!-- Section: 股利追蹤 -->
+  <h2 id="section-dividends" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>股利追蹤
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">從交易紀錄裡的股利發放彙總，殖利率是近 12 個月股利 / 目前市值，僅供參考。</p>
+      <div class="stat px-0">
+        <div class="stat-title">近 12 個月股利收入</div>
+        <div class="stat-value text-xl text-success">${{ "{:,.2f}".format(total_ttm_dividends) }}</div>
+      </div>
+      <div class="overflow-x-auto">
+        <table id="dividends-table" class="table table-sm">
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th class="text-right">近 12 個月股利</th>
+              <th class="text-right">目前市值</th>
+              <th class="text-right">殖利率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in dividend_rows %}
+            <tr>
+              <td class="font-medium">{{ r.symbol }}</td>
+              <td class="text-right">${{ "{:,.2f}".format(r.ttm_dividends) }}</td>
+              <td class="text-right">{{ "${:,.0f}".format(r.market_value) if r.market_value is not none else '-' }}</td>
+              <td class="text-right">{{ "{:.2%}".format(r.ttm_yield) if r.ttm_yield is not none else '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% if snapshots %}
   <!-- Section: 風險與波動指標 -->
   <h2 id="section-risk" class="flex items-center gap-2 text-lg font-bold mb-3">
@@ -566,6 +604,7 @@
           <li><a href="#section-rebalance">再平衡建議金額</a></li>
           <li><a href="#section-realized">已實現損益</a></li>
           <li><a href="#section-overseas-income">海外所得試算</a></li>
+          <li><a href="#section-dividends">股利追蹤</a></li>
         </ul>
       </details>
     </li>
@@ -682,6 +721,7 @@ function makeSortable(table) {
 makeSortable(document.getElementById('holdings-table'));
 makeSortable(document.getElementById('rebalance-table'));
 makeSortable(document.getElementById('realized-table'));
+makeSortable(document.getElementById('dividends-table'));
 
 // Ticker autocomplete. `multi: true` handles the "QQQ:0.6,VOO:0.4" weighted
 // basket syntax — it autocompletes whichever symbol segment is currently
