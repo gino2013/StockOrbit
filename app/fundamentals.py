@@ -8,6 +8,17 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
+
+def _dependency_versions() -> dict[str, str]:
+    versions = {"yfinance": yf.__version__}
+    try:
+        import curl_cffi
+
+        versions["curl_cffi"] = curl_cffi.__version__
+    except Exception as e:
+        versions["curl_cffi"] = f"unavailable: {e}"
+    return versions
+
 FIELDS = [
     "sector",
     "industry",
@@ -29,6 +40,8 @@ FIELDS = [
 
 def fetch_fundamentals(symbols: list[str], debug: bool = False) -> dict[str, dict]:
     result = {}
+    if debug:
+        result["_versions"] = _dependency_versions()
     for symbol in symbols:
         error = None
         try:
