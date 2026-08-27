@@ -14,6 +14,7 @@ from app.advice import build_advice, build_rebalance_plan
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import ExchangeRateSnapshot, PositionSnapshot, SessionLocal, TargetAllocation, init_db
 from app.firstrade_client import fetch_positions
+from app.fundamentals import fetch_fundamentals
 from app.holdings_history import (
     notable_moves,
     parse_weights,
@@ -22,6 +23,8 @@ from app.holdings_history import (
     weighted_return_series,
 )
 from app.market_moves import price_swings, recent_news
+from app.risk import compute_risk_metrics
+from app.trending import SCREENERS, trending_tickers
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
@@ -226,6 +229,51 @@ def market_moves():
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"swings": swings, "news": news})
+
+
+@app.get("/api/fundamentals")
+def fundamentals():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+    try:
+        data = fetch_fundamentals(symbols)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"fundamentals": data})
+
+
+@app.get("/api/risk")
+def risk():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+    try:
+        items = compute_risk_metrics(symbols)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"items": items})
+
+
+@app.get("/api/trending")
+def trending(screener: str = "day_gainers"):
+    if screener not in SCREENERS:
+        return JSONResponse({"error": "未知的篩選器"}, status_code=400)
+    try:
+        items = trending_tickers(screener)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"items": items})
 
 
 @app.post("/api/targets")
