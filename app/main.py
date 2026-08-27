@@ -20,6 +20,7 @@ from app.db import (
     Transaction,
     init_db,
 )
+from app.dividends import trailing_twelve_month_dividends, with_yield
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
@@ -38,8 +39,8 @@ from app.overseas_income import (
 )
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
-from app.xirr import portfolio_cashflows, xirr
 from app.trending import SCREENERS, trending_tickers
+from app.xirr import portfolio_cashflows, xirr
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
@@ -254,6 +255,10 @@ def dashboard(request: Request):
     total_gain = total_value - total_cost
     cashflows = portfolio_cashflows(transactions, total_value, datetime.now().date())
     annualized_return = xirr(cashflows)
+    market_value_by_symbol = {s["symbol"]: s["market_value"] for s in snapshots}
+    ttm_dividends = trailing_twelve_month_dividends(transactions, datetime.now().date())
+    dividend_rows = with_yield(ttm_dividends, market_value_by_symbol)
+    total_ttm_dividends = sum(r["ttm_dividends"] for r in dividend_rows)
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
@@ -276,6 +281,8 @@ def dashboard(request: Request):
             "target_weight_sum": target_weight_sum,
             "realized_summary": realized_summary,
             "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
+            "dividend_rows": dividend_rows,
+            "total_ttm_dividends": total_ttm_dividends,
         },
     )
 
