@@ -14,6 +14,7 @@ from app.advice import build_advice, build_rebalance_plan
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.db import (
     ExchangeRateSnapshot,
+    FundamentalsCache,
     PositionSnapshot,
     SessionLocal,
     TargetAllocation,
@@ -39,6 +40,7 @@ from app.overseas_income import (
 )
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
+from app.sector_allocation import compute_sector_allocation
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
 
@@ -233,8 +235,10 @@ def dashboard(request: Request):
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
         transactions = _all_transactions(db)
+        sector_by_symbol = dict(db.query(FundamentalsCache.symbol, FundamentalsCache.sector).all())
     finally:
         db.close()
+    sector_allocation = compute_sector_allocation(snapshots, sector_by_symbol) if snapshots else {}
     realized = compute_realized_gains(transactions)
     realized_summary = {
         "all_time": summarize_realized_gains(realized),
@@ -242,7 +246,7 @@ def dashboard(request: Request):
     }
     if request.cookies.get(FLEX_MODE_COOKIE) == "1":
         snapshots = _apply_flex_mode(snapshots)
-    advice = build_advice(snapshots, targets) if snapshots else None
+    advice = build_advice(snapshots, targets, sector_allocation=sector_allocation) if snapshots else None
     rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
     # Targets are edited one symbol at a time, so nothing stops the stored
     # set from drifting away from summing to 100% (e.g. adding a 6th target
@@ -282,6 +286,7 @@ def dashboard(request: Request):
             "realized_summary": realized_summary,
             "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
             "dividend_rows": dividend_rows,
+            "sector_allocation": sector_allocation,
             "total_ttm_dividends": total_ttm_dividends,
         },
     )

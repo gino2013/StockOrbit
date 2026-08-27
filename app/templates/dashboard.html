@@ -156,7 +156,18 @@
               </tbody>
             </table>
           </div>
-          <div class="w-full max-w-md h-96 mx-auto"><canvas id="allocationChart"></canvas></div>
+          <div class="flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+              <p class="text-xs text-center opacity-60 mb-1">個股配置</p>
+              <div class="w-full max-w-md h-80 mx-auto"><canvas id="allocationChart"></canvas></div>
+            </div>
+            {% if sector_allocation %}
+            <div class="flex-1">
+              <p class="text-xs text-center opacity-60 mb-1">產業配置</p>
+              <div class="w-full max-w-md h-80 mx-auto"><canvas id="sectorChart"></canvas></div>
+            </div>
+            {% endif %}
+          </div>
         </div>
         {% else %}
         <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
@@ -1108,6 +1119,30 @@ if (Object.keys(allocation).length) {
               const mv = s ? ` ($${Math.round(s.market_value).toLocaleString()})` : '';
               return ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%${mv}`;
             },
+          },
+        },
+      },
+    },
+  });
+}
+
+const sectorAllocation = {{ sector_allocation | default({}) | tojson }};
+if (Object.keys(sectorAllocation).length) {
+  const sectorTotal = Object.values(sectorAllocation).reduce((a, b) => a + b, 0);
+  new Chart(document.getElementById('sectorChart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(sectorAllocation),
+      datasets: [{ data: Object.values(sectorAllocation).map(v => v / sectorTotal * 100) }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        colors: { forceOverride: true },
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}% ($${Math.round(sectorAllocation[ctx.label]).toLocaleString()})`,
           },
         },
       },

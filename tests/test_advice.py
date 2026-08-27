@@ -21,8 +21,51 @@ def demo():
     )
     assert any("AAPL" in note for note in result["advice"])
 
-    no_issues = build_advice(snapshots, targets={}, concentration_threshold=0.9)
+    # No issues: 3+ positions (clears min_positions), every symbol targeted
+    # with zero drift, no cash, concentration threshold wide open.
+    balanced_snapshots = [
+        {"symbol": "AAPL", "market_value": 3000},
+        {"symbol": "MSFT", "market_value": 3000},
+        {"symbol": "GOOG", "market_value": 3000},
+    ]
+    no_issues = build_advice(
+        balanced_snapshots,
+        targets={"AAPL": 1 / 3, "MSFT": 1 / 3, "GOOG": 1 / 3},
+        concentration_threshold=0.9,
+    )
     assert "沒有明顯建議" in no_issues["advice"][0]
+
+    # Held but never given a target at all (not just target 0%).
+    untargeted = build_advice(balanced_snapshots, targets={"AAPL": 1 / 3}, concentration_threshold=0.9)
+    assert any("MSFT" in note and "GOOG" in note and "沒有設定目標配置" in note for note in untargeted["advice"])
+
+    # Cash sitting idle above the threshold.
+    cash_heavy = balanced_snapshots + [{"symbol": "CASH", "market_value": 5000}]
+    cash_advice = build_advice(cash_heavy, targets={"AAPL": 1 / 3, "MSFT": 1 / 3, "GOOG": 1 / 3}, concentration_threshold=0.9, cash_threshold=0.15)
+    assert any("現金佔投資組合" in note for note in cash_advice["advice"])
+
+    # Too few positions.
+    too_few = build_advice([{"symbol": "AAPL", "market_value": 1000}], targets={"AAPL": 1.0}, concentration_threshold=0.9, min_positions=3)
+    assert any("只有 1 檔持股" in note for note in too_few["advice"])
+
+    # Too many positions.
+    many_snapshots = [{"symbol": f"S{i}", "market_value": 100} for i in range(35)]
+    many_targets = {f"S{i}": 1 / 35 for i in range(35)}
+    too_many = build_advice(many_snapshots, targets=many_targets, concentration_threshold=0.9, max_positions=30)
+    assert any("數量偏多" in note for note in too_many["advice"])
+
+    # Sector concentration.
+    sector_advice = build_advice(
+        balanced_snapshots, targets={"AAPL": 1 / 3, "MSFT": 1 / 3, "GOOG": 1 / 3}, concentration_threshold=0.9,
+        sector_allocation={"Technology": 8000, "Healthcare": 1000},
+    )
+    assert any("Technology 類股" in note for note in sector_advice["advice"])
+    # "現金"/"其他" buckets from compute_sector_allocation() are never flagged.
+    no_sector_flag = build_advice(
+        balanced_snapshots, targets={"AAPL": 1 / 3, "MSFT": 1 / 3, "GOOG": 1 / 3}, concentration_threshold=0.9,
+        sector_allocation={"現金": 8000, "其他": 1000},
+    )
+    assert "沒有明顯建議" in no_sector_flag["advice"][0]
 
     # total_value = 6000 + 4000 + 500 (CASH) = 10500.
     # AAPL target 5250 vs held 6000 -> sell 750. MSFT target 3150 vs held
