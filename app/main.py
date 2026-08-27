@@ -4,7 +4,7 @@ import pandas as pd
 import yfinance as yf
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc
 
@@ -25,6 +25,7 @@ from app.db import (
     init_db,
 )
 from app.dividends import trailing_twelve_month_dividends, with_yield
+from app.export import build_holdings_csv
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
@@ -429,6 +430,28 @@ def trending(screener: str = "day_gainers"):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/export/csv")
+def export_csv():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    advice = build_advice(snapshots, targets)
+    csv_text = build_holdings_csv(
+        snapshots, advice["allocation"], targets, advice["advice"], as_of=datetime.now().date()
+    )
+    filename = f"stockorbit_{datetime.now().date().isoformat()}.csv"
+    return Response(
+        content="﻿" + csv_text,  # BOM so Excel opens the UTF-8 file with correct Chinese text
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/cash-deployment")
