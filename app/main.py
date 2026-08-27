@@ -237,15 +237,18 @@ def dashboard(request: Request):
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
         usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
         transactions = _all_transactions(db)
-        sector_by_symbol = dict(db.query(FundamentalsCache.symbol, FundamentalsCache.sector).all())
+        fundamentals_info_by_symbol = {
+            row.symbol: {"quoteType": row.quoteType, "sector": row.sector}
+            for row in db.query(FundamentalsCache).all()
+        }
         snapshot_rows = [
             {"snapshot_at": r.snapshot_at, "symbol": r.symbol, "market_value": r.market_value}
             for r in db.query(PositionSnapshot).all()
         ]
     finally:
         db.close()
-    sector_allocation = compute_sector_allocation(snapshots, sector_by_symbol) if snapshots else {}
-    symbol_sector_buckets = symbol_buckets(snapshots, sector_by_symbol) if snapshots else {}
+    sector_allocation = compute_sector_allocation(snapshots, fundamentals_info_by_symbol) if snapshots else {}
+    symbol_sector_buckets = symbol_buckets(snapshots, fundamentals_info_by_symbol) if snapshots else {}
     allocation_chart_data = chart_series(allocation_history(snapshot_rows)) if snapshot_rows else None
     realized = compute_realized_gains(transactions)
     realized_summary = {

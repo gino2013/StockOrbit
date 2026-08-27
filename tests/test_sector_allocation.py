@@ -10,25 +10,32 @@ def demo():
     snapshots = [
         {"symbol": "AAPL", "market_value": 3000},
         {"symbol": "MSFT", "market_value": 2000},
-        {"symbol": "QQQ", "market_value": 1000},  # ETF, no sector on file
+        {"symbol": "QQQ", "market_value": 1000},  # confirmed ETF
+        {"symbol": "WEIRD", "market_value": 400},  # no sector, not an ETF
         {"symbol": "CASH", "market_value": 500},
     ]
-    sector_by_symbol = {"AAPL": "Technology", "MSFT": "Technology", "QQQ": None}
-    result = compute_sector_allocation(snapshots, sector_by_symbol)
+    info_by_symbol = {
+        "AAPL": {"quoteType": "EQUITY", "sector": "Technology"},
+        "MSFT": {"quoteType": "EQUITY", "sector": "Technology"},
+        "QQQ": {"quoteType": "ETF", "sector": None},
+    }
+    result = compute_sector_allocation(snapshots, info_by_symbol)
     assert result["Technology"] == 5000
-    assert result["ETF／其他"] == 1000
-    assert result["現金"] == 500
-    assert sum(result.values()) == 6500
+    assert result["ETF"] == 1000
+    assert result["CASH"] == 500
+    # unclassified symbol (missing from info_by_symbol entirely) gets its
+    # own bucket named after itself, not lumped into a shared "other".
+    assert result["WEIRD"] == 400
+    assert sum(result.values()) == 6900
 
-    # a symbol with no cache entry at all (missing from the dict) falls
-    # back to "ETF／其他" the same as an explicit None, rather than KeyError.
-    result2 = compute_sector_allocation([{"symbol": "IONQ", "market_value": 100}], {})
-    assert result2["ETF／其他"] == 100
-
-    # symbol_buckets() assigns the exact same bucket per symbol, so the
-    # per-symbol chart can color each slice to match its sector slice.
-    buckets = symbol_buckets(snapshots, sector_by_symbol)
-    assert buckets == {"AAPL": "Technology", "MSFT": "Technology", "QQQ": "ETF／其他", "CASH": "現金"}
+    buckets = symbol_buckets(snapshots, info_by_symbol)
+    assert buckets == {
+        "AAPL": "Technology",
+        "MSFT": "Technology",
+        "QQQ": "ETF",
+        "WEIRD": "WEIRD",
+        "CASH": "CASH",
+    }
 
 
 if __name__ == "__main__":
