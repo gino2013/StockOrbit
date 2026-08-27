@@ -453,6 +453,35 @@
   {% endif %}
 
   {% if snapshots %}
+  <!-- Section: 持股筆記 -->
+  <h2 id="section-notes" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股筆記
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。存在資料庫裡，不是純前端暫存。</p>
+      <div class="flex flex-col gap-1">
+        {% for s in snapshots if s.symbol != 'CASH' %}
+        <details class="collapse collapse-arrow bg-base-200" {% if notes_by_symbol.get(s.symbol) %}open{% endif %}>
+          <summary class="collapse-title text-sm font-medium py-2 min-h-0">
+            {{ s.symbol }}
+            {% if notes_by_symbol.get(s.symbol) %}<span class="badge badge-xs badge-primary ml-2">有筆記</span>{% endif %}
+          </summary>
+          <div class="collapse-content">
+            <form action="/api/notes" method="post" class="flex flex-col gap-2">
+              <input type="hidden" name="symbol" value="{{ s.symbol }}">
+              <textarea name="note" rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
+              <button type="submit" class="btn btn-neutral btn-xs self-end">儲存</button>
+            </form>
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if snapshots %}
   <!-- Section: 風險與波動指標 -->
   <h2 id="section-risk" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>風險與波動指標
@@ -639,6 +668,7 @@
           <li><a href="#section-realized">已實現損益</a></li>
           <li><a href="#section-overseas-income">海外所得試算</a></li>
           <li><a href="#section-dividends">股利追蹤</a></li>
+          <li><a href="#section-notes">持股筆記</a></li>
         </ul>
       </details>
     </li>
