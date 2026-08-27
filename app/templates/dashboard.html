@@ -48,6 +48,9 @@
       <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
         <span id="theme-icon"></span>
       </button>
+      {% if snapshots %}
+      <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
+      {% endif %}
       <form action="/api/refresh" method="post">
         <button type="submit" class="btn btn-neutral btn-sm">重新抓取持股</button>
       </form>
