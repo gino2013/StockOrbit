@@ -13,6 +13,8 @@ past rate (however computed) continued.
 
 import yfinance as yf
 
+from app.holdings_history import weighted_return_series
+
 
 def geometric_mean_return(returns: list[float]) -> float:
     """The constant annual rate r such that (1+r)^n == prod(1+returns)."""
@@ -46,6 +48,8 @@ def build_compound_curve(returns: list[float], future_periods: int, initial_valu
 
     geometric_mean = geometric_mean_return(returns)
     arithmetic_mean = arithmetic_mean_return(returns)
+    geometric_path = smooth_path(geometric_mean, total_periods, initial_value)
+    arithmetic_path = smooth_path(arithmetic_mean, total_periods, initial_value)
 
     return {
         "historical_periods": historical_periods,
@@ -58,16 +62,32 @@ def build_compound_curve(returns: list[float], future_periods: int, initial_valu
         # Both smooth paths span historical+future in one continuous curve:
         # over the historical range this shows how each average compares to
         # what really happened; past that point it's a projection.
-        "geometric_path": smooth_path(geometric_mean, total_periods, initial_value),
-        "arithmetic_path": smooth_path(arithmetic_mean, total_periods, initial_value),
+        "geometric_path": geometric_path,
+        "arithmetic_path": arithmetic_path,
+        # The cumulative % implied by compounding each average all the way
+        # through the future projection — "累積數字", not just the annual
+        # rate — so the user can see e.g. "+1143%" rather than having to
+        # mentally compound 18.3%/year themselves.
+        "geometric_cumulative_return": geometric_path[-1] / initial_value - 1,
+        "arithmetic_cumulative_return": arithmetic_path[-1] / initial_value - 1,
     }
 
 
-def fetch_annual_returns(symbol: str, start_year: int, end_year: int) -> list[float]:
-    """One return per calendar year from start_year to end_year: the first
-    trading day of start_year is the baseline, each year's last trading day
-    is that year's closing value.
+def _annual_returns_from_daily(series, start_year: int, end_year: int) -> list[float]:
+    """Shared by fetch_annual_returns() and fetch_portfolio_annual_returns():
+    one return per calendar year, first trading day of start_year as the
+    baseline, each year's last trading day as that year's close.
     """
+    series = series.dropna()
+    series = series[(series.index.year >= start_year) & (series.index.year <= end_year)]
+    if series.empty:
+        return []
+    yearly_last = series.groupby(series.index.year).last()
+    prices = [float(series.iloc[0])] + [float(v) for v in yearly_last]
+    return [prices[i + 1] / prices[i] - 1 for i in range(len(prices) - 1)]
+
+
+def fetch_annual_returns(symbol: str, start_year: int, end_year: int) -> list[float]:
     history = yf.download(
         symbol,
         start=f"{start_year}-01-01",
@@ -77,9 +97,43 @@ def fetch_annual_returns(symbol: str, start_year: int, end_year: int) -> list[fl
     )["Close"]
     if hasattr(history, "columns"):
         history = history.iloc[:, 0]
-    history = history.dropna()
-    if history.empty:
-        return []
-    yearly_last = history.groupby(history.index.year).last()
-    prices = [float(history.iloc[0])] + [float(v) for v in yearly_last]
-    return [prices[i + 1] / prices[i] - 1 for i in range(len(prices) - 1)]
+    return _annual_returns_from_daily(history, start_year, end_year)
+
+
+def fetch_portfolio_annual_returns(
+    weights: dict[str, float], start_year: int, end_year: int
+) -> tuple[list[float], int]:
+    """Same idea as fetch_annual_returns() but for a weighted basket (the
+    user's target allocation) instead of a single symbol — reuses the
+    existing buy-and-hold simulator from the 再平衡策略回測 feature rather
+    than duplicating basket-return math here.
+
+    weighted_return_series() inner-joins every symbol's trading history, so
+    if any holding IPO'd after start_year (common — a target list mixing
+    decade-old ETFs with a 2021 IPO is normal), the usable range silently
+    starts wherever the *youngest* holding's history begins, not
+    start_year. Returns (returns, actual_start_year) so the caller can be
+    upfront about that truncation instead of mislabeling a short recent
+    window as if it covered the full requested range.
+    """
+    series = weighted_return_series(weights, start=f"{start_year}-01-01", end=f"{end_year + 1}-01-01")
+    if series.empty:
+        return [], start_year
+    actual_start_year = max(start_year, series.index.min().year)
+    return _annual_returns_from_daily(series, actual_start_year, end_year), actual_start_year
+
+
+def build_portfolio_compound_curve(
+    weights: dict[str, float], start_year: int, end_year: int, future_periods: int, initial_value: float = 100.0
+) -> dict | None:
+    """None means there's no usable history at all for this basket in the
+    requested range (e.g. every holding IPO'd after end_year) — the caller
+    should just omit the portfolio line rather than show a broken one.
+    """
+    returns, actual_start_year = fetch_portfolio_annual_returns(weights, start_year, end_year)
+    if not returns:
+        return None
+    result = build_compound_curve(returns, future_periods, initial_value)
+    result["actual_start_year"] = actual_start_year
+    result["truncated"] = actual_start_year > start_year
+    return result

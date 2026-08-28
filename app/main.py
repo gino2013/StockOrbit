@@ -14,7 +14,7 @@ from app.advice import build_advice, build_rebalance_plan
 from app.allocation_history import allocation_history, chart_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.cash_deployment import suggest_cash_deployment
-from app.compound_curve import build_compound_curve, fetch_annual_returns
+from app.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -312,6 +312,7 @@ def dashboard(request: Request):
             "symbol_sector_buckets": symbol_sector_buckets,
             "allocation_chart_data": allocation_chart_data,
             "notes_by_symbol": notes_by_symbol,
+            "current_year": datetime.now().year,
             "total_ttm_dividends": total_ttm_dividends,
         },
     )
@@ -457,6 +458,19 @@ def compound_curve(symbol: str, start_year: int, end_year: int, future_years: in
     result["start_year"] = start_year
     result["end_year"] = end_year
     result["annual_returns"] = returns
+
+    db = SessionLocal()
+    try:
+        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
+    finally:
+        db.close()
+    if targets:
+        try:
+            portfolio = build_portfolio_compound_curve(targets, start_year, end_year, future_years)
+        except Exception:
+            portfolio = None  # best-effort: the symbol curve above is the main result
+        result["portfolio"] = portfolio
+
     return JSONResponse(result)
 
 
