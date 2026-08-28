@@ -48,6 +48,7 @@ from app.overseas_income import (
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
 from app.risk_parity import suggest_risk_parity
+from app.scenario import simulate_market_drop
 from app.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
@@ -529,6 +530,24 @@ def risk_parity():
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/scenario")
+def scenario(market_change: float):
+    if market_change > 0:
+        return JSONResponse({"error": "請輸入負值或 0（大盤跌幅）"}, status_code=400)
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    try:
+        result = simulate_market_drop(snapshots, market_change)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/export/csv")
