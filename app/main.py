@@ -16,6 +16,7 @@ from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.cash_deployment import suggest_cash_deployment
 from app.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
 from app.compounder_checklist import build_compounder_checklist
+from app.correlation import compute_correlation_matrix
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -491,6 +492,25 @@ def compounder_checklist(symbol: str):
         result = build_compounder_checklist(symbol, fundamentals)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
+
+
+@app.get("/api/correlation")
+def correlation():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+    try:
+        result = compute_correlation_matrix(symbols)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if len(result["symbols"]) < 2:
+        return JSONResponse({"error": "持股數量不足，至少需要 2 檔才能算相關性"}, status_code=400)
     return JSONResponse(result)
 
 
