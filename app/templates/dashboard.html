@@ -1259,7 +1259,12 @@ function renderTargetsTable() {
 
 function renderTargetsWarning() {
   const sum = Object.values(targets).reduce((a, b) => a + b, 0);
-  const off = Object.keys(targets).length > 0 && Math.abs(sum - 1) > 0.01;
+  // 0.001 (0.1 percentage point) is enough to absorb float rounding noise
+  // (e.g. summing 11 stored weights landing on 99.99% instead of exactly
+  // 100%) while still catching a real 1-point miss like 99% or 101% — the
+  // old 0.01 threshold excluded exactly those real misses at its boundary
+  // (|0.99 - 1| = 0.01 is not > 0.01), which read as "only checks >100%".
+  const off = Object.keys(targets).length > 0 && Math.abs(sum - 1) > 0.001;
   const pct = (sum * 100).toFixed(1);
   const w1 = document.getElementById('targets-warning-1');
   const w2 = document.getElementById('targets-warning-2');
