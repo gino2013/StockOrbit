@@ -9,6 +9,7 @@ judge risk for themselves.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 
 import pandas as pd
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 from app.backtest import max_drawdown_details
 
 TRADING_DAYS_PER_YEAR = 252
+# ponytail: same reasoning as app/fundamentals.py's pool — Ticker.calendar is
+# a per-symbol blocking HTTP call with no batch equivalent, so a small
+# thread pool overlaps the network wait instead of doing one at a time.
+_MAX_WORKERS = 8
 
 
 def annualized_volatility(returns: pd.Series, window: int) -> float | None:
@@ -69,6 +74,15 @@ def compute_risk_metrics(
 
     benchmark_returns = returns[benchmark].dropna() if benchmark in returns else None
     today = datetime.now().date()
+
+    # fetch_next_earnings_date() is a per-symbol blocking HTTP call with no
+    # batch equivalent — fetch all of them concurrently up front rather than
+    # interleaving one call per loop iteration with the (fast, CPU-only)
+    # pandas math below, which would otherwise sit idle waiting on the
+    # network the whole time.
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(symbols))) as pool:
+        earnings_by_symbol = dict(zip(symbols, pool.map(fetch_next_earnings_date, symbols)))
+
     results = []
     for symbol in symbols:
         if symbol not in prices:
@@ -81,7 +95,7 @@ def compute_risk_metrics(
             if benchmark_returns is not None
             else None
         )
-        next_earnings, earnings_fetch_ok = fetch_next_earnings_date(symbol)
+        next_earnings, earnings_fetch_ok = earnings_by_symbol[symbol]
         days_to_earnings = (next_earnings - today).days if next_earnings else None
         results.append(
             {

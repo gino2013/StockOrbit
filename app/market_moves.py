@@ -8,8 +8,14 @@ Mixed/unclear headlines are left neutral (no color) rather than guessed at.
 """
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import yfinance as yf
+
+# ponytail: same reasoning as app/fundamentals.py's pool — Ticker.news is a
+# per-symbol blocking HTTP call with no batch equivalent, so a small thread
+# pool overlaps the network wait instead of doing one symbol at a time.
+_MAX_WORKERS = 8
 
 SWING_1D_THRESHOLD = 0.05
 SWING_5D_THRESHOLD = 0.10
@@ -68,29 +74,33 @@ def price_swings(symbols: list[str]) -> list[dict]:
     return swings
 
 
+def _fetch_headlines(symbol: str, limit_per_symbol: int) -> tuple[str, list[dict]]:
+    try:
+        items = yf.Ticker(symbol).news or []
+    except Exception:
+        items = []
+    headlines = []
+    for item in items[:limit_per_symbol]:
+        content = item.get("content", {})
+        title = content.get("title")
+        if not title:
+            continue
+        url = (content.get("canonicalUrl") or {}).get("url") or (
+            content.get("clickThroughUrl") or {}
+        ).get("url")
+        publisher = (content.get("provider") or {}).get("displayName", "")
+        headlines.append({
+            "title": title,
+            "url": url,
+            "publisher": publisher,
+            "sentiment": classify_sentiment(title),
+        })
+    return symbol, headlines
+
+
 def recent_news(symbols: list[str], limit_per_symbol: int = 2) -> dict[str, list[dict]]:
-    result = {}
-    for symbol in symbols:
-        try:
-            items = yf.Ticker(symbol).news or []
-        except Exception:
-            items = []
-        headlines = []
-        for item in items[:limit_per_symbol]:
-            content = item.get("content", {})
-            title = content.get("title")
-            if not title:
-                continue
-            url = (content.get("canonicalUrl") or {}).get("url") or (
-                content.get("clickThroughUrl") or {}
-            ).get("url")
-            publisher = (content.get("provider") or {}).get("displayName", "")
-            headlines.append({
-                "title": title,
-                "url": url,
-                "publisher": publisher,
-                "sentiment": classify_sentiment(title),
-            })
-        if headlines:
-            result[symbol] = headlines
-    return result
+    if not symbols:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(symbols))) as pool:
+        results = pool.map(lambda s: _fetch_headlines(s, limit_per_symbol), symbols)
+    return {symbol: headlines for symbol, headlines in results if headlines}
