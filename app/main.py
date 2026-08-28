@@ -17,6 +17,7 @@ from app.cash_deployment import suggest_cash_deployment
 from app.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
 from app.compounder_checklist import build_compounder_checklist
 from app.correlation import compute_correlation_matrix
+from app.dca import run_dca_comparison
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -821,6 +822,34 @@ def backtest(
 
     try:
         result = run_backtest(targets, start, end, rebalance, benchmarks=benchmarks)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
+
+
+@app.post("/api/dca")
+def dca(
+    start: str = Form(...),
+    end: str = Form(...),
+    contribution: float = Form(...),
+    frequency: str = Form("M"),
+):
+    if contribution <= 0:
+        return JSONResponse({"error": "每期投入金額需大於 0"}, status_code=400)
+    db = SessionLocal()
+    try:
+        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
+    finally:
+        db.close()
+    if not targets:
+        return JSONResponse({"error": "尚未設定目標配置"}, status_code=400)
+    total_weight = sum(targets.values())
+    if abs(total_weight - 1) > 0.01:
+        return JSONResponse(
+            {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
+        )
+    try:
+        result = run_dca_comparison(targets, start, end, contribution, frequency)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
