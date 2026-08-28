@@ -61,6 +61,7 @@ class FundamentalsCache(Base):
     quoteType = Column(String)
     sector = Column(String)
     industry = Column(String)
+    marketCap = Column(Float)
     trailingPE = Column(Float)
     forwardPE = Column(Float)
     pegRatio = Column(Float)
