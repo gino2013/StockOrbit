@@ -1820,7 +1820,21 @@ async function loadCompoundCurve() {
     data: { labels, datasets },
     options: {
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } } },
+      // Most of these lines are pointRadius: 0 (the smooth average curves
+      // have no dots to land the cursor on), so the default intersect:true
+      // hover meant you basically could never trigger a tooltip except by
+      // pixel-hunting the two dotted real-path lines. index+no-intersect
+      // shows every dataset's value at whatever x-position the cursor is
+      // over, same as the other charts on this page (回測/配置歷史走勢).
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.parsed.y == null ? undefined : ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+          },
+        },
+      },
       scales: { y: { ticks: { callback: (v) => v.toLocaleString() } } },
     },
   });
