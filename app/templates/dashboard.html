@@ -1280,12 +1280,26 @@ function renderTargetsWarning() {
   }
 }
 
+// /api/backtest reads target weights straight from the DB (not from
+// anything the frontend sends), so once a save/delete round-trip lands,
+// re-running it picks up the corrected weights automatically — no need to
+// pass the new targets through. Without this, the backtest card kept
+// showing whatever error/result came from the *previous* page load's
+// weights (e.g. a stale "權重總和需為 100%" error) until a full reload,
+// even after the user had already fixed the weight sum above it.
+function rerunBacktestIfPresent() {
+  const form = document.getElementById('backtest-form');
+  if (form) form.requestSubmit();
+}
+
 function saveTargetInBackground(symbol, weight) {
   fetch('/api/targets', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ symbol, target_weight: weight }),
-  }).catch(() => alert(`儲存 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
+  })
+    .then(rerunBacktestIfPresent)
+    .catch(() => alert(`儲存 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
 }
 
 function submitTargetForm(event) {
@@ -1313,7 +1327,9 @@ function deleteTargetOptimistic(symbol) {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ symbol }),
-  }).catch(() => alert(`刪除 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
+  })
+    .then(rerunBacktestIfPresent)
+    .catch(() => alert(`刪除 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
 }
 
 document.getElementById('target-form').addEventListener('submit', submitTargetForm);
