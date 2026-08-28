@@ -696,6 +696,23 @@
     </div>
   </div>
 
+  <!-- Section: 持股相關性矩陣 -->
+  <h2 id="section-correlation" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股相關性矩陣
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">
+          近 1 年每日報酬率的皮爾森相關係數（CASH 不計）。客觀統計數據，不下「應該減碼哪個」的結論——相關係數高不代表同產業，也可能代表分散效果有限，僅供參考。
+        </p>
+        <button type="button" onclick="loadCorrelation()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="correlation-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="correlation-content" class="overflow-x-auto mt-3"></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -735,6 +752,7 @@
           <li><a href="#section-backtest">再平衡策略回測</a></li>
           <li><a href="#section-compound-curve">複利曲線估算</a></li>
           <li><a href="#section-compounder-checklist">個股複利體質檢查清單</a></li>
+          <li><a href="#section-correlation">持股相關性矩陣</a></li>
         </ul>
       </details>
     </li>
@@ -1898,6 +1916,47 @@ async function loadCompounderChecklist() {
     <ul class="text-sm">${items}</ul>
     <p class="text-xs opacity-50 mt-3">以上僅為客觀數據檢查，不是投資建議，不代表「適合」或「不適合」長期持有的結論——請自行判斷。</p>
   `;
+}
+
+// --- 持股相關性矩陣 ---
+// -1 (深綠，反向) -> 0 (白，中性) -> +1 (深紅，高度連動)
+function correlationColor(v) {
+  const t = Math.max(-1, Math.min(1, v));
+  const mix = (from, to, f) => Math.round(from + (to - from) * f);
+  const end = t >= 0 ? [220, 38, 38] : [22, 163, 74]; // red-600 / green-600
+  const f = Math.abs(t);
+  return `rgb(${mix(255, end[0], f)}, ${mix(255, end[1], f)}, ${mix(255, end[2], f)})`;
+}
+function correlationTextColor(v) { return Math.abs(v) > 0.6 ? '#fff' : 'inherit'; }
+
+async function loadCorrelation() {
+  const errorBox = document.getElementById('correlation-error');
+  const content = document.getElementById('correlation-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/correlation');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const { symbols, matrix } = data;
+  let html = '<table class="table table-sm table-fixed"><thead><tr><th></th>';
+  symbols.forEach(s => { html += `<th class="text-center">${escapeHtml(s)}</th>`; });
+  html += '</tr></thead><tbody>';
+  matrix.forEach((row, i) => {
+    html += `<tr><th>${escapeHtml(symbols[i])}</th>`;
+    row.forEach(v => {
+      html += `<td class="text-center" style="background-color:${correlationColor(v)};color:${correlationTextColor(v)}">${v.toFixed(2)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  content.innerHTML = html;
 }
 
 {% if targets %}
