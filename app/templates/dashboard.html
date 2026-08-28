@@ -18,6 +18,11 @@
   body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }
   html { scroll-behavior: smooth; }
   h2[id] { scroll-margin-top: 1rem; }
+  @media print {
+    .drawer-side, .btn, input, select, form, .join { display: none !important; }
+    .drawer-content { margin: 0 !important; }
+    body { background: white !important; }
+  }
 </style>
 </head>
 <body class="bg-base-200 min-h-screen">
@@ -50,6 +55,7 @@
       </button>
       {% if snapshots %}
       <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
+      <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>
       {% endif %}
       <form action="/api/refresh" method="post">
         <button type="submit" class="btn btn-neutral btn-sm">重新抓取持股</button>
