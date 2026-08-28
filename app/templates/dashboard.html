@@ -644,24 +644,31 @@
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div class="relative">
           <label class="text-xs opacity-60 block mb-1">標的</label>
-          <input id="compound-symbol" placeholder="QQQ" autocomplete="off" class="input input-bordered input-sm w-24">
+          <input id="compound-symbol" placeholder="QQQ" value="QQQ" autocomplete="off" class="input input-bordered input-sm w-24">
           <ul id="compound-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
         </div>
         <div>
           <label class="text-xs opacity-60 block mb-1">起始年</label>
-          <input id="compound-start-year" type="number" placeholder="2015" class="input input-bordered input-sm w-24">
+          <input id="compound-start-year" type="number" placeholder="2015" value="2015" class="input input-bordered input-sm w-24">
         </div>
         <div>
           <label class="text-xs opacity-60 block mb-1">結束年</label>
-          <input id="compound-end-year" type="number" placeholder="2024" class="input input-bordered input-sm w-24">
+          <input id="compound-end-year" type="number" placeholder="{{ current_year }}" value="{{ current_year }}" class="input input-bordered input-sm w-24">
         </div>
         <div>
           <label class="text-xs opacity-60 block mb-1">未來預測年數</label>
-          <input id="compound-future-years" type="number" placeholder="5" value="5" class="input input-bordered input-sm w-24">
+          <input id="compound-future-years" type="number" placeholder="10" value="10" class="input input-bordered input-sm w-24">
         </div>
         <button type="button" onclick="loadCompoundCurve()" class="btn btn-neutral btn-sm">查詢</button>
+        {% if targets %}
+        <label class="btn btn-ghost btn-sm gap-1.5">
+          <input id="compound-hide-portfolio" type="checkbox" class="checkbox checkbox-xs" onchange="togglePortfolioLine()">
+          隱藏我的持股
+        </label>
+        {% endif %}
       </div>
       <div id="compound-curve-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="compound-curve-note" class="text-xs opacity-50 mt-2 hidden"></div>
       <div id="compound-curve-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
       <div class="h-80 mt-4"><canvas id="compoundCurveChart"></canvas></div>
     </div>
@@ -1692,11 +1699,23 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
 });
 
 let compoundCurveChart = null;
+let compoundPortfolioDatasetIndices = [];
+
+function togglePortfolioLine() {
+  if (!compoundCurveChart) return;
+  const hide = document.getElementById('compound-hide-portfolio').checked;
+  compoundPortfolioDatasetIndices.forEach((i) => {
+    compoundCurveChart.setDatasetVisibility(i, !hide);
+  });
+  compoundCurveChart.update();
+}
 
 async function loadCompoundCurve() {
   const errorBox = document.getElementById('compound-curve-error');
   const statsBox = document.getElementById('compound-curve-stats');
+  const noteBox = document.getElementById('compound-curve-note');
   errorBox.classList.add('hidden');
+  noteBox.classList.add('hidden');
 
   const symbol = document.getElementById('compound-symbol').value.trim();
   const startYear = parseInt(document.getElementById('compound-start-year').value, 10);
@@ -1717,8 +1736,11 @@ async function loadCompoundCurve() {
     return;
   }
 
+  const portfolio = data.portfolio;
+  const fmtCum = (v) => `${v >= 0 ? '+' : ''}${(v * 100).toLocaleString('en-US', { maximumFractionDigits: 0 })}%`;
+
   statsBox.classList.remove('hidden');
-  statsBox.innerHTML = `
+  let statsHtml = `
     <div class="stat">
       <div class="stat-title">幾何平均年化報酬率（CAGR，正確）</div>
       <div class="stat-value text-lg ${data.geometric_mean >= 0 ? 'text-success' : 'text-error'}">${(data.geometric_mean * 100).toFixed(1)}%</div>
@@ -1731,7 +1753,33 @@ async function loadCompoundCurve() {
       <div class="stat-title">${data.start_year}-${data.end_year} 實際總報酬</div>
       <div class="stat-value text-lg">${(data.real_path[data.real_path.length - 1] / data.real_path[0] * 100 - 100).toFixed(0)}%</div>
     </div>
+    <div class="stat">
+      <div class="stat-title">幾何平均累積報酬（到 ${data.end_year + data.future_periods} 年，含預測）</div>
+      <div class="stat-value text-lg ${data.geometric_cumulative_return >= 0 ? 'text-success' : 'text-error'}">${fmtCum(data.geometric_cumulative_return)}</div>
+    </div>
   `;
+  if (portfolio) {
+    statsHtml += `
+      <div class="stat">
+        <div class="stat-title">我的持股（目標配置）幾何平均年化</div>
+        <div class="stat-value text-lg ${portfolio.geometric_mean >= 0 ? 'text-success' : 'text-error'}">${(portfolio.geometric_mean * 100).toFixed(1)}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">我的持股累積報酬（到 ${data.end_year + data.future_periods} 年，含預測）</div>
+        <div class="stat-value text-lg ${portfolio.geometric_cumulative_return >= 0 ? 'text-success' : 'text-error'}">${fmtCum(portfolio.geometric_cumulative_return)}</div>
+      </div>
+    `;
+  }
+  statsBox.innerHTML = statsHtml;
+
+  const toggleWrap = document.getElementById('compound-hide-portfolio');
+  if (portfolio && portfolio.truncated) {
+    noteBox.textContent = `你的持股裡有標的是 ${portfolio.actual_start_year} 年之後才上市／有交易紀錄，「我的持股」這幾條線只能從 ${portfolio.actual_start_year} 年開始算，不是完整的 ${data.start_year}-${data.end_year}。`;
+    noteBox.classList.remove('hidden');
+  } else if (!portfolio && toggleWrap) {
+    noteBox.textContent = '目前的目標配置在這段期間內抓不到足夠的歷史股價，沒有畫出「我的持股」這條線。';
+    noteBox.classList.remove('hidden');
+  }
 
   // labels span historical + future; the real path is padded with null past
   // the historical range so Chart.js just stops that line there instead of
@@ -1740,24 +1788,44 @@ async function loadCompoundCurve() {
   const labels = Array.from({ length: totalPoints }, (_, i) => `${data.start_year - 1 + i}`);
   const realData = data.real_path.concat(Array(data.future_periods).fill(null));
 
+  const datasets = [
+    { label: `${data.symbol} 實際複利路徑（逐年真實報酬率相乘）`, data: realData, borderWidth: 2, pointRadius: 2, borderColor: '#4f46e5' },
+    { label: `${data.symbol} 幾何平均 ${(data.geometric_mean * 100).toFixed(1)}%／年（正確的平滑曲線）`, data: data.geometric_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
+    { label: `${data.symbol} 算術平均 ${(data.arithmetic_mean * 100).toFixed(1)}%／年（高估，僅供對比）`, data: data.arithmetic_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8', borderDash: [4, 4] },
+  ];
+
+  compoundPortfolioDatasetIndices = [];
+  if (portfolio) {
+    // portfolio.real/geometric/arithmetic paths start from its own
+    // actual_start_year, which can be later than the requested start_year
+    // (see the note above) — left-pad with null so it lands on the correct
+    // year in the shared x-axis instead of silently starting at year 0.
+    const offset = portfolio.actual_start_year - data.start_year;
+    const padLeft = (arr) => Array(Math.max(offset, 0)).fill(null).concat(arr);
+    const portfolioReal = padLeft(portfolio.real_path.concat(Array(portfolio.future_periods).fill(null)));
+
+    compoundPortfolioDatasetIndices = [datasets.length, datasets.length + 1, datasets.length + 2];
+    datasets.push(
+      { label: `我的持股 實際複利路徑（自 ${portfolio.actual_start_year} 年）`, data: portfolioReal, borderWidth: 2, pointRadius: 2, borderColor: '#10b981' },
+      { label: `我的持股 幾何平均 ${(portfolio.geometric_mean * 100).toFixed(1)}%／年`, data: padLeft(portfolio.geometric_path), borderWidth: 1.5, pointRadius: 0, borderColor: '#06b6d4' },
+      { label: `我的持股 算術平均 ${(portfolio.arithmetic_mean * 100).toFixed(1)}%／年（高估，僅供對比）`, data: padLeft(portfolio.arithmetic_path), borderWidth: 1.5, pointRadius: 0, borderColor: '#a3e635', borderDash: [4, 4] },
+    );
+  }
+
   if (compoundCurveChart) compoundCurveChart.destroy();
   compoundCurveChart = new Chart(document.getElementById('compoundCurveChart'), {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: `${data.symbol} 實際複利路徑（逐年真實報酬率相乘）`, data: realData, borderWidth: 2, pointRadius: 2, borderColor: '#4f46e5' },
-        { label: `幾何平均 ${(data.geometric_mean * 100).toFixed(1)}%／年（正確的平滑曲線）`, data: data.geometric_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
-        { label: `算術平均 ${(data.arithmetic_mean * 100).toFixed(1)}%／年（高估，僅供對比）`, data: data.arithmetic_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8', borderDash: [4, 4] },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } } },
       scales: { y: { ticks: { callback: (v) => v.toLocaleString() } } },
     },
   });
+  togglePortfolioLine();
 }
+
+loadCompoundCurve();
 
 {% if targets %}
 document.getElementById('backtest-form').requestSubmit();
