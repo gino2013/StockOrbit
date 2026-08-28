@@ -55,6 +55,7 @@
       </button>
       {% if snapshots %}
       <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
+      <a href="/api/export/transactions-csv" class="btn btn-ghost btn-sm">匯出交易紀錄</a>
       <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>
       {% endif %}
       <form action="/api/refresh" method="post">

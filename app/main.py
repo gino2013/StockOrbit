@@ -28,7 +28,7 @@ from app.db import (
     init_db,
 )
 from app.dividends import trailing_twelve_month_dividends, with_yield
-from app.export import build_holdings_csv
+from app.export import build_holdings_csv, build_transactions_csv
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
@@ -567,6 +567,25 @@ def export_csv():
     filename = f"stockorbit_{datetime.now().date().isoformat()}.csv"
     return Response(
         content="﻿" + csv_text,  # BOM so Excel opens the UTF-8 file with correct Chinese text
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/export/transactions-csv")
+def export_transactions_csv():
+    db = SessionLocal()
+    try:
+        transactions = _all_transactions(db)
+    finally:
+        db.close()
+    if not transactions:
+        return JSONResponse({"error": "還沒有交易紀錄，請先按「重新抓取持股」"}, status_code=400)
+    realized = compute_realized_gains(transactions)
+    csv_text = build_transactions_csv(transactions, realized, as_of=datetime.now().date())
+    filename = f"stockorbit_transactions_{datetime.now().date().isoformat()}.csv"
+    return Response(
+        content="﻿" + csv_text,
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
