@@ -674,6 +674,28 @@
     </div>
   </div>
 
+  <!-- Section: 個股複利體質檢查清單 -->
+  <h2 id="section-compounder-checklist" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>個股複利體質檢查清單
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用客觀數據檢查一檔股票的歷史是否真的展現出複利效果（不是波動大到把幾何平均侵蝕掉），以及基本的獲利/財務/規模體質。<b>不是投資建議，不給「適合/不適合」的單一結論</b>——每項只列出 ✓/✗ 跟實際數字，由你自己判斷這些客觀事實加起來夠不夠支持長期持有的信心。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="checklist-symbol" placeholder="AAPL" value="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="checklist-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <button type="button" onclick="loadCompounderChecklist()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="checklist-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="checklist-content" class="mt-3"></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -712,6 +734,7 @@
           <li><a href="#section-history">持股歷史走勢</a></li>
           <li><a href="#section-backtest">再平衡策略回測</a></li>
           <li><a href="#section-compound-curve">複利曲線估算</a></li>
+          <li><a href="#section-compounder-checklist">個股複利體質檢查清單</a></li>
         </ul>
       </details>
     </li>
@@ -875,6 +898,7 @@ attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
 attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
 attachTickerAutocomplete('compound-symbol', 'compound-symbol-suggestions');
+attachTickerAutocomplete('checklist-symbol', 'checklist-symbol-suggestions');
 
 // Combines already-existing endpoints (market-moves' price swings, risk's
 // earnings-date/drawdown) with the allocation/targets already embedded in
@@ -1844,6 +1868,37 @@ async function loadCompoundCurve() {
 }
 
 loadCompoundCurve();
+
+// --- 個股複利體質檢查清單 ---
+async function loadCompounderChecklist() {
+  const symbol = document.getElementById('checklist-symbol').value.trim();
+  const errorBox = document.getElementById('checklist-error');
+  const content = document.getElementById('checklist-content');
+  errorBox.classList.add('hidden');
+  if (!symbol) return;
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch(`/api/compounder-checklist?symbol=${encodeURIComponent(symbol)}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const items = data.checks.map(c => `
+    <li class="flex items-start gap-2 py-1.5 border-b border-base-200 last:border-0">
+      <span class="${c.passed ? 'text-success' : 'text-error'} font-bold shrink-0">${c.passed ? '✓' : '✗'}</span>
+      <span class="flex-1">${escapeHtml(c.label)}</span>
+      <span class="opacity-70 shrink-0">${escapeHtml(c.value)}</span>
+    </li>
+  `).join('');
+  content.innerHTML = `
+    <ul class="text-sm">${items}</ul>
+    <p class="text-xs opacity-50 mt-3">以上僅為客觀數據檢查，不是投資建議，不代表「適合」或「不適合」長期持有的結論——請自行判斷。</p>
+  `;
+}
 
 {% if targets %}
 document.getElementById('backtest-form').requestSubmit();
