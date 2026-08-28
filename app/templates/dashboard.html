@@ -632,6 +632,41 @@
     </div>
   </div>
 
+  <!-- Section: 複利曲線估算 -->
+  <h2 id="section-compound-curve" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>複利曲線估算
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        拿「歷史真實年度報酬率」逐年相乘，畫出實際複利路徑，跟兩條假設「每年報酬率固定」的平滑曲線比較：橘色用<b>幾何平均</b>（CAGR，唯一一個複利 n 次會剛好等於真實總報酬的年化率），灰色虛線用<b>算術平均</b>（只是把每年報酬率加起來除以年數）。只要報酬率有波動，算術平均一定 ≥ 幾何平均，波動越大差距越大——灰色虛線在歷史範圍內就已經超出實際路徑，未來延伸的落差只會更明顯。不含手續費/稅金，僅供參考，不是投資建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="compound-symbol" placeholder="QQQ" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="compound-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">起始年</label>
+          <input id="compound-start-year" type="number" placeholder="2015" class="input input-bordered input-sm w-24">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">結束年</label>
+          <input id="compound-end-year" type="number" placeholder="2024" class="input input-bordered input-sm w-24">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">未來預測年數</label>
+          <input id="compound-future-years" type="number" placeholder="5" value="5" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="loadCompoundCurve()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="compound-curve-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="compound-curve-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div class="h-80 mt-4"><canvas id="compoundCurveChart"></canvas></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -669,6 +704,7 @@
           <li><a href="#section-allocation-history">配置歷史走勢</a></li>
           <li><a href="#section-history">持股歷史走勢</a></li>
           <li><a href="#section-backtest">再平衡策略回測</a></li>
+          <li><a href="#section-compound-curve">複利曲線估算</a></li>
         </ul>
       </details>
     </li>
@@ -831,6 +867,7 @@ function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
 attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
 attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
+attachTickerAutocomplete('compound-symbol', 'compound-symbol-suggestions');
 
 // Combines already-existing endpoints (market-moves' price swings, risk's
 // earnings-date/drawdown) with the allocation/targets already embedded in
@@ -1632,6 +1669,74 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     },
   });
 });
+
+let compoundCurveChart = null;
+
+async function loadCompoundCurve() {
+  const errorBox = document.getElementById('compound-curve-error');
+  const statsBox = document.getElementById('compound-curve-stats');
+  errorBox.classList.add('hidden');
+
+  const symbol = document.getElementById('compound-symbol').value.trim();
+  const startYear = parseInt(document.getElementById('compound-start-year').value, 10);
+  const endYear = parseInt(document.getElementById('compound-end-year').value, 10);
+  const futureYears = parseInt(document.getElementById('compound-future-years').value, 10) || 5;
+  if (!symbol || !startYear || !endYear) {
+    errorBox.textContent = '請填標的、起始年、結束年';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const res = await fetch(`/api/compound-curve?symbol=${encodeURIComponent(symbol)}&start_year=${startYear}&end_year=${endYear}&future_years=${futureYears}`);
+  const data = await res.json();
+  if (data.error) {
+    statsBox.classList.add('hidden');
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  statsBox.classList.remove('hidden');
+  statsBox.innerHTML = `
+    <div class="stat">
+      <div class="stat-title">幾何平均年化報酬率（CAGR，正確）</div>
+      <div class="stat-value text-lg ${data.geometric_mean >= 0 ? 'text-success' : 'text-error'}">${(data.geometric_mean * 100).toFixed(1)}%</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">算術平均年報酬率（會高估，僅供對比）</div>
+      <div class="stat-value text-lg opacity-70">${(data.arithmetic_mean * 100).toFixed(1)}%</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">${data.start_year}-${data.end_year} 實際總報酬</div>
+      <div class="stat-value text-lg">${(data.real_path[data.real_path.length - 1] / data.real_path[0] * 100 - 100).toFixed(0)}%</div>
+    </div>
+  `;
+
+  // labels span historical + future; the real path is padded with null past
+  // the historical range so Chart.js just stops that line there instead of
+  // drawing a fake "actual" value for years that haven't happened.
+  const totalPoints = data.historical_periods + data.future_periods + 1;
+  const labels = Array.from({ length: totalPoints }, (_, i) => `${data.start_year - 1 + i}`);
+  const realData = data.real_path.concat(Array(data.future_periods).fill(null));
+
+  if (compoundCurveChart) compoundCurveChart.destroy();
+  compoundCurveChart = new Chart(document.getElementById('compoundCurveChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: `${data.symbol} 實際複利路徑（逐年真實報酬率相乘）`, data: realData, borderWidth: 2, pointRadius: 2, borderColor: '#4f46e5' },
+        { label: `幾何平均 ${(data.geometric_mean * 100).toFixed(1)}%／年（正確的平滑曲線）`, data: data.geometric_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
+        { label: `算術平均 ${(data.arithmetic_mean * 100).toFixed(1)}%／年（高估，僅供對比）`, data: data.arithmetic_path, borderWidth: 1.5, pointRadius: 0, borderColor: '#94a3b8', borderDash: [4, 4] },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } } },
+      scales: { y: { ticks: { callback: (v) => v.toLocaleString() } } },
+    },
+  });
+}
 
 {% if targets %}
 document.getElementById('backtest-form').requestSubmit();
