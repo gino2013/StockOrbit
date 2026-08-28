@@ -47,6 +47,7 @@ from app.overseas_income import (
 )
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
+from app.risk_parity import suggest_risk_parity
 from app.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
@@ -512,6 +513,22 @@ def correlation():
     if len(result["symbols"]) < 2:
         return JSONResponse({"error": "持股數量不足，至少需要 2 檔才能算相關性"}, status_code=400)
     return JSONResponse(result)
+
+
+@app.get("/api/risk-parity")
+def risk_parity():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    try:
+        items = suggest_risk_parity(snapshots)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"items": items})
 
 
 @app.get("/api/export/csv")

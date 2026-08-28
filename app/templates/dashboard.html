@@ -713,6 +713,23 @@
     </div>
   </div>
 
+  <!-- Section: 貝塔調整部位建議 -->
+  <h2 id="section-risk-parity" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>貝塔調整部位建議
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">
+          風險平價（risk parity）簡化版：波動度越高的標的，建議佔比越低（用 1/波動度 正規化）。這只是用歷史波動度反推的其中一種配置方法，不是唯一正確答案，也不是投資建議——CASH 不參與重分配，佔比維持不變。
+        </p>
+        <button type="button" onclick="loadRiskParity()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="risk-parity-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="risk-parity-content" class="overflow-x-auto mt-3"></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -753,6 +770,7 @@
           <li><a href="#section-compound-curve">複利曲線估算</a></li>
           <li><a href="#section-compounder-checklist">個股複利體質檢查清單</a></li>
           <li><a href="#section-correlation">持股相關性矩陣</a></li>
+          <li><a href="#section-risk-parity">貝塔調整部位建議</a></li>
         </ul>
       </details>
     </li>
@@ -1957,6 +1975,40 @@ async function loadCorrelation() {
   });
   html += '</tbody></table>';
   content.innerHTML = html;
+}
+
+// --- 貝塔調整部位建議 ---
+async function loadRiskParity() {
+  const errorBox = document.getElementById('risk-parity-error');
+  const content = document.getElementById('risk-parity-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/risk-parity');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">波動度(90日)</th><th class="text-right">目前佔比</th>' +
+    '<th class="text-right">風險平價建議佔比</th><th class="text-right">差異</th></tr></thead><tbody>';
+  for (const r of data.items) {
+    const diff = r.suggested_weight == null ? null : r.suggested_weight - r.current_weight;
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtPctOrDash(r.volatility_90d)}</td>
+      <td class="text-right">${fmtPctOrDash(r.current_weight)}</td>
+      <td class="text-right">${fmtPctOrDash(r.suggested_weight)}</td>
+      <td class="text-right ${posNegClass(diff)}">${diff == null ? '-' : fmtPct(diff)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
 }
 
 {% if targets %}
