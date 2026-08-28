@@ -258,6 +258,13 @@ def dashboard(request: Request):
         "all_time": summarize_realized_gains(realized),
         "this_year": summarize_realized_gains(realized, year=datetime.now().year),
     }
+    # XIRR needs the *real* total value as its terminal cashflow — real
+    # deposit history compared against a flex-mode-inflated ending value
+    # would look like a 10.1x gain that never happened, blowing up the rate
+    # into nonsense (seen: 20078% instead of the real ~45%). Capture it
+    # before flex mode scales snapshots, same way total_gain_pct already
+    # stays correct under flex mode because both its inputs scale together.
+    real_total_value = sum(s["market_value"] for s in snapshots)
     if request.cookies.get(FLEX_MODE_COOKIE) == "1":
         snapshots = _apply_flex_mode(snapshots)
     advice = build_advice(snapshots, targets, sector_allocation=sector_allocation) if snapshots else None
@@ -271,7 +278,7 @@ def dashboard(request: Request):
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
-    cashflows = portfolio_cashflows(transactions, total_value, datetime.now().date())
+    cashflows = portfolio_cashflows(transactions, real_total_value, datetime.now().date())
     annualized_return = xirr(cashflows)
     market_value_by_symbol = {s["symbol"]: s["market_value"] for s in snapshots}
     ttm_dividends = trailing_twelve_month_dividends(transactions, datetime.now().date())
