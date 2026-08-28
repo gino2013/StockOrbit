@@ -14,6 +14,7 @@ from app.advice import build_advice, build_rebalance_plan
 from app.allocation_history import allocation_history, chart_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.cash_deployment import suggest_cash_deployment
+from app.compound_curve import build_compound_curve, fetch_annual_returns
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -437,6 +438,26 @@ def trending(screener: str = "day_gainers"):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/compound-curve")
+def compound_curve(symbol: str, start_year: int, end_year: int, future_years: int = 5):
+    if end_year < start_year:
+        return JSONResponse({"error": "結束年份不能早於起始年份"}, status_code=400)
+    if end_year - start_year > 40:
+        return JSONResponse({"error": "區間太長，請縮小到 40 年以內"}, status_code=400)
+    try:
+        returns = fetch_annual_returns(symbol.upper(), start_year, end_year)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if not returns:
+        return JSONResponse({"error": f"抓不到 {symbol.upper()} 這段期間的歷史股價"}, status_code=400)
+    result = build_compound_curve(returns, future_periods=future_years)
+    result["symbol"] = symbol.upper()
+    result["start_year"] = start_year
+    result["end_year"] = end_year
+    result["annual_returns"] = returns
+    return JSONResponse(result)
 
 
 @app.get("/api/export/csv")
