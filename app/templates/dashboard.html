@@ -1547,6 +1547,7 @@ document.getElementById('history-form').addEventListener('submit', async (e) => 
     data: { labels: data.dates, datasets },
     options: {
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
       plugins: {
         annotation: { annotations },
@@ -1683,6 +1684,7 @@ document.getElementById('backtest-form').addEventListener('submit', async (e) =>
     },
     options: {
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
       plugins: {
         annotation: { annotations },
