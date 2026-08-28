@@ -21,6 +21,7 @@ FIELDS = [
     "quoteType",
     "sector",
     "industry",
+    "marketCap",
     "trailingPE",
     "forwardPE",
     "pegRatio",

@@ -15,6 +15,7 @@ from app.allocation_history import allocation_history, chart_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.cash_deployment import suggest_cash_deployment
 from app.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
+from app.compounder_checklist import build_compounder_checklist
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -471,6 +472,25 @@ def compound_curve(symbol: str, start_year: int, end_year: int, future_years: in
             portfolio = None  # best-effort: the symbol curve above is the main result
         result["portfolio"] = portfolio
 
+    return JSONResponse(result)
+
+
+@app.get("/api/compounder-checklist")
+def compounder_checklist(symbol: str):
+    symbol = symbol.upper()
+    db = SessionLocal()
+    try:
+        fundamentals = fetch_fundamentals([symbol]).get(symbol, {})
+        if not fundamentals.get("_fetch_ok"):
+            cached = load_fundamentals(db, [symbol]).get(symbol)
+            if cached:
+                fundamentals = {**fundamentals, **cached}
+    finally:
+        db.close()
+    try:
+        result = build_compounder_checklist(symbol, fundamentals)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
 
 
