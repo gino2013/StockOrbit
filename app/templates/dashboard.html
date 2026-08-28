@@ -522,7 +522,7 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">每次刷新持股都會留一筆快照，這裡顯示各標的佔比隨時間怎麼變化（堆疊面積圖）。資料點數取決於歷史快照次數，剛開始用可能只有幾個點。</p>
+      <p class="text-xs opacity-60">每次刷新持股都會留一筆快照，這裡取每天最後一筆快照畫成一個點，顯示各標的佔比隨時間怎麼變化（堆疊面積圖）。資料點數取決於有紀錄的天數，剛開始用可能只有幾天的資料。</p>
       <div class="h-80"><canvas id="allocationHistoryChart"></canvas></div>
     </div>
   </div>
@@ -1410,7 +1410,9 @@ if (sortedSectorNames.length) {
 
 const allocationChartData = {{ allocation_chart_data | default(none) | tojson }};
 if (allocationChartData && allocationChartData.labels.length) {
-  const historyLabels = allocationChartData.labels.map((l) => l.slice(0, 16).replace('T', ' '));
+  // One point per calendar day now (see allocation_history.py) -- just the
+  // date, no time-of-day, since there's only ever one point per day.
+  const historyLabels = allocationChartData.labels.map((l) => l.slice(0, 10));
   const historyDatasets = Object.entries(allocationChartData.series).map(([symbol, data]) => ({
     label: symbol,
     data,
