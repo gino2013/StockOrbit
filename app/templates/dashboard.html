@@ -576,6 +576,21 @@
     </div>
   </div>
 
+  <!-- Section: 價格/技術指標 -->
+  <h2 id="section-technical" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>價格/技術指標
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">50/200 日均線交叉狀態跟 RSI（14 日）。客觀的歷史價格型態資訊，不是買賣訊號或預測。</p>
+        <button type="button" onclick="loadTechnical()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="technical-error" class="alert alert-error text-sm hidden"></div>
+      <div id="technical-content" class="overflow-x-auto"></div>
+    </div>
+  </div>
+
   <!-- Section: 持股基本面分析 -->
   <h2 id="section-fundamentals" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股基本面分析
@@ -979,6 +994,7 @@
         <summary>市場資訊</summary>
         <ul>
           <li><a href="#section-risk">風險與波動指標</a></li>
+          <li><a href="#section-technical">價格/技術指標</a></li>
           <li><a href="#section-fundamentals">持股基本面分析</a></li>
           <li><a href="#section-trending">目前熱門標的</a></li>
         </ul>
@@ -1554,6 +1570,52 @@ async function loadRisk() {
 function fmtPctOrDash(v) { return v === null || v === undefined ? '-' : `${(v * 100).toFixed(1)}%`; }
 function fmtNum(v, digits = 1) { return v === null || v === undefined ? '-' : v.toFixed(digits); }
 function fmtPrice(v) { return v === null || v === undefined ? '-' : `$${v.toFixed(2)}`; }
+
+const MA_CROSS_LABELS = {
+  golden_cross: '<span class="badge badge-success badge-sm">黃金交叉</span>',
+  death_cross: '<span class="badge badge-error badge-sm">死亡交叉</span>',
+  above: '<span class="text-success">50日 &gt; 200日</span>',
+  below: '<span class="text-error">50日 &lt; 200日</span>',
+};
+
+async function loadTechnical() {
+  const errorBox = document.getElementById('technical-error');
+  const content = document.getElementById('technical-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/technical-indicators');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">50日均線</th><th class="text-right">200日均線</th>' +
+    '<th>均線狀態</th><th class="text-right">RSI (14日)</th><th>RSI 狀態</th></tr></thead><tbody>';
+  for (const r of data.items) {
+    if (r.insufficient_history) {
+      html += `<tr><td class="font-medium">${escapeHtml(r.symbol)}</td><td colspan="5" class="opacity-50">歷史資料不足（需至少 200 個交易日）</td></tr>`;
+      continue;
+    }
+    const rsiLabel = r.rsi_overbought ? '<span class="badge badge-error badge-sm">超買</span>'
+      : r.rsi_oversold ? '<span class="badge badge-success badge-sm">超賣</span>' : '-';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtPrice(r.ma_short)}</td>
+      <td class="text-right">${fmtPrice(r.ma_long)}</td>
+      <td>${MA_CROSS_LABELS[r.ma_cross_state] || '-'}</td>
+      <td class="text-right">${fmtNum(r.rsi, 1)}</td>
+      <td>${rsiLabel}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
+}
 
 // Simple, objective color cues (positive/negative, high/low risk) - not a
 // buy/sell signal, just makes the table faster to scan at a glance.
