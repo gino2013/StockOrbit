@@ -125,5 +125,18 @@ class PositionNote(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class InvestmentGoal(Base):
+    """Single long-term target (amount + date) to track progress against.
+    Singleton row keyed by a fixed id, same upsert-by-key shape as
+    PositionNote - only one goal at a time, no history kept."""
+
+    __tablename__ = "investment_goals"
+
+    id = Column(String, primary_key=True, default="default")
+    target_amount = Column(Float, nullable=False)
+    target_date = Column(Date, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def init_db():
     Base.metadata.create_all(engine)

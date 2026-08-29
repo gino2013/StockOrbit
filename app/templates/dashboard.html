@@ -111,6 +111,29 @@
   </div>
   {% endif %}
 
+  {% if snapshots %}
+  <!-- Section: 目標達成進度追蹤 -->
+  <h2 id="section-goal" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>目標達成進度追蹤
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">設定一個長期目標金額跟日期，追蹤目前進度、跟達標所需的年化報酬率。</p>
+      <form id="goal-form" class="flex flex-wrap gap-3 items-end mt-2">
+        <label class="text-sm">目標金額<br>
+          <input name="target_amount" type="number" min="1" step="any" placeholder="1000000" required class="input input-bordered input-sm mt-1 w-40">
+        </label>
+        <label class="text-sm">目標日期<br>
+          <input name="target_date" type="date" required class="input input-bordered input-sm mt-1 w-40">
+        </label>
+        <button type="submit" class="btn btn-neutral btn-sm">設定目標</button>
+        <button type="button" onclick="deleteGoal()" id="goal-delete-btn" class="btn btn-ghost btn-sm hidden">清除目標</button>
+      </form>
+      <div id="goal-content" class="mt-3"></div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Section: 持股與配置 -->
   <h2 id="section-holdings" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股與配置
@@ -909,6 +932,7 @@
       <details open>
         <summary>持股管理</summary>
         <ul>
+          <li><a href="#section-goal">目標達成進度追蹤</a></li>
           <li><a href="#section-holdings">持股與配置</a></li>
           <li><a href="#section-rebalance">再平衡建議金額</a></li>
           <li><a href="#section-realized">已實現損益</a></li>
@@ -1264,6 +1288,70 @@ async function loadCashDeployment() {
   content.innerHTML = html;
   makeSortable(document.getElementById('cash-deployment-table'));
 }
+
+// --- 目標達成進度追蹤 ---
+async function loadGoal() {
+  const content = document.getElementById('goal-content');
+  const deleteBtn = document.getElementById('goal-delete-btn');
+  const res = await fetch('/api/goal');
+  const data = await res.json();
+  if (!data.goal) {
+    content.innerHTML = '';
+    deleteBtn.classList.add('hidden');
+    return;
+  }
+  const g = data.goal;
+  deleteBtn.classList.remove('hidden');
+  document.querySelector('#goal-form input[name=target_amount]').value = g.target_amount;
+  document.querySelector('#goal-form input[name=target_date]').value = g.target_date;
+
+  const progressPct = (g.progress_pct * 100).toFixed(1);
+  const onTrackBadge = g.on_track === null ? ''
+    : g.on_track ? '<span class="badge badge-success badge-sm ml-2">進度超前所需報酬率</span>'
+    : '<span class="badge badge-warning badge-sm ml-2">目前報酬率低於所需</span>';
+  let html = `
+    <div class="flex justify-between text-sm mb-1">
+      <span>${g.target_date} 前達到 $${g.target_amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
+      <span>${progressPct}%</span>
+    </div>
+    <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>
+    <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 mt-3">
+      <div class="stat">
+        <div class="stat-title">目前市值</div>
+        <div class="stat-value text-lg">$${g.current_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">還差</div>
+        <div class="stat-value text-lg">$${g.remaining_amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">需要的年化報酬率</div>
+        <div class="stat-value text-lg">${g.required_annual_return == null ? '-' : fmtPct(g.required_annual_return)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">目前實際年化報酬率 (XIRR)</div>
+        <div class="stat-value text-lg">${g.current_annual_return == null ? '-' : fmtPct(g.current_annual_return)}${onTrackBadge}</div>
+      </div>
+    </div>`;
+  if (g.already_past_target_date) {
+    html += '<div class="alert alert-warning text-sm py-2 mt-2">目標日期已過，考慮更新目標。</div>';
+  }
+  content.innerHTML = html;
+}
+
+document.getElementById('goal-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await fetch('/api/goal', { method: 'POST', body: new FormData(e.target) });
+  loadGoal();
+});
+
+async function deleteGoal() {
+  await fetch('/api/goal/delete', { method: 'POST' });
+  document.getElementById('goal-form').reset();
+  loadGoal();
+}
+
+loadGoal();
 
 async function loadOverseasIncome() {
   const errorBox = document.getElementById('overseas-income-error');

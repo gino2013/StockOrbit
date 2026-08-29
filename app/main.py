@@ -23,6 +23,7 @@ from app.drip import simulate_drip
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
+    InvestmentGoal,
     PositionNote,
     PositionSnapshot,
     SessionLocal,
@@ -32,6 +33,7 @@ from app.db import (
 )
 from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.export import build_holdings_csv, build_transactions_csv
+from app.goal_tracking import build_goal_progress
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
@@ -686,6 +688,62 @@ def delete_target(symbol: str = Form(...)):
     finally:
         db.close()
     return RedirectResponse("/", status_code=303)
+
+
+@app.get("/api/goal")
+def get_goal():
+    db = SessionLocal()
+    try:
+        goal = db.get(InvestmentGoal, "default")
+        if not goal:
+            return JSONResponse({"goal": None})
+        snapshots = _latest_snapshots(db)
+        transactions = _all_transactions(db)
+    finally:
+        db.close()
+    current_value = sum(s["market_value"] for s in snapshots)
+    cashflows = portfolio_cashflows(transactions, current_value, datetime.now().date())
+    current_return = xirr(cashflows)
+    progress = build_goal_progress(
+        current_value, goal.target_amount, goal.target_date, current_return, datetime.now().date()
+    )
+    return JSONResponse({"goal": progress})
+
+
+@app.post("/api/goal")
+def set_goal(target_amount: float = Form(...), target_date: str = Form(...)):
+    if target_amount <= 0:
+        return JSONResponse({"error": "目標金額需大於 0"}, status_code=400)
+    try:
+        target_date_parsed = date.fromisoformat(target_date)
+    except ValueError:
+        return JSONResponse({"error": "日期格式錯誤"}, status_code=400)
+    db = SessionLocal()
+    try:
+        existing = db.get(InvestmentGoal, "default")
+        if existing:
+            existing.target_amount = target_amount
+            existing.target_date = target_date_parsed
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(InvestmentGoal(id="default", target_amount=target_amount, target_date=target_date_parsed))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/goal/delete")
+def delete_goal():
+    db = SessionLocal()
+    try:
+        existing = db.get(InvestmentGoal, "default")
+        if existing:
+            db.delete(existing)
+            db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/holdings-history")
