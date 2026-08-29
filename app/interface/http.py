@@ -18,6 +18,7 @@ from app.domain.analytics.compound_curve import build_compound_curve, build_port
 from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
+from app.domain.analytics.drawdown_periods import find_drawdown_periods
 from app.domain.analytics.drip import simulate_drip
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import init_db
@@ -940,4 +941,13 @@ def drip(symbol: str, start: str, end: str, initial_investment: float = 10000):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     result["symbol"] = symbol.upper()
+    return JSONResponse(result)
+
+
+@app.get("/api/drawdown-periods")
+def drawdown_periods(symbol: str, min_duration_days: int = 60):
+    try:
+        result = find_drawdown_periods(symbol.upper(), min_duration_days=min_duration_days)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
