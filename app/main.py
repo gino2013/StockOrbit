@@ -18,6 +18,7 @@ from app.compound_curve import build_compound_curve, build_portfolio_compound_cu
 from app.compounder_checklist import build_compounder_checklist
 from app.correlation import compute_correlation_matrix
 from app.dca import run_dca_comparison
+from app.drip import simulate_drip
 from app.db import (
     ExchangeRateSnapshot,
     FundamentalsCache,
@@ -870,3 +871,13 @@ def dca(
         result["label"] = label
         items.append(result)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/drip")
+def drip(symbol: str, start: str, end: str, initial_investment: float = 10000):
+    try:
+        result = simulate_drip(symbol.upper(), start, end, initial_investment)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    result["symbol"] = symbol.upper()
+    return JSONResponse(result)
