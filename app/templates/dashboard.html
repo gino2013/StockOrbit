@@ -971,7 +971,7 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">整理某段期間的持股報酬、跟比較基準的比較，跟這段期間的交易紀錄，適合搭配「匯出 PDF」列印成一份報告。用目前的股數回推期間內市值，跟持股歷史走勢一樣是近似值，不是逐日精確重建。</p>
+      <p class="text-xs opacity-60">整理某段期間的持股報酬、跟比較基準的比較，跟這段期間的交易紀錄，適合搭配「匯出 PDF」列印成一份報告。三個報酬數字看的是不同東西：<b>組合價格報酬</b>用目前股數回推期間市值（近似值，未計期間內加減碼時點）；<b>資金加權報酬 (XIRR)</b> 用交易紀錄還原起始日持股，再把期間內每筆買賣按實際日期計入，年化；<b>自買入以來總報酬</b>是相對你實際成本、不分期間（等同上方「報酬率」卡片）。</p>
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div class="join">
           <button type="button" onclick="loadPerformanceReportPreset('month')" class="btn btn-sm join-item">本月</button>
@@ -2440,14 +2440,27 @@ async function loadPerformanceReport() {
   }
 
   const retClass = v => v >= 0 ? 'text-success' : 'text-error';
+  const pctOrDash = v => (v === null || v === undefined) ? '—' : fmtPct(v);
+  const nullRetClass = v => (v === null || v === undefined) ? '' : retClass(v);
   let html = `<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200">
     <div class="stat">
-      <div class="stat-title">${data.start} ~ ${data.end} 期間報酬</div>
+      <div class="stat-title">${data.start} ~ ${data.end} 組合價格報酬</div>
       <div class="stat-value text-lg ${retClass(data.period_return)}">${fmtPct(data.period_return)}</div>
+      <div class="stat-desc">用目前股數回推，未計進出場時點</div>
     </div>
     <div class="stat">
       <div class="stat-title">${escapeHtml(benchmark)} 同期報酬</div>
       <div class="stat-value text-lg ${retClass(data.benchmark_return)}">${fmtPct(data.benchmark_return)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">本期資金加權報酬（XIRR）</div>
+      <div class="stat-value text-lg ${nullRetClass(data.period_xirr)}">${pctOrDash(data.period_xirr)}</div>
+      <div class="stat-desc">年化，計入實際買賣時點${data.period_pnl === null || data.period_pnl === undefined ? '' : `・期間損益 $${data.period_pnl.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">自買入以來總報酬</div>
+      <div class="stat-value text-lg ${nullRetClass(data.since_purchase_return)}">${pctOrDash(data.since_purchase_return)}</div>
+      <div class="stat-desc">相對實際成本，不分期間</div>
     </div>
     <div class="stat">
       <div class="stat-title">期間已實現損益</div>
