@@ -37,7 +37,7 @@ def demo():
     assert len(result["arithmetic_path"]) == 6
 
     # The geometric path only has to match the real path at the start and
-    # end of the historical range (that's the defining property of CAGR) —
+    # end of the historical range (that's the defining property of CAGR) -
     # the middle diverges on purpose, since the real path jumped to 150
     # before crashing while the smooth curve never does either.
     assert abs(result["geometric_path"][0] - result["real_path"][0]) < 1e-6

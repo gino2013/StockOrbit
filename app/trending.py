@@ -1,5 +1,5 @@
 """Market-wide trending tickers via yfinance's predefined screeners, with
-recent news headlines attached as context. Objective market data — no
+recent news headlines attached as context. Objective market data - no
 "buy this" framing, this isn't personalized investment advice.
 """
 

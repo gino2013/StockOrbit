@@ -1,5 +1,5 @@
 """Rebalanced-portfolio backtest against a benchmark, using yfinance price
-history. No fees/taxes/slippage modeled — a research approximation, not a
+history. No fees/taxes/slippage modeled - a research approximation, not a
 trading simulator.
 """
 
@@ -10,7 +10,7 @@ from app.holdings_history import notable_moves, weighted_return_series
 
 # to_period codes (not the "ME"/"QE"/"YE" *anchored offset* aliases) so we can
 # group the real trading-day index and take actual observed dates as
-# rebalance dates — resample(...).first() instead returns synthetic
+# rebalance dates - resample(...).first() instead returns synthetic
 # period-end labels (e.g. "2026-07-31") that silently never match a real
 # trading day whenever that calendar date falls on a weekend/holiday,
 # meaning a whole month's rebalance would get skipped without any error.
@@ -22,7 +22,7 @@ def rebalance_dates(index: pd.DatetimeIndex, rebalance: str) -> list:
         return []
     periods = index.to_period(_PERIOD_CODES[rebalance])
     first_per_period = pd.Series(index, index=periods).groupby(level=0).first()
-    return sorted(first_per_period.tolist())[1:]  # skip day 1 — nothing to rebalance yet
+    return sorted(first_per_period.tolist())[1:]  # skip day 1 - nothing to rebalance yet
 
 
 def simulate_rebalanced_portfolio(
@@ -52,7 +52,7 @@ def max_drawdown_details(series: pd.Series) -> tuple[float, object, object]:
 def run_benchmarks_only(
     benchmarks: list[tuple[str, dict[str, float]]], start: str, end: str, initial_capital: float = 10000
 ) -> dict:
-    """Like run_backtest but skips the user's own portfolio entirely — lets
+    """Like run_backtest but skips the user's own portfolio entirely - lets
     benchmark tickers show their full history instead of being truncated to
     whatever date range the portfolio's own (possibly recently-listed)
     holdings support."""

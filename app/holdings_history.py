@@ -1,4 +1,4 @@
-"""Historical value of the *current* holdings — current quantities priced
+"""Historical value of the *current* holdings - current quantities priced
 at past dates via yfinance. Assumes today's share counts were held
 throughout the window (no buy/sell history), so it's an approximation for
 older positions, not an exact reconstruction.
@@ -27,7 +27,7 @@ def resample_for_display(series: pd.Series, granularity: str) -> pd.Series:
 
 def weighted_return_series(weights: dict[str, float], start: str, end: str) -> pd.Series:
     """Normalized (starts at 1.0) buy-and-hold value curve for an arbitrary
-    weighted basket — for comparing "what if I'd bought X% this / Y% that"
+    weighted basket - for comparing "what if I'd bought X% this / Y% that"
     against the actual portfolio, not for dollar amounts.
     """
     symbols = list(weights.keys())
@@ -41,7 +41,7 @@ def weighted_return_series(weights: dict[str, float], start: str, end: str) -> p
 
 def notable_moves(series: pd.Series, threshold: float = 0.03) -> list[dict]:
     """Day-over-day moves in `series` bigger than `threshold` (3% default).
-    Objective/rule-based only — no claim about *why* a move happened; a
+    Objective/rule-based only - no claim about *why* a move happened; a
     historical "why" would need a paid historical-news API (yfinance's
     news feed only covers the last ~10 current stories, not the past)."""
     daily_change = series.pct_change().dropna()

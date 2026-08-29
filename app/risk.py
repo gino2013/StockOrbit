@@ -1,7 +1,7 @@
 """Historical risk/volatility metrics for held symbols.
 
 This is deliberately NOT a price forecast. Predicting whether a black-swan
-event will happen is not something a rule-based tool can honestly do —
+event will happen is not something a rule-based tool can honestly do -
 instead this surfaces objective, backward-looking risk data (volatility,
 drawdown, beta vs a benchmark) plus a known upcoming event (next earnings
 date) that historically tends to coincide with bigger moves, so the user can
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 from app.backtest import max_drawdown_details
 
 TRADING_DAYS_PER_YEAR = 252
-# ponytail: same reasoning as app/fundamentals.py's pool — Ticker.calendar is
+# ponytail: same reasoning as app/fundamentals.py's pool - Ticker.calendar is
 # a per-symbol blocking HTTP call with no batch equivalent, so a small
 # thread pool overlaps the network wait instead of doing one at a time.
 _MAX_WORKERS = 8
@@ -45,8 +45,8 @@ def beta_vs_benchmark(returns: pd.Series, benchmark_returns: pd.Series) -> float
 
 def fetch_next_earnings_date(symbol: str) -> tuple[date | None, bool]:
     """Returns (date, fetch_ok). fetch_ok=False means the calendar call itself
-    failed/came back empty (Yahoo blocked us) — as opposed to succeeding with
-    a genuine "no upcoming earnings" answer — so callers know when it's worth
+    failed/came back empty (Yahoo blocked us) - as opposed to succeeding with
+    a genuine "no upcoming earnings" answer - so callers know when it's worth
     falling back to a cached value instead of trusting this "None"."""
     try:
         calendar = yf.Ticker(symbol).calendar
@@ -54,7 +54,7 @@ def fetch_next_earnings_date(symbol: str) -> tuple[date | None, bool]:
         logger.warning("calendar(%s) failed: %s: %s", symbol, type(e).__name__, e)
         return None, False
     if not calendar:
-        logger.warning("calendar(%s) returned empty — likely blocked/rate-limited by Yahoo", symbol)
+        logger.warning("calendar(%s) returned empty - likely blocked/rate-limited by Yahoo", symbol)
         return None, False
     dates = calendar.get("Earnings Date")
     if not dates:
@@ -76,7 +76,7 @@ def compute_risk_metrics(
     today = datetime.now().date()
 
     # fetch_next_earnings_date() is a per-symbol blocking HTTP call with no
-    # batch equivalent — fetch all of them concurrently up front rather than
+    # batch equivalent - fetch all of them concurrently up front rather than
     # interleaving one call per loop iteration with the (fast, CPU-only)
     # pandas math below, which would otherwise sit idle waiting on the
     # network the whole time.

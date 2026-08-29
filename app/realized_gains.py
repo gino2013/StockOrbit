@@ -2,7 +2,7 @@
 
 FIFO (first lot bought is the first lot sold) is the IRS default method for
 individual investors who haven't elected otherwise, so it's a reasonable
-default here too — not a tax-advice claim, just the calculation convention.
+default here too - not a tax-advice claim, just the calculation convention.
 """
 
 from collections import defaultdict, deque
@@ -12,7 +12,7 @@ def compute_realized_gains(transactions: list[dict]) -> list[dict]:
     """One row per SOLD transaction with its FIFO-matched cost basis and gain,
     sorted by date. `unmatched_quantity` > 0 means we sold more than our
     BOUGHT history accounts for (e.g. a lot bought before our history starts)
-    — that portion's cost basis is left out rather than guessed at, so the
+    - that portion's cost basis is left out rather than guessed at, so the
     gain for that row is understated, not fabricated.
     """
     trades = [t for t in transactions if t["trans_type"] in ("BOUGHT", "SOLD") and t.get("symbol")]

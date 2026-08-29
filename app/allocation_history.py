@@ -1,5 +1,5 @@
 """Allocation-percentage time series from the append-only PositionSnapshot
-history already being recorded on every refresh — no new data collection,
+history already being recorded on every refresh - no new data collection,
 just a different view of what's already stored.
 """
 
@@ -22,7 +22,7 @@ def allocation_history(snapshot_rows: list[dict], daily: bool = True) -> list[di
         # than 30 minutes stale (AUTO_REFRESH_STALE_AFTER), so a day with
         # several visits produces several nearly-identical points that
         # crowd out the actual day-to-day story on this chart. Collapse to
-        # one point per calendar day — that day's latest snapshot — same
+        # one point per calendar day - that day's latest snapshot - same
         # idea as "close price" for a daily candle.
         latest_per_day: dict = {}
         for t in snapshot_times:

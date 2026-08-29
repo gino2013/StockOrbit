@@ -1,11 +1,11 @@
-"""On-demand fundamental data for held symbols — objective yfinance metrics
+"""On-demand fundamental data for held symbols - objective yfinance metrics
 shown as reference data. No buy/sell interpretation added.
 
 Known limitation: on Render, Yahoo Finance rejects the crumb-authenticated
-quoteSummary API this relies on (401 Invalid Crumb) — an IP-reputation block
+quoteSummary API this relies on (401 Invalid Crumb) - an IP-reputation block
 on their side that neither retrying nor switching yfinance's cookie strategy
 ('basic' vs 'csrf') gets around. Works fine locally, and from GitHub Actions
-runners (unaffected — see the scheduled cache-refresh workflow), so callers
+runners (unaffected - see the scheduled cache-refresh workflow), so callers
 should fall back to `FundamentalsCache` (app/db.py) when `_fetch_ok` is
 False. `debug=1` additionally surfaces the raw error per symbol.
 """
@@ -38,7 +38,7 @@ FIELDS = [
 ]
 
 # ponytail: get_info() is a slow, blocking HTTP round-trip per symbol with
-# no batch equivalent in yfinance — fetching a typical 10-15 symbol
+# no batch equivalent in yfinance - fetching a typical 10-15 symbol
 # portfolio sequentially took ~7.5s locally. Since this is pure network
 # wait (not CPU work), a small thread pool gets all of them in flight at
 # once instead of one-at-a-time; upgrade to asyncio only if this stops
@@ -58,7 +58,7 @@ def _fetch_one(symbol: str, debug: bool) -> tuple[str, dict]:
     # info can be non-empty yet still useless: the "complementary" PEG
     # fetch (a different, unauthenticated endpoint) succeeds even when
     # the main quoteSummary call was blocked, leaving a dict with only
-    # {"trailingPegRatio": ...} — none of our FIELDS. So "did this work"
+    # {"trailingPegRatio": ...} - none of our FIELDS. So "did this work"
     # means at least one of our fields actually got populated.
     fetch_ok = any(v is not None for v in fields.values())
     if not fetch_ok:

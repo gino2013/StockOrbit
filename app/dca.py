@@ -3,7 +3,7 @@ app/backtest.py's price-fetch and rebalance-date logic.
 
 DCA invests a fixed amount at the start of each period (using the same
 rebalance_dates() helper that already finds "first trading day of the
-month/quarter"), buying into the target weights each time — shares
+month/quarter"), buying into the target weights each time - shares
 accumulate, nothing is sold. Lump-sum invests the same total amount (what
 DCA would have contributed by the end) all at once on day 1, then holds
 without rebalancing, via the existing simulate_rebalanced_portfolio(...,

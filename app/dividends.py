@@ -1,4 +1,4 @@
-"""Dividend income summary from already-synced DIV transactions (see #11) —
+"""Dividend income summary from already-synced DIV transactions (see #11) -
 no separate fetch needed, Firstrade's account history already includes them.
 """
 

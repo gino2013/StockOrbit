@@ -24,7 +24,7 @@ class PositionSnapshot(Base):
     market_value = Column(Float, default=0)
     price = Column(Float, default=0)
     # ponytail: raw item JSON kept as a fallback in case Firstrade changes
-    # field names again — cost_basis/market_value/price map to its
+    # field names again - cost_basis/market_value/price map to its
     # cost/market_value/last keys as of the 2026-08-25 live test.
     raw_json = Column(Text)
     snapshot_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
@@ -50,7 +50,7 @@ class FundamentalsCache(Base):
     """Last-known-good yfinance fundamentals/earnings-date per symbol.
 
     Render's outbound IP gets a 401 Invalid Crumb from Yahoo's quoteSummary
-    API (see issue #9) so it can never populate this itself — a scheduled
+    API (see issue #9) so it can never populate this itself - a scheduled
     GitHub Actions job (unaffected by that block) refreshes this table, and
     the dashboard falls back to it whenever a live fetch comes back empty.
     """
@@ -80,7 +80,7 @@ class FundamentalsCache(Base):
 
 
 class Transaction(Base):
-    """Raw account history from Firstrade's get_account_history() — trades,
+    """Raw account history from Firstrade's get_account_history() - trades,
     dividends, interest, deposits, etc. Append-only, like PositionSnapshot.
 
     Firstrade's API gives no transaction id, so `id` is a hash of the fields
@@ -115,7 +115,7 @@ class Transaction(Base):
 
 
 class PositionNote(Base):
-    """Freeform note per symbol — why you bought it, target price, whatever
+    """Freeform note per symbol - why you bought it, target price, whatever
     you want to remember later. Upserted by symbol, no history kept."""
 
     __tablename__ = "position_notes"

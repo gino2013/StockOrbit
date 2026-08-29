@@ -33,7 +33,7 @@ def _login() -> account.FTSession:
 
 def fetch_positions(session: account.FTSession | None = None) -> list[dict]:
     # ponytail: one login shared across fetch_positions()/fetch_transactions()
-    # when a session is passed in (see main._refresh_and_save) — logging in
+    # when a session is passed in (see main._refresh_and_save) - logging in
     # twice per refresh would double how often Firstrade sees a fresh login,
     # which risks it flagging the account for unusual activity.
     session = session or _login()
@@ -60,7 +60,7 @@ def fetch_positions(session: account.FTSession | None = None) -> list[dict]:
 
         # Use the account's own "cash_balance" field (same number Firstrade's
         # UI shows as "現金結餘") rather than deriving it as account_total minus
-        # position market values — the two figures come from different quote
+        # position market values - the two figures come from different quote
         # snapshots and drift apart by tens of dollars as live prices move.
         balances = accounts.get_account_balances(account=account_number).get("result", {})
         cash = float(balances.get("cash_balance", 0) or 0)
@@ -83,7 +83,7 @@ def fetch_transactions(session: account.FTSession | None = None) -> list[dict]:
     """Account history: trades (BOUGHT/SOLD), dividends, interest, deposits.
 
     Always pulls the widest range Firstrade will give us (custom range from
-    a far-past date to today), not just "ytd" — FIFO realized-gain matching
+    a far-past date to today), not just "ytd" - FIFO realized-gain matching
     needs the full buy history, not just this year's, or a lot bought last
     year and sold this year would look like it has zero cost basis.
     """

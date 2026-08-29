@@ -1,10 +1,10 @@
 """Market-drop scenario: "if the market fell X%, how much would my
-portfolio estimate to fall" — pure arithmetic off existing beta data, not
+portfolio estimate to fall" - pure arithmetic off existing beta data, not
 a prediction of whether/when a drop happens.
 
 Uses the simplified linear estimate `holding_change ≈ beta × market_change`
 (risk.py's beta vs SPY). Real drawdowns don't track beta perfectly,
-especially in extreme moves — this is a back-of-envelope estimate, not a
+especially in extreme moves - this is a back-of-envelope estimate, not a
 forecast. CASH is assumed beta 0 (unaffected).
 """
 

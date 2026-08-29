@@ -1,5 +1,5 @@
 """Actual compound-growth curve vs smooth constant-rate curves, using the
-geometric mean (CAGR) — not the arithmetic mean — because the geometric mean
+geometric mean (CAGR) - not the arithmetic mean - because the geometric mean
 is the only "average annual rate" whose compounding reproduces the real
 total return. The arithmetic mean of a series of returns systematically
 overstates the true compounded result whenever returns vary year to year,
@@ -7,7 +7,7 @@ and the overstatement grows with volatility. Both smooth curves are shown
 side by side (geometric = correct, arithmetic = cautionary contrast) and
 extended past the historical range as a projection, so the gap between
 "what actually happened" and "what a naive average implies" stays visible
-into the future too — not investment advice, just what the math says if the
+into the future too - not investment advice, just what the math says if the
 past rate (however computed) continued.
 """
 
@@ -56,7 +56,7 @@ def build_compound_curve(returns: list[float], future_periods: int, initial_valu
         "future_periods": future_periods,
         "geometric_mean": geometric_mean,
         "arithmetic_mean": arithmetic_mean,
-        # Real path only covers the historical range — there's no "actual"
+        # Real path only covers the historical range - there's no "actual"
         # data for the future, that's the entire point of the projection.
         "real_path": compound_path(returns, initial_value),
         # Both smooth paths span historical+future in one continuous curve:
@@ -65,8 +65,8 @@ def build_compound_curve(returns: list[float], future_periods: int, initial_valu
         "geometric_path": geometric_path,
         "arithmetic_path": arithmetic_path,
         # The cumulative % implied by compounding each average all the way
-        # through the future projection — "累積數字", not just the annual
-        # rate — so the user can see e.g. "+1143%" rather than having to
+        # through the future projection - "累積數字", not just the annual
+        # rate - so the user can see e.g. "+1143%" rather than having to
         # mentally compound 18.3%/year themselves.
         "geometric_cumulative_return": geometric_path[-1] / initial_value - 1,
         "arithmetic_cumulative_return": arithmetic_path[-1] / initial_value - 1,
@@ -104,12 +104,12 @@ def fetch_portfolio_annual_returns(
     weights: dict[str, float], start_year: int, end_year: int
 ) -> tuple[list[float], int]:
     """Same idea as fetch_annual_returns() but for a weighted basket (the
-    user's target allocation) instead of a single symbol — reuses the
+    user's target allocation) instead of a single symbol - reuses the
     existing buy-and-hold simulator from the 再平衡策略回測 feature rather
     than duplicating basket-return math here.
 
     weighted_return_series() inner-joins every symbol's trading history, so
-    if any holding IPO'd after start_year (common — a target list mixing
+    if any holding IPO'd after start_year (common - a target list mixing
     decade-old ETFs with a 2021 IPO is normal), the usable range silently
     starts wherever the *youngest* holding's history begins, not
     start_year. Returns (returns, actual_start_year) so the caller can be
@@ -127,7 +127,7 @@ def build_portfolio_compound_curve(
     weights: dict[str, float], start_year: int, end_year: int, future_periods: int, initial_value: float = 100.0
 ) -> dict | None:
     """None means there's no usable history at all for this basket in the
-    requested range (e.g. every holding IPO'd after end_year) — the caller
+    requested range (e.g. every holding IPO'd after end_year) - the caller
     should just omit the portfolio line rather than show a broken one.
     """
     returns, actual_start_year = fetch_portfolio_annual_returns(weights, start_year, end_year)
