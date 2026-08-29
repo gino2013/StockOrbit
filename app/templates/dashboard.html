@@ -1446,6 +1446,7 @@ async function loadCashDeployment() {
   makeSortable(document.getElementById('cash-deployment-table'));
 }
 
+{% if snapshots %}
 // --- 目標達成進度追蹤 ---
 let goalProjectionChart = null;
 
@@ -1595,6 +1596,7 @@ async function loadHealthOverview() {
   `;
 }
 loadHealthOverview();
+{% endif %}
 
 async function loadOverseasIncome() {
   const errorBox = document.getElementById('overseas-income-error');
@@ -2687,7 +2689,8 @@ let compoundPortfolioDatasetIndices = [];
 
 function togglePortfolioLine() {
   if (!compoundCurveChart) return;
-  const hide = document.getElementById('compound-hide-portfolio').checked;
+  const checkbox = document.getElementById('compound-hide-portfolio');
+  const hide = checkbox ? checkbox.checked : false;
   compoundPortfolioDatasetIndices.forEach((i) => {
     compoundCurveChart.setDatasetVisibility(i, !hide);
   });
