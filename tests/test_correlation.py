@@ -18,7 +18,7 @@ def demo():
     c = 100 * (1 - daily_returns).cumprod()  # exactly opposite returns each day -> perfectly anti-correlated
     prices = pd.DataFrame({"AAA": a, "BBB": b, "CCC": c})
 
-    with patch.object(corr_mod.yf, "download", return_value={"Close": prices}):
+    with patch.object(corr_mod.market_data, "download_close", return_value=prices):
         result = corr_mod.compute_correlation_matrix(["AAA", "BBB", "CCC", "CASH"])
 
     assert result["symbols"] == ["AAA", "BBB", "CCC"]  # CASH excluded

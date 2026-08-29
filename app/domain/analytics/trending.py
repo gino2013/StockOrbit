@@ -3,7 +3,7 @@ recent news headlines attached as context. Objective market data - no
 "buy this" framing, this isn't personalized investment advice.
 """
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 from app.domain.analytics.market_moves import recent_news
 
@@ -17,7 +17,7 @@ SCREENERS = {
 def trending_tickers(screener: str, count: int = 10) -> list[dict]:
     if screener not in SCREENERS:
         raise ValueError(f"未知的篩選器: {screener}")
-    quotes = yf.screen(screener, count=count).get("quotes", [])
+    quotes = market_data.screen(screener, count=count)
     symbols = [q["symbol"] for q in quotes if q.get("symbol")]
     news = recent_news(symbols, limit_per_symbol=2)
     return [

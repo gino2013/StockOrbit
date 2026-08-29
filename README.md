@@ -283,6 +283,7 @@ app/
   infrastructure/
     db.py                        # SQLAlchemy models
     repositories.py              # Repositories：所有 DB 讀寫的唯一入口（context manager，一個 session）
+    market_data.py               # 唯一 import yfinance 的地方：價格／新聞／財報日／screener
     firstrade_client.py          # Firstrade 登入與持股抓取
     fundamentals.py              # 基本面即時抓取
     fundamentals_cache.py        # 基本面資料快取讀寫
@@ -304,9 +305,10 @@ render.yaml                      # Render 部署設定
 - **測試靠的就是 domain 是純函式**：`tests/` 全部是不啟動伺服器、不碰 DB 的 `assert` 檔。把 I/O 擋在 `infrastructure/`、把 HTTP 擋在 `interface/`，domain 才能一直保持「給 dict、拿 dict」而好測。
 - **`Repositories` 是唯一碰 SQLAlchemy 的地方**：換 DB schema、加欄位、之後要不要接連線池，只改一個檔，40 個路由不用動。重構這批程式時，「介面層完全搜不到 `db.query`」本身就是一道防線。
 - **`application/` 讓路由變薄**：首頁那段 90 行的組裝邏輯（stats／建議／股利／已實現…）搬進 `application/dashboard.py` 後，路由只剩「查資料 → 呼叫 service → 回應」，那段組裝也能單獨測。
-- **相依方向單向**：`domain/` 不 import 上面任何一層，所以看一個計算函式不用先理解 web 框架或 ORM。
+- **`market_data.py` 是唯一 import `yfinance` 的地方**：原本十幾個 domain 模組各自 `import yfinance`、各自帶 `auto_adjust=True, progress=False`。現在全部走這個 gateway，網路層的預設值跟怪癖集中在一個檔，domain 模組不再直接相依一個網路套件。
+- **相依方向單向**：`domain/` 不 import `interface/` 或 `application/`，所以看一個計算函式不用先理解 web 框架或 ORM。`domain/` 對 `infrastructure/market_data` 的相依是刻意的例外——當成「像 `pandas` 一樣的資料存取工具」，沒有再為它加一層注入式的 port/adapter（對這個規模 CP 值不高）。
 
-沒做的部分（對這個專案 CP 值不高，先不碰）：request/response 的 Pydantic DTO；把 13 個直接呼叫 `yfinance` 的 domain 模組包進注入式的 gateway。
+沒做的部分（對這個專案 CP 值不高，先不碰）：request/response 的 Pydantic DTO；`market_data` 的 port/adapter 依賴反轉（現在是直接 import）。
 
 ## 本機開發
 

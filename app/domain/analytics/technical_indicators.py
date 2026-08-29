@@ -4,7 +4,7 @@ facts, not a buy/sell signal or prediction of future price movement.
 """
 
 import pandas as pd
-import yfinance as yf
+from app.infrastructure import market_data
 
 RSI_PERIOD = 14
 RSI_OVERBOUGHT = 70
@@ -36,7 +36,7 @@ def compute_technical_indicators(symbols: list[str]) -> list[dict]:
     # calendar days (252 trading days/year) so the 200-day MA has enough
     # history to actually compute on the first row we care about.
     period = f"{int((LONG_MA + RSI_PERIOD) * 365 / 252) + 30}d"
-    data = yf.download(symbols, period=period, auto_adjust=True, progress=False)["Close"]
+    data = market_data.download_close(symbols, period=period)
     if isinstance(data, pd.Series):
         data = data.to_frame(symbols[0])
     data = data.ffill()

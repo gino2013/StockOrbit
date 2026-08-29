@@ -23,7 +23,7 @@ def demo():
     # nothing invested before the first contribution date should be nonzero after it
     assert dca_series.iloc[0] > 0  # first trading day always contributes
 
-    with patch.object(dca.yf, "download", return_value={"Close": prices}):
+    with patch.object(dca.market_data, "download_close", return_value=prices):
         result = dca.run_dca_comparison({"AAA": 1.0}, "2025-01-01", "2025-05-01", contribution=100, frequency="M")
 
     assert len(result["dates"]) == len(dates)
@@ -33,7 +33,7 @@ def demo():
     assert result["lumpsum_return"] > result["dca_return"]
 
     # too little data -> a clear error, not a crash on missing rows.
-    with patch.object(dca.yf, "download", return_value={"Close": prices.head(1)}):
+    with patch.object(dca.market_data, "download_close", return_value=prices.head(1)):
         try:
             dca.run_dca_comparison({"AAA": 1.0}, "2025-01-01", "2025-01-02", contribution=100, frequency="M")
             assert False, "expected ValueError"

@@ -11,7 +11,7 @@ into the future too - not investment advice, just what the math says if the
 past rate (however computed) continued.
 """
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 from app.domain.analytics.holdings_history import weighted_return_series
 
@@ -88,13 +88,9 @@ def _annual_returns_from_daily(series, start_year: int, end_year: int) -> list[f
 
 
 def fetch_annual_returns(symbol: str, start_year: int, end_year: int) -> list[float]:
-    history = yf.download(
-        symbol,
-        start=f"{start_year}-01-01",
-        end=f"{end_year + 1}-01-01",
-        auto_adjust=True,
-        progress=False,
-    )["Close"]
+    history = market_data.download_close(
+        symbol, start=f"{start_year}-01-01", end=f"{end_year + 1}-01-01"
+    )
     if hasattr(history, "columns"):
         history = history.iloc[:, 0]
     return _annual_returns_from_daily(history, start_year, end_year)

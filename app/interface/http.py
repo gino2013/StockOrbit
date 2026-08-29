@@ -1,7 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
-import yfinance as yf
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -12,6 +11,7 @@ load_dotenv()
 from app.application.dashboard import build_dashboard_context
 from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
+from app.infrastructure import market_data
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import init_db
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
@@ -86,7 +86,7 @@ def symbol_search(q: str = ""):
     if len(q) < 2:
         return JSONResponse([])
     try:
-        quotes = yf.Search(q, max_results=8).quotes
+        quotes = market_data.search_symbols(q)
     except Exception:
         return JSONResponse([])
     seen = set()
@@ -102,7 +102,7 @@ def symbol_search(q: str = ""):
 
 def _fetch_usd_twd_rate() -> float | None:
     try:
-        history = yf.Ticker("USDTWD=X").history(period="5d")["Close"]
+        history = market_data.ticker_history("USDTWD=X", period="5d")["Close"]
         return None if history.empty else float(history.iloc[-1])
     except Exception:
         return None
@@ -111,9 +111,7 @@ def _fetch_usd_twd_rate() -> float | None:
 def _average_usdtwd_rate(year: int) -> float | None:
     try:
         end = min(datetime.now(), datetime(year, 12, 31)).strftime("%Y-%m-%d")
-        history = yf.download(
-            "USDTWD=X", start=f"{year}-01-01", end=end, auto_adjust=True, progress=False
-        )["Close"]
+        history = market_data.download_close("USDTWD=X", start=f"{year}-01-01", end=end)
         return None if history.empty else float(history.mean().iloc[0])
     except Exception:
         return None
