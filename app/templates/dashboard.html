@@ -608,7 +608,9 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">HHI（賀氏指數，各標的佔比平方和，越高越集中；N 檔等權重時為 1/N）跟最大單一持股佔比，隨時間怎麼變化。客觀數據呈現，不下「應該減碼」的結論。</p>
+      <p class="text-xs opacity-60">
+        藍線 HHI：數字越低代表持股越分散、越高代表越集中在少數幾檔（數字範圍 0~1；例如平均分散在 5 檔約 0.2，10 檔約 0.1）。橘線是最大單一持股佔比（%），更直覺，就是你最大一檔持股佔整體的比例。兩者隨時間怎麼變化，看分散程度是變好還是變壞。客觀數據呈現，不下「應該減碼」的結論。
+      </p>
       <div class="h-64"><canvas id="concentrationHistoryChart"></canvas></div>
     </div>
   </div>
@@ -704,7 +706,7 @@
       <p id="backtest-exclude-hint" class="text-xs opacity-50 mt-2 hidden">已移除你的投資組合。這樣比較基準就不會被你目標配置裡某檔較晚上市的標的限制住最早的起始日期。</p>
       <div id="backtest-error" class="alert alert-error text-sm mt-3 hidden"></div>
 
-      <div id="backtest-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div id="backtest-stats" class="stats shadow mt-3 hidden [display:flex] flex-wrap"></div>
       <div id="backtest-analysis" class="text-sm opacity-80 mt-3"></div>
 
       <div class="h-64 mt-4"><canvas id="backtestChart"></canvas></div>
@@ -755,7 +757,7 @@
       </div>
       <div id="compound-curve-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="compound-curve-note" class="text-xs opacity-50 mt-2 hidden"></div>
-      <div id="compound-curve-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div id="compound-curve-stats" class="stats shadow mt-3 hidden [display:flex] flex-wrap"></div>
       <div class="h-80 mt-4"><canvas id="compoundCurveChart"></canvas></div>
     </div>
   </div>
@@ -881,14 +883,14 @@
         </form>
       </div>
       <div id="dca-error" class="alert alert-error text-sm mt-3 hidden"></div>
-      <div id="dca-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div id="dca-stats" class="stats shadow mt-3 hidden [display:flex] flex-wrap"></div>
       <div class="h-64 mt-4"><canvas id="dcaChart"></canvas></div>
     </div>
   </div>
 
   <!-- Section: 股利再投入試算 (DRIP) -->
   <h2 id="section-drip" class="flex items-center gap-2 text-lg font-bold mb-3">
-    <span class="w-1.5 h-5 bg-primary rounded-full"></span>股利再投入試算 (DRIP)
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>股利再投入試算
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
@@ -916,7 +918,7 @@
         <button type="button" onclick="loadDrip()" class="btn btn-neutral btn-sm">查詢</button>
       </div>
       <div id="drip-error" class="alert alert-error text-sm hidden mt-2"></div>
-      <div id="drip-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div id="drip-stats" class="stats shadow mt-3 hidden [display:flex] flex-wrap"></div>
       <div class="h-64 mt-4"><canvas id="dripChart"></canvas></div>
     </div>
   </div>
