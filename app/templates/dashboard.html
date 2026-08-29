@@ -109,6 +109,26 @@
     </div>
     {% endif %}
   </div>
+
+  {% if pace_projection %}
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <h2 class="card-title text-base">接下來預測</h2>
+      <p class="text-xs opacity-60">假設維持目前的年化報酬率（XIRR {{ "{:+.1%}".format(stats.annualized_return) }}）複利下去，不是預測未來實際報酬，只是「照現在的速度走下去會是這樣」的參考。</p>
+      <div class="stats stats-vertical sm:stats-horizontal shadow mt-2">
+        {% for p in pace_projection %}
+        <div class="stat">
+          <div class="stat-title">{{ p.label }}</div>
+          <div class="stat-value text-lg">${{ "{:,.0f}".format(p.projected_value) }}</div>
+          <div class="stat-desc {{ 'text-success' if p.change >= 0 else 'text-error' }}">
+            {{ '+' if p.change >= 0 else '' }}${{ "{:,.0f}".format(p.change) }}（{{ "{:+.1%}".format(p.change_pct) }}）
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
   {% endif %}
 
   {% if snapshots %}
