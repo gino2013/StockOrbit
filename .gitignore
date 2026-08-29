@@ -5,3 +5,4 @@ __pycache__/
 *.db
 firstrade_session*.json
 ft_cookies*.json
+demo.db
