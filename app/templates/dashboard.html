@@ -55,8 +55,8 @@
       </button>
       {% if snapshots %}
       <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
-      <a href="/api/export/transactions-csv" class="btn btn-ghost btn-sm">匯出交易紀錄</a>
       <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>
+      <a href="/api/export/transactions-csv" class="btn btn-ghost btn-sm">匯出交易紀錄</a>
       {% endif %}
       <form action="/api/refresh" method="post">
         <button type="submit" class="btn btn-neutral btn-sm">重新抓取持股</button>
@@ -523,11 +523,23 @@
             {% if notes_by_symbol.get(s.symbol) %}<span class="badge badge-xs badge-primary ml-2">有筆記</span>{% endif %}
           </summary>
           <div class="collapse-content">
-            <form action="/api/notes" method="post" class="flex flex-col gap-2">
+            {% if notes_by_symbol.get(s.symbol) %}
+            <div class="note-view">
+              <p class="text-sm whitespace-pre-wrap">{{ notes_by_symbol.get(s.symbol) }}</p>
+              <button type="button" onclick="toggleNoteEdit(this)" class="btn btn-ghost btn-xs mt-2">編輯</button>
+            </div>
+            <form action="/api/notes" method="post" class="flex-col gap-2" style="display:none">
               <input type="hidden" name="symbol" value="{{ s.symbol }}">
               <textarea name="note" rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
               <button type="submit" class="btn btn-neutral btn-xs self-end">儲存</button>
             </form>
+            {% else %}
+            <form action="/api/notes" method="post" class="flex flex-col gap-2">
+              <input type="hidden" name="symbol" value="{{ s.symbol }}">
+              <textarea name="note" rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼"></textarea>
+              <button type="submit" class="btn btn-neutral btn-xs self-end">儲存</button>
+            </form>
+            {% endif %}
           </div>
         </details>
         {% endfor %}
@@ -851,7 +863,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。「比較投入方案」可以填一個或多個「金額/頻率」，用分號分隔，例如 <code>1000/M; 10000/A</code> 同時比較每月投入 1000 跟每年投入 10000。不含手續費/稅金，僅供參考，不是投資建議。
+        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把該方案累積投入的總金額，在第一天全部投入）。<b>不同投入方案的「一次投入」基準金額不同</b>，因為每期投入金額跟頻率不同，累積的總投入金額也不同（見下方「投入總額」）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。「比較投入方案」可以填一個或多個「金額/頻率」，用分號分隔，例如 <code>1000/M; 10000/A</code> 同時比較每月投入 1000 跟每年投入 10000。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="dca-form" class="flex flex-wrap gap-2 items-end">
@@ -886,7 +898,7 @@
         </form>
       </div>
       <div id="dca-error" class="alert alert-error text-sm mt-3 hidden"></div>
-      <div id="dca-stats" class="stats shadow mt-3 hidden [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] [grid-auto-flow:row] [&_.stat-title]:whitespace-normal [&_.stat-value]:whitespace-normal"></div>
+      <div id="dca-stats" class="stats shadow mt-3 hidden [grid-template-columns:repeat(3,1fr)] [grid-auto-flow:row] [&_.stat-title]:whitespace-normal [&_.stat-value]:whitespace-normal"></div>
       <div class="h-64 mt-4"><canvas id="dcaChart"></canvas></div>
     </div>
   </div>
@@ -1029,6 +1041,14 @@ function escapeHtml(str) {
 // reverse). Parses "$1,234", "12.3%", "1.38" etc. by stripping symbols;
 // falls back to alphabetical for non-numeric columns (代號, 產業, 建議動作...).
 // Rows whose cell isn't numeric always sort to the end regardless of column.
+function toggleNoteEdit(btn) {
+  const view = btn.closest('.note-view');
+  const form = view.nextElementSibling;
+  view.style.display = 'none';
+  form.style.display = 'flex';
+  form.querySelector('textarea').focus();
+}
+
 function makeSortable(table) {
   if (!table) return;
   const headers = table.querySelectorAll('thead th');

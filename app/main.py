@@ -981,6 +981,18 @@ def dca(
             return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
         baskets += extra or []
 
+    # Same overlapping-line problem as the contribution-plan dedup below,
+    # but for baskets with identical weights (e.g. "比較標的" accidentally
+    # repeating the target allocation's own composition).
+    seen_baskets = set()
+    deduped_baskets = []
+    for basket_label, weights in baskets:
+        key = frozenset(weights.items())
+        if key not in seen_baskets:
+            seen_baskets.add(key)
+            deduped_baskets.append((basket_label, weights))
+    baskets = deduped_baskets
+
     if not baskets:
         return JSONResponse({"error": "尚未設定目標配置，且沒有輸入比較標的"}, status_code=400)
 
@@ -990,6 +1002,18 @@ def dca(
         if error:
             return JSONResponse({"error": f"比較投入方案：{error}"}, status_code=400)
         contribution_plans += extra_plans or []
+    # A duplicate (amount, frequency) pair - e.g. the "比較投入方案" field
+    # accidentally repeating what's already in the main 每期投入金額/投入頻率
+    # fields - produces two datasets with byte-identical values that draw
+    # exactly on top of each other, making one line look like it vanished.
+    seen_plans = set()
+    deduped_plans = []
+    for plan_label, plan_amount, plan_frequency in contribution_plans:
+        key = (plan_amount, plan_frequency)
+        if key not in seen_plans:
+            seen_plans.add(key)
+            deduped_plans.append((plan_label, plan_amount, plan_frequency))
+    contribution_plans = deduped_plans
 
     items = []
     for basket_label, weights in baskets:
