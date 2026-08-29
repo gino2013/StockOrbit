@@ -62,6 +62,7 @@ def compute_technical_indicators(symbols: list[str]) -> list[dict]:
         results.append(
             {
                 "symbol": symbol,
+                "current_price": float(closes.iloc[-1]),
                 "ma_short": float(short_ma.iloc[-1]),
                 "ma_long": float(long_ma.iloc[-1]),
                 "ma_cross_state": cross_state,

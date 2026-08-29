@@ -583,7 +583,9 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <div class="flex items-center justify-between">
-        <p class="text-xs opacity-60">50/200 日均線交叉狀態跟 RSI（14 日）。客觀的歷史價格型態資訊，不是買賣訊號或預測。</p>
+        <p class="text-xs opacity-60">
+          50/200 日均線交叉狀態跟 RSI（14 日）。<b>均線狀態</b>：50 日均線（近期平均價）在 200 日均線（長期平均價）之上，代表近期價格動能偏強；「黃金交叉」是短均線剛穿越到長均線之上的當天（通常視為偏多訊號），「死亡交叉」相反（偏空訊號），沒有交叉發生的日子就只顯示目前是在上方還是下方。<b>RSI</b>：0~100 的動能指標，≥70 標示「超買」（近期漲勢可能過熱），≤30 標示「超賣」（近期跌勢可能過度）。客觀的歷史價格型態資訊，不是買賣訊號或預測。
+        </p>
         <button type="button" onclick="loadTechnical()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
       </div>
       <div id="technical-error" class="alert alert-error text-sm hidden"></div>
@@ -1604,10 +1606,10 @@ function fmtNum(v, digits = 1) { return v === null || v === undefined ? '-' : v.
 function fmtPrice(v) { return v === null || v === undefined ? '-' : `$${v.toFixed(2)}`; }
 
 const MA_CROSS_LABELS = {
-  golden_cross: '<span class="badge badge-success badge-sm">黃金交叉</span>',
-  death_cross: '<span class="badge badge-error badge-sm">死亡交叉</span>',
-  above: '<span class="text-success">50日 &gt; 200日</span>',
-  below: '<span class="text-error">50日 &lt; 200日</span>',
+  golden_cross: '<span class="badge badge-success badge-sm" title="50 日均線今天剛穿越到 200 日均線之上，通常視為偏多訊號">黃金交叉</span>',
+  death_cross: '<span class="badge badge-error badge-sm" title="50 日均線今天剛跌破 200 日均線，通常視為偏空訊號">死亡交叉</span>',
+  above: '<span class="text-success" title="50 日均線（近期平均價）在 200 日均線（長期平均價）之上，近期動能偏強">50日 &gt; 200日</span>',
+  below: '<span class="text-error" title="50 日均線（近期平均價）在 200 日均線（長期平均價）之下，近期動能偏弱">50日 &lt; 200日</span>',
 };
 
 async function loadTechnical() {
@@ -1626,22 +1628,23 @@ async function loadTechnical() {
   }
 
   let html = '<table class="table table-sm"><thead><tr>' +
-    '<th>代號</th><th class="text-right">50日均線</th><th class="text-right">200日均線</th>' +
-    '<th>均線狀態</th><th class="text-right">RSI (14日)</th><th>RSI 狀態</th></tr></thead><tbody>';
+    '<th>代號</th><th class="text-right">現價</th><th class="text-right">50日均線</th><th class="text-right">200日均線</th>' +
+    '<th class="text-right">均線狀態</th><th class="text-right">RSI (14日)</th><th class="text-right">RSI 狀態</th></tr></thead><tbody>';
   for (const r of data.items) {
     if (r.insufficient_history) {
-      html += `<tr><td class="font-medium">${escapeHtml(r.symbol)}</td><td colspan="5" class="opacity-50">歷史資料不足（需至少 200 個交易日）</td></tr>`;
+      html += `<tr><td class="font-medium">${escapeHtml(r.symbol)}</td><td colspan="6" class="opacity-50">歷史資料不足（需至少 200 個交易日）</td></tr>`;
       continue;
     }
     const rsiLabel = r.rsi_overbought ? '<span class="badge badge-error badge-sm">超買</span>'
       : r.rsi_oversold ? '<span class="badge badge-success badge-sm">超賣</span>' : '-';
     html += `<tr>
       <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtPrice(r.current_price)}</td>
       <td class="text-right">${fmtPrice(r.ma_short)}</td>
       <td class="text-right">${fmtPrice(r.ma_long)}</td>
-      <td>${MA_CROSS_LABELS[r.ma_cross_state] || '-'}</td>
+      <td class="text-right">${MA_CROSS_LABELS[r.ma_cross_state] || '-'}</td>
       <td class="text-right">${fmtNum(r.rsi, 1)}</td>
-      <td>${rsiLabel}</td>
+      <td class="text-right">${rsiLabel}</td>
     </tr>`;
   }
   html += '</tbody></table>';
