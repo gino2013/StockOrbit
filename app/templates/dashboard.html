@@ -116,7 +116,7 @@
       <h2 class="card-title text-base">接下來預測</h2>
       <p class="text-xs opacity-60">假設維持目前的年化報酬率（XIRR {{ "{:+.1%}".format(stats.annualized_return) }}）複利下去，不是預測未來實際報酬，只是「照現在的速度走下去會是這樣」的參考。</p>
       <div class="stats stats-vertical sm:stats-horizontal shadow mt-2">
-        {% for p in pace_projection %}
+        {% for p in pace_projection if not p.long_term %}
         <div class="stat">
           <div class="stat-title">{{ p.label }}</div>
           <div class="stat-value text-lg">${{ "{:,.0f}".format(p.projected_value) }}</div>
@@ -126,6 +126,24 @@
         </div>
         {% endfor %}
       </div>
+      {% if pace_projection | selectattr('long_term') | list %}
+      <details class="collapse collapse-arrow bg-base-200 mt-2">
+        <summary class="collapse-title text-sm font-medium py-2 min-h-0">長期預測（3/5/10/20 年後）</summary>
+        <div class="collapse-content">
+          <div class="stats stats-vertical sm:stats-horizontal shadow">
+            {% for p in pace_projection if p.long_term %}
+            <div class="stat">
+              <div class="stat-title">{{ p.label }}</div>
+              <div class="stat-value text-lg">${{ "{:,.0f}".format(p.projected_value) }}</div>
+              <div class="stat-desc {{ 'text-success' if p.change >= 0 else 'text-error' }}">
+                {{ '+' if p.change >= 0 else '' }}${{ "{:,.0f}".format(p.change) }}（{{ "{:+.1%}".format(p.change_pct) }}）
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </details>
+      {% endif %}
     </div>
   </div>
   {% endif %}
