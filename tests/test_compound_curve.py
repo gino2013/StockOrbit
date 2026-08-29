@@ -26,7 +26,7 @@ def demo():
     geo = geometric_mean_return(returns)
     assert abs(geo - (-0.05131670194948623)) < 1e-9
     # by construction, compounding the geometric mean n times reproduces the
-    # exact real ending value -- that's the defining property of CAGR.
+    # exact real ending value - that's the defining property of CAGR.
     assert abs(smooth_path(geo, 2, 100)[-1] - 90) < 1e-6
 
     result = build_compound_curve(returns, future_periods=3, initial_value=100)
@@ -53,7 +53,7 @@ def demo():
 
     # geometric_cumulative_return is the % implied by compounding the
     # geometric mean all the way through the future projection (not just
-    # the historical range) -- e.g. "+X%" ready to show directly, so the
+    # the historical range) - e.g. "+X%" ready to show directly, so the
     # user doesn't have to mentally compound the annual rate themselves.
     assert abs(result["geometric_cumulative_return"] - (result["geometric_path"][-1] / 100 - 1)) < 1e-9
     assert abs(result["arithmetic_cumulative_return"] - (result["arithmetic_path"][-1] / 100 - 1)) < 1e-9
@@ -63,7 +63,7 @@ def demo():
     assert abs(no_future["geometric_cumulative_return"] - (-0.10)) < 1e-6
 
     # _annual_returns_from_daily (the shared core of both fetch_annual_returns
-    # and fetch_portfolio_annual_returns) on a synthetic series -- no network
+    # and fetch_portfolio_annual_returns) on a synthetic series - no network
     # call needed to verify the year-bucketing logic itself.
     dates = pd.date_range("2021-06-01", "2023-12-31", freq="D")
     prices = pd.Series(range(len(dates)), index=dates, dtype=float) + 100
@@ -72,7 +72,7 @@ def demo():
 
     # A request range starting before the series actually has data (e.g. a
     # young holding whose real history only starts in 2021, requested from
-    # 2015) must not silently manufacture years with no underlying data --
+    # 2015) must not silently manufacture years with no underlying data -
     # the year filter just has nothing to match before 2021, so it returns
     # exactly the same 3 years rather than padding in bogus zero-return
     # years for 2015-2020. This is what lets fetch_portfolio_annual_returns
