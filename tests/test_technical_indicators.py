@@ -41,6 +41,7 @@ def demo():
     assert len(results) == 1
     r = results[0]
     assert r["symbol"] == "AAA"
+    assert r["current_price"] == prices.iloc[-1]
     assert r["ma_short"] > r["ma_long"]  # steadily rising -> short MA above long MA
     assert r["rsi"] > 50  # steadily rising -> RSI above midpoint
     assert "insufficient_history" not in r
