@@ -56,6 +56,7 @@ from app.risk import compute_risk_metrics
 from app.risk_parity import suggest_risk_parity
 from app.scenario import simulate_market_drop
 from app.tax_loss_harvesting import estimate_tax_savings, find_loss_candidates
+from app.technical_indicators import compute_technical_indicators
 from app.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
@@ -446,6 +447,23 @@ def risk():
                     by_symbol[symbol]["_cached_at"] = cached_fields.get("fetched_at")
     finally:
         db.close()
+    return JSONResponse({"items": items})
+
+
+@app.get("/api/technical-indicators")
+def technical_indicators():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+    try:
+        items = compute_technical_indicators(symbols)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
 
 
