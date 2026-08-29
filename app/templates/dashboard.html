@@ -807,6 +807,41 @@
     </div>
   </div>
 
+  <!-- Section: 股利再投入試算 (DRIP) -->
+  <h2 id="section-drip" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>股利再投入試算 (DRIP)
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        比較「股利領出來不動」vs「股利當天用同一標的股價買回、累積股數」對長期複利的影響。用 yfinance 的歷史股利紀錄，跟你是否實際持有這檔標的無關，可以查任何標的。不含稅金/手續費，僅供參考，不是投資建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="drip-symbol" placeholder="VOO" value="VOO" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="drip-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">開始</label>
+          <input id="drip-start" type="date" class="input input-bordered input-sm w-40">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">結束</label>
+          <input id="drip-end" type="date" class="input input-bordered input-sm w-40">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">初始投入金額</label>
+          <input id="drip-investment" type="number" min="1" step="any" value="10000" class="input input-bordered input-sm w-32">
+        </div>
+        <button type="button" onclick="loadDrip()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="drip-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="drip-stats" class="stats shadow mt-3 flex-wrap hidden"></div>
+      <div class="h-64 mt-4"><canvas id="dripChart"></canvas></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -850,6 +885,7 @@
           <li><a href="#section-risk-parity">貝塔調整建議</a></li>
           <li><a href="#section-scenario">大盤下跌模擬</a></li>
           <li><a href="#section-dca">定期定額比較</a></li>
+          <li><a href="#section-drip">股利再投入試算</a></li>
         </ul>
       </details>
     </li>
@@ -1013,6 +1049,7 @@ attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
 attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
 attachTickerAutocomplete('dca-compare', 'dca-compare-suggestions', { multi: true });
+attachTickerAutocomplete('drip-symbol', 'drip-symbol-suggestions');
 attachTickerAutocomplete('compound-symbol', 'compound-symbol-suggestions');
 attachTickerAutocomplete('checklist-symbol', 'checklist-symbol-suggestions');
 
@@ -1909,6 +1946,68 @@ document.getElementById('dca-form').addEventListener('submit', async (e) => {
     },
   });
 });
+
+// --- 股利再投入試算 (DRIP) ---
+let dripChart = null;
+async function loadDrip() {
+  const symbol = document.getElementById('drip-symbol').value.trim();
+  const start = document.getElementById('drip-start').value;
+  const end = document.getElementById('drip-end').value;
+  const initialInvestment = document.getElementById('drip-investment').value || 10000;
+  const errorBox = document.getElementById('drip-error');
+  errorBox.classList.add('hidden');
+  if (!symbol || !start || !end) return;
+
+  const res = await fetch(`/api/drip?symbol=${encodeURIComponent(symbol)}&start=${start}&end=${end}&initial_investment=${initialInvestment}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    document.getElementById('drip-stats').classList.add('hidden');
+    return;
+  }
+
+  const retClass = v => v >= 0 ? 'text-success' : 'text-error';
+  const statsBox = document.getElementById('drip-stats');
+  statsBox.classList.remove('hidden');
+  statsBox.innerHTML =
+    `<div class="stat"><div class="stat-title">累積股利（每股）</div><div class="stat-value text-lg">${data.total_dividends_per_share}</div></div>` +
+    `<div class="stat"><div class="stat-title">領出不投入</div><div class="stat-value text-lg">${data.cash_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(data.cash_return)}">${fmtPct(data.cash_return)}</div></div>` +
+    `<div class="stat"><div class="stat-title">股利再投入 (DRIP)</div><div class="stat-value text-lg">${data.drip_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(data.drip_return)}">${fmtPct(data.drip_return)}</div></div>`;
+
+  if (dripChart) dripChart.destroy();
+  dripChart = new Chart(document.getElementById('dripChart'), {
+    type: 'line',
+    data: {
+      labels: data.dates,
+      datasets: [
+        { label: '股利再投入 (DRIP)', data: data.drip_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
+        { label: '領出不投入', data: data.cash_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 10 } } },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+          },
+        },
+      },
+    },
+  });
+}
+
+(function initDripDefaults() {
+  const end = new Date();
+  const start = new Date();
+  start.setFullYear(start.getFullYear() - 5);
+  document.getElementById('drip-end').value = end.toISOString().slice(0, 10);
+  document.getElementById('drip-start').value = start.toISOString().slice(0, 10);
+  loadDrip();
+})();
 
 let compoundCurveChart = null;
 let compoundPortfolioDatasetIndices = [];
