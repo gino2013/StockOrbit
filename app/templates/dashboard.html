@@ -851,7 +851,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。不含手續費/稅金，僅供參考，不是投資建議。
+        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。「比較投入方案」可以填一個或多個「金額/頻率」，用分號分隔，例如 <code>1000/M; 10000/A</code> 同時比較每月投入 1000 跟每年投入 10000。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="dca-form" class="flex flex-wrap gap-3 items-end">
@@ -878,6 +878,9 @@
                 class="input input-bordered input-sm mt-1 w-56">
               <ul id="dca-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
             </div>
+          </label>
+          <label class="text-sm">比較投入方案<br>
+            <input name="plans" placeholder="1000/M; 10000/A" class="input input-bordered input-sm mt-1 w-40">
           </label>
           <button type="submit" class="btn btn-neutral">執行比較</button>
         </form>
