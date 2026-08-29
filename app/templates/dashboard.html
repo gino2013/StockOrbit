@@ -112,6 +112,18 @@
   {% endif %}
 
   {% if snapshots %}
+  <!-- Section: 持股健康度總覽 -->
+  <h2 id="section-health-overview" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股健康度總覽
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">整合風險與波動指標、持股相關性矩陣、貝塔調整建議等區塊的關鍵數字，一次看完。客觀數據呈現，不下結論，細節請看各自的區塊。</p>
+      <div id="health-overview-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="health-overview-content" class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 mt-2"></div>
+    </div>
+  </div>
+
   <!-- Section: 目標達成進度追蹤 -->
   <h2 id="section-goal" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>目標達成進度追蹤
@@ -949,6 +961,7 @@
       <details open>
         <summary>持股管理</summary>
         <ul>
+          <li><a href="#section-health-overview">持股健康度總覽</a></li>
           <li><a href="#section-goal">目標達成進度追蹤</a></li>
           <li><a href="#section-holdings">持股與配置</a></li>
           <li><a href="#section-rebalance">再平衡建議金額</a></li>
@@ -1377,6 +1390,33 @@ async function deleteGoal() {
 }
 
 loadGoal();
+
+// --- 持股健康度總覽 ---
+async function loadHealthOverview() {
+  const errorBox = document.getElementById('health-overview-error');
+  const content = document.getElementById('health-overview-content');
+  errorBox.classList.add('hidden');
+
+  const res = await fetch('/api/health-overview');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const betaClass2 = v => v == null ? '' : v < 0.8 ? 'text-success' : v > 1.5 ? 'text-error' : 'text-warning';
+  const concentrationClass = v => v == null ? '' : v < 0.2 ? 'text-success' : v > 0.4 ? 'text-error' : 'text-warning';
+  const correlationClass2 = v => v == null ? '' : v < 0.3 ? 'text-success' : v > 0.7 ? 'text-error' : 'text-warning';
+  content.innerHTML = `
+    <div class="stat"><div class="stat-title">持股數量</div><div class="stat-value text-lg">${data.position_count}</div></div>
+    <div class="stat"><div class="stat-title">最大單一持股佔比</div><div class="stat-value text-lg ${concentrationClass(data.max_concentration)}">${fmtPctOrDash(data.max_concentration)}</div></div>
+    <div class="stat"><div class="stat-title">平均相關係數</div><div class="stat-value text-lg ${correlationClass2(data.avg_correlation)}">${data.avg_correlation != null ? data.avg_correlation.toFixed(2) : '-'}</div></div>
+    <div class="stat"><div class="stat-title">投組 Beta</div><div class="stat-value text-lg ${betaClass2(data.portfolio_beta)}">${data.portfolio_beta != null ? data.portfolio_beta.toFixed(2) : '-'}</div></div>
+  `;
+}
+loadHealthOverview();
 
 async function loadOverseasIncome() {
   const errorBox = document.getElementById('overseas-income-error');
