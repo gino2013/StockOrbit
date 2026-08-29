@@ -965,6 +965,37 @@
     </div>
   </div>
 
+  <!-- Section: 月度/年度績效報告 -->
+  <h2 id="section-performance-report" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>月度/年度績效報告
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">整理某段期間的持股報酬、跟比較基準的比較，跟這段期間的交易紀錄，適合搭配「匯出 PDF」列印成一份報告。用目前的股數回推期間內市值，跟持股歷史走勢一樣是近似值，不是逐日精確重建。</p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="join">
+          <button type="button" onclick="loadPerformanceReportPreset('month')" class="btn btn-sm join-item">本月</button>
+          <button type="button" onclick="loadPerformanceReportPreset('year')" class="btn btn-sm join-item">本年</button>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">開始</label>
+          <input id="performance-report-start" type="date" class="input input-bordered input-sm w-36">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">結束</label>
+          <input id="performance-report-end" type="date" class="input input-bordered input-sm w-36">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">比較基準</label>
+          <input id="performance-report-benchmark" placeholder="SPY" value="SPY" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="loadPerformanceReport()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="performance-report-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="performance-report-content" class="mt-3"></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -1015,6 +1046,7 @@
           <li><a href="#section-scenario">大盤下跌模擬</a></li>
           <li><a href="#section-dca">定期定額比較</a></li>
           <li><a href="#section-drip">股利再投入試算</a></li>
+          <li><a href="#section-performance-report">績效報告</a></li>
         </ul>
       </details>
     </li>
@@ -2369,6 +2401,81 @@ async function loadDrip() {
   document.getElementById('drip-start').value = start.toISOString().slice(0, 10);
   loadDrip();
 })();
+
+// --- 月度/年度績效報告 ---
+function loadPerformanceReportPreset(period) {
+  const now = new Date();
+  let start;
+  if (period === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else {
+    start = new Date(now.getFullYear(), 0, 1);
+  }
+  document.getElementById('performance-report-start').value = start.toISOString().slice(0, 10);
+  document.getElementById('performance-report-end').value = now.toISOString().slice(0, 10);
+  loadPerformanceReport();
+}
+
+async function loadPerformanceReport() {
+  const start = document.getElementById('performance-report-start').value;
+  const end = document.getElementById('performance-report-end').value;
+  const benchmark = document.getElementById('performance-report-benchmark').value || 'SPY';
+  const errorBox = document.getElementById('performance-report-error');
+  const content = document.getElementById('performance-report-content');
+  errorBox.classList.add('hidden');
+  if (!start || !end) return;
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const body = new FormData();
+  body.set('start', start);
+  body.set('end', end);
+  body.set('benchmark', benchmark);
+  const res = await fetch('/api/performance-report', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const retClass = v => v >= 0 ? 'text-success' : 'text-error';
+  let html = `<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200">
+    <div class="stat">
+      <div class="stat-title">${data.start} ~ ${data.end} 期間報酬</div>
+      <div class="stat-value text-lg ${retClass(data.period_return)}">${fmtPct(data.period_return)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">${escapeHtml(benchmark)} 同期報酬</div>
+      <div class="stat-value text-lg ${retClass(data.benchmark_return)}">${fmtPct(data.benchmark_return)}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">期間已實現損益</div>
+      <div class="stat-value text-lg ${retClass(data.realized_gain)}">$${data.realized_gain.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+      <div class="stat-desc">${data.realized_trade_count} 筆交易</div>
+    </div>
+  </div>`;
+
+  html += '<p class="font-medium text-sm mt-4 mb-1">期間交易紀錄</p>';
+  if (!data.transactions.length) {
+    html += '<p class="text-sm opacity-50">這段期間沒有交易紀錄。</p>';
+  } else {
+    html += '<table class="table table-sm"><thead><tr><th>日期</th><th>類型</th><th>代號</th><th class="text-right">股數</th><th class="text-right">金額</th></tr></thead><tbody>';
+    for (const t of data.transactions) {
+      html += `<tr>
+        <td>${t.report_date}</td>
+        <td>${escapeHtml(t.trans_type)}</td>
+        <td>${escapeHtml(t.symbol || '')}</td>
+        <td class="text-right">${t.quantity || ''}</td>
+        <td class="text-right ${retClass(t.amount)}">${t.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  }
+  content.innerHTML = html;
+  const table = content.querySelector('table');
+  if (table) makeSortable(table);
+}
 
 let compoundCurveChart = null;
 let compoundPortfolioDatasetIndices = [];
