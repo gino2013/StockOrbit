@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.dividends import trailing_twelve_month_dividends, with_yield
+from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 
 
 def demo():
@@ -33,6 +33,22 @@ def demo():
     by_symbol3 = {r["symbol"]: r for r in rows2}
     assert by_symbol3["QQQ"]["ttm_yield"] is None
     assert by_symbol3["QQQ"]["market_value"] is None
+
+    # QQQ has historically paid in July and October -> both should recur in
+    # the next 12 months, using the *latest* amount seen for that month
+    # (2026-07's 7.76, not 2025-10's stale 6.5, for the July slot).
+    forecast = forecast_dividend_calendar(transactions, as_of=date(2026, 8, 27), months_ahead=12)
+    by_symbol_month = {(f["symbol"], f["month"]): f for f in forecast}
+    assert (2027, 7, "QQQ") == (
+        by_symbol_month[("QQQ", 7)]["year"], by_symbol_month[("QQQ", 7)]["month"], "QQQ"
+    )
+    assert abs(by_symbol_month[("QQQ", 7)]["estimated_amount"] - 7.76) < 1e-9
+    assert abs(by_symbol_month[("QQQ", 10)]["estimated_amount"] - 6.5) < 1e-9
+    # VOO only ever paid in June -> only one forecast entry for VOO.
+    assert sum(1 for f in forecast if f["symbol"] == "VOO") == 1
+    # QQQ has historically paid in Jan/Jul/Oct -> exactly those 3 months,
+    # and BOUGHT rows must never leak into the dividend forecast.
+    assert sorted(f["month"] for f in forecast if f["symbol"] == "QQQ") == [1, 7, 10]
 
 
 if __name__ == "__main__":
