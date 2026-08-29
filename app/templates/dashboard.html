@@ -967,6 +967,48 @@
     </div>
   </div>
 
+  <!-- Section: 定投高點回本風險 -->
+  <h2 id="section-drawdown-periods" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>定投高點回本風險
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        掃描這檔標的完整歷史股價，列出每一次「買在高點、之後要等很久才回到原本高點」的時間區間，讓你檢視這檔標的過去曾經出現過哪些長期套牢的進場時機。只列出回本花費超過設定天數的區間，排除正常的短期波動。純粹回顧歷史事實，不是預測。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="drawdown-symbol" placeholder="VOO" value="VOO" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="drawdown-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">最短回本天數</label>
+          <input id="drawdown-min-days" type="number" min="1" step="1" value="60" class="input input-bordered input-sm w-28">
+        </div>
+        <button type="button" onclick="loadDrawdownPeriods()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="drawdown-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="drawdown-empty" class="text-xs opacity-60 mt-3 hidden">歷史區間內沒有符合條件的長期套牢時間點。</div>
+      <div class="overflow-x-auto mt-3">
+        <table class="table table-sm" id="drawdown-table" style="display:none">
+          <thead>
+            <tr>
+              <th>高點日期</th>
+              <th class="text-right">高點價格</th>
+              <th>最低點日期</th>
+              <th class="text-right">最低點價格</th>
+              <th class="text-right">最大跌幅</th>
+              <th>回本日期</th>
+              <th class="text-right">花費時間</th>
+            </tr>
+          </thead>
+          <tbody id="drawdown-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Section: 月度/年度績效報告 -->
   <h2 id="section-performance-report" class="flex items-center gap-2 text-lg font-bold mb-3">
     <span class="w-1.5 h-5 bg-primary rounded-full"></span>月度/年度績效報告
@@ -1048,6 +1090,7 @@
           <li><a href="#section-scenario">大盤下跌模擬</a></li>
           <li><a href="#section-dca">定期定額比較</a></li>
           <li><a href="#section-drip">股利再投入試算</a></li>
+          <li><a href="#section-drawdown-periods">定投高點回本風險</a></li>
           <li><a href="#section-performance-report">績效報告</a></li>
         </ul>
       </details>
@@ -1246,6 +1289,7 @@ attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { mul
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
 attachTickerAutocomplete('dca-compare', 'dca-compare-suggestions', { multi: true });
 attachTickerAutocomplete('drip-symbol', 'drip-symbol-suggestions');
+attachTickerAutocomplete('drawdown-symbol', 'drawdown-symbol-suggestions');
 attachTickerAutocomplete('compound-symbol', 'compound-symbol-suggestions');
 attachTickerAutocomplete('checklist-symbol', 'checklist-symbol-suggestions');
 
@@ -2488,6 +2532,56 @@ async function loadDrip() {
   document.getElementById('drip-start').value = start.toISOString().slice(0, 10);
   loadDrip();
 })();
+
+// --- 定投高點回本風險 ---
+function fmtDurationDays(days) {
+  const years = Math.floor(days / 365);
+  const months = Math.round((days % 365) / 30);
+  if (years === 0) return `${months} 個月`;
+  if (months === 0) return `${years} 年`;
+  return `${years} 年 ${months} 個月`;
+}
+
+async function loadDrawdownPeriods() {
+  const symbol = document.getElementById('drawdown-symbol').value.trim();
+  const minDays = document.getElementById('drawdown-min-days').value || 60;
+  const errorBox = document.getElementById('drawdown-error');
+  const emptyBox = document.getElementById('drawdown-empty');
+  const table = document.getElementById('drawdown-table');
+  errorBox.classList.add('hidden');
+  emptyBox.classList.add('hidden');
+  table.style.display = 'none';
+  if (!symbol) return;
+
+  const res = await fetch(`/api/drawdown-periods?symbol=${encodeURIComponent(symbol)}&min_duration_days=${minDays}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (data.episodes.length === 0) {
+    emptyBox.classList.remove('hidden');
+    return;
+  }
+
+  const tbody = document.getElementById('drawdown-tbody');
+  tbody.innerHTML = data.episodes.map(ep => `
+    <tr>
+      <td>${escapeHtml(ep.peak_date)}</td>
+      <td class="text-right">${fmtPrice(ep.peak_price)}</td>
+      <td>${escapeHtml(ep.trough_date)}</td>
+      <td class="text-right">${fmtPrice(ep.trough_price)}</td>
+      <td class="text-right text-error">${fmtPct(ep.max_drawdown_pct)}</td>
+      <td>${ep.recovered ? escapeHtml(ep.recovery_date) : '<span class="opacity-60">尚未回本</span>'}</td>
+      <td class="text-right">${fmtDurationDays(ep.duration_days)}</td>
+    </tr>
+  `).join('');
+  table.style.display = '';
+}
+
+loadDrawdownPeriods();
 
 // --- 月度/年度績效報告 ---
 function loadPerformanceReportPreset(period) {
