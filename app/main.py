@@ -921,6 +921,34 @@ def backtest(
     return JSONResponse(result)
 
 
+_DCA_FREQUENCY_LABELS = {"M": "月", "Q": "季", "H": "半年", "A": "年"}
+
+
+def _parse_contribution_plans(raw: str) -> tuple[list[tuple[str, float, str]] | None, str | None]:
+    """Parse one or more ";"-separated "金額/頻率" plans (e.g. "1000/M;10000/A")
+    for multi-line contribution-schedule comparison. Returns (list of
+    (label, amount, frequency)) or (None, error_message)."""
+    plans = []
+    for segment in raw.split(";"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        parts = segment.split("/")
+        if len(parts) != 2:
+            return None, f"「{segment}」格式錯誤，範例：1000/M（M=月 Q=季 H=半年 A=年）"
+        amount_str, freq = parts[0].strip(), parts[1].strip().upper()
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return None, f"「{segment}」金額格式錯誤"
+        if amount <= 0:
+            return None, f"「{segment}」金額需大於 0"
+        if freq not in _DCA_FREQUENCY_LABELS:
+            return None, f"「{segment}」頻率需為 M/Q/H/A"
+        plans.append((f"${amount:,.0f}/{_DCA_FREQUENCY_LABELS[freq]}", amount, freq))
+    return plans, None
+
+
 @app.post("/api/dca")
 def dca(
     start: str = Form(...),
@@ -928,6 +956,7 @@ def dca(
     contribution: float = Form(...),
     frequency: str = Form("M"),
     compare: str = Form(""),
+    plans: str = Form(""),
 ):
     if contribution <= 0:
         return JSONResponse({"error": "每期投入金額需大於 0"}, status_code=400)
@@ -955,14 +984,28 @@ def dca(
     if not baskets:
         return JSONResponse({"error": "尚未設定目標配置，且沒有輸入比較標的"}, status_code=400)
 
+    contribution_plans = [(f"${contribution:,.0f}/{_DCA_FREQUENCY_LABELS.get(frequency, frequency)}", contribution, frequency)]
+    if plans:
+        extra_plans, error = _parse_contribution_plans(plans)
+        if error:
+            return JSONResponse({"error": f"比較投入方案：{error}"}, status_code=400)
+        contribution_plans += extra_plans or []
+
     items = []
-    for label, weights in baskets:
-        try:
-            result = run_dca_comparison(weights, start, end, contribution, frequency)
-        except Exception as e:
-            return JSONResponse({"error": f"{label}：{e}"}, status_code=400)
-        result["label"] = label
-        items.append(result)
+    for basket_label, weights in baskets:
+        for plan_label, plan_amount, plan_frequency in contribution_plans:
+            label_parts = []
+            if len(baskets) > 1:
+                label_parts.append(basket_label)
+            if len(contribution_plans) > 1:
+                label_parts.append(plan_label)
+            label = " ".join(label_parts) or basket_label
+            try:
+                result = run_dca_comparison(weights, start, end, plan_amount, plan_frequency)
+            except Exception as e:
+                return JSONResponse({"error": f"{label}：{e}"}, status_code=400)
+            result["label"] = label
+            items.append(result)
     return JSONResponse({"items": items})
 
 
