@@ -309,7 +309,7 @@ def dashboard(request: Request):
         "total_gain": total_gain,
         "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
         "annualized_return": annualized_return,
-        "position_count": len(snapshots),
+        "position_count": sum(1 for s in snapshots if s["symbol"] != "CASH"),
         "usd_twd_rate": usd_twd_rate,
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
         "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
