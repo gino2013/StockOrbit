@@ -10,14 +10,22 @@ import yfinance as yf
 _RESAMPLE_FREQ = {"M": "ME", "Q": "QE", "A": "YE"}  # "D" (daily) needs no resampling
 
 
-def portfolio_value_history(holdings: dict[str, float], start: str, end: str) -> pd.Series:
-    symbols = list(holdings.keys())
+def close_prices(symbols: list[str], start: str, end: str) -> pd.DataFrame:
+    """Cleaned adjusted-close price frame (one column per symbol) for the
+    window. Shared by portfolio_value_history and the period-XIRR
+    reconstruction so the yfinance download + gap-fill logic lives in one place.
+    """
     data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
     data = data.dropna(how="all").ffill().dropna()
     if len(data) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
-    quantities = pd.Series(holdings)
-    return (data[symbols] * quantities).sum(axis=1)
+    return data[symbols]
+
+
+def portfolio_value_history(holdings: dict[str, float], start: str, end: str) -> pd.Series:
+    symbols = list(holdings.keys())
+    data = close_prices(symbols, start, end)
+    return (data * pd.Series(holdings)).sum(axis=1)
 
 
 def resample_for_display(series: pd.Series, granularity: str) -> pd.Series:
