@@ -1112,6 +1112,18 @@ function toggleNoteEdit(btn) {
   form.querySelector('textarea').focus();
 }
 
+async function saveTransactionNote(btn) {
+  const input = btn.previousElementSibling;
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  const body = new FormData();
+  body.set('transaction_id', input.dataset.txId);
+  body.set('note', input.value);
+  await fetch('/api/transaction-notes', { method: 'POST', body });
+  btn.textContent = '已儲存';
+  setTimeout(() => { btn.textContent = originalLabel; btn.disabled = false; }, 1200);
+}
+
 function makeSortable(table) {
   if (!table) return;
   const headers = table.querySelectorAll('thead th');
@@ -2460,10 +2472,11 @@ async function loadPerformanceReport() {
   </div>`;
 
   html += '<p class="font-medium text-sm mt-4 mb-1">期間交易紀錄</p>';
+  html += '<p class="text-xs opacity-50 mb-1">「筆記」可以記錄當下買賣的理由或想法，之後回顧損益時能看到當初怎麼想的。純記錄工具，不做任何分析或建議。</p>';
   if (!data.transactions.length) {
     html += '<p class="text-sm opacity-50">這段期間沒有交易紀錄。</p>';
   } else {
-    html += '<table class="table table-sm"><thead><tr><th>日期</th><th>類型</th><th>代號</th><th class="text-right">股數</th><th class="text-right">金額</th></tr></thead><tbody>';
+    html += '<table class="table table-sm"><thead><tr><th>日期</th><th>類型</th><th>代號</th><th class="text-right">股數</th><th class="text-right">金額</th><th>筆記</th></tr></thead><tbody>';
     for (const t of data.transactions) {
       html += `<tr>
         <td>${t.report_date}</td>
@@ -2471,6 +2484,12 @@ async function loadPerformanceReport() {
         <td>${escapeHtml(t.symbol || '')}</td>
         <td class="text-right">${t.quantity || ''}</td>
         <td class="text-right ${retClass(t.amount)}">${t.amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}</td>
+        <td>
+          <div class="flex items-center gap-1">
+            <input type="text" class="input input-bordered input-xs w-40" data-tx-id="${escapeHtml(t.id)}" value="${escapeHtml(t.note || '')}" placeholder="當下的理由...">
+            <button type="button" class="btn btn-ghost btn-xs" onclick="saveTransactionNote(this)">儲存</button>
+          </div>
+        </td>
       </tr>`;
     }
     html += '</tbody></table>';

@@ -29,6 +29,7 @@ from app.db import (
     SessionLocal,
     TargetAllocation,
     Transaction,
+    TransactionNote,
     init_db,
 )
 from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
@@ -166,6 +167,7 @@ def _average_usdtwd_rate(year: int) -> float | None:
 def _all_transactions(db) -> list[dict]:
     return [
         {
+            "id": t.id,
             "symbol": t.symbol,
             "trans_type": t.trans_type,
             "report_date": t.report_date,
@@ -805,10 +807,39 @@ def performance_report(
         result = build_performance_report(snapshots, transactions, start, end, benchmark_weights)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+    db = SessionLocal()
+    try:
+        tx_ids = [t["id"] for t in result["transactions"]]
+        notes_by_id = dict(
+            db.query(TransactionNote.transaction_id, TransactionNote.note)
+            .filter(TransactionNote.transaction_id.in_(tx_ids))
+            .all()
+        )
+    finally:
+        db.close()
     result["transactions"] = [
-        {**t, "report_date": t["report_date"].isoformat()} for t in result["transactions"]
+        {**t, "report_date": t["report_date"].isoformat(), "note": notes_by_id.get(t["id"], "")}
+        for t in result["transactions"]
     ]
     return JSONResponse(result)
+
+
+@app.post("/api/transaction-notes")
+def set_transaction_note(transaction_id: str = Form(...), note: str = Form("")):
+    db = SessionLocal()
+    try:
+        if db.get(Transaction, transaction_id) is None:
+            return JSONResponse({"error": "找不到這筆交易"}, status_code=404)
+        existing = db.get(TransactionNote, transaction_id)
+        if existing:
+            existing.note = note
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            db.add(TransactionNote(transaction_id=transaction_id, note=note))
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/holdings-history")

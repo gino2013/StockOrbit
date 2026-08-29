@@ -125,6 +125,20 @@ class PositionNote(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class TransactionNote(Base):
+    """Freeform note bound to a single Transaction row (its content-hash id,
+    see Transaction.make_id) - why you made that specific buy/sell, what
+    you were thinking at the time. Unlike PositionNote (one note per
+    symbol), this is per trade event, so you can look back at each
+    individual decision later. Upserted by transaction_id, no history kept."""
+
+    __tablename__ = "transaction_notes"
+
+    transaction_id = Column(String, primary_key=True)
+    note = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class InvestmentGoal(Base):
     """Single long-term target (amount + date) to track progress against.
     Singleton row keyed by a fixed id, same upsert-by-key shape as
