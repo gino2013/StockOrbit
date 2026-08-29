@@ -646,7 +646,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        拿「歷史真實年度報酬率」逐年相乘，畫出實際複利路徑，跟兩條假設「每年報酬率固定」的平滑曲線比較：橘色用<b>幾何平均</b>（CAGR，唯一一個複利 n 次會剛好等於真實總報酬的年化率），灰色虛線用<b>算術平均</b>（只是把每年報酬率加起來除以年數）。只要報酬率有波動，算術平均一定 ≥ 幾何平均，波動越大差距越大--灰色虛線在歷史範圍內就已經超出實際路徑，未來延伸的落差只會更明顯。不含手續費/稅金，僅供參考，不是投資建議。
+        拿「歷史真實年度報酬率」逐年相乘，畫出實際複利路徑，跟兩條假設「每年報酬率固定」的平滑曲線比較：橘色用<b>幾何平均</b>（CAGR，唯一一個複利 n 次會剛好等於真實總報酬的年化率），灰色虛線用<b>算術平均</b>（只是把每年報酬率加起來除以年數）。只要報酬率有波動，算術平均一定 ≥ 幾何平均，波動越大差距越大-灰色虛線在歷史範圍內就已經超出實際路徑，未來延伸的落差只會更明顯。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div class="relative">
@@ -688,7 +688,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用客觀數據檢查一檔股票的歷史是否真的展現出複利效果（不是波動大到把幾何平均侵蝕掉），以及基本的獲利/財務/規模體質。<b>不是投資建議，不給「適合/不適合」的單一結論</b>--每項只列出 ✓/✗ 跟實際數字，由你自己判斷這些客觀事實加起來夠不夠支持長期持有的信心。
+        用客觀數據檢查一檔股票的歷史是否真的展現出複利效果（不是波動大到把幾何平均侵蝕掉），以及基本的獲利/財務/規模體質。<b>不是投資建議，不給「適合/不適合」的單一結論</b>-每項只列出 ✓/✗ 跟實際數字，由你自己判斷這些客觀事實加起來夠不夠支持長期持有的信心。
       </p>
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div class="relative">
@@ -711,7 +711,7 @@
     <div class="card-body">
       <div class="flex items-center justify-between">
         <p class="text-xs opacity-60">
-          近 1 年每日報酬率的皮爾森相關係數（CASH 不計）。客觀統計數據，不下「應該減碼哪個」的結論--相關係數高不代表同產業，也可能代表分散效果有限，僅供參考。
+          近 1 年每日報酬率的皮爾森相關係數（CASH 不計）。客觀統計數據，不下「應該減碼哪個」的結論-相關係數高不代表同產業，也可能代表分散效果有限，僅供參考。
         </p>
         <button type="button" onclick="loadCorrelation()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
       </div>
@@ -728,7 +728,7 @@
     <div class="card-body">
       <div class="flex items-center justify-between">
         <p class="text-xs opacity-60">
-          風險平價（risk parity）簡化版：波動度越高的標的，建議佔比越低（用 1/波動度 正規化）。這只是用歷史波動度反推的其中一種配置方法，不是唯一正確答案，也不是投資建議--CASH 不參與重分配，佔比維持不變。
+          風險平價（risk parity）簡化版：波動度越高的標的，建議佔比越低（用 1/波動度 正規化）。這只是用歷史波動度反推的其中一種配置方法，不是唯一正確答案，也不是投資建議-CASH 不參與重分配，佔比維持不變。
         </p>
         <button type="button" onclick="loadRiskParity()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
       </div>
@@ -838,7 +838,7 @@
           <li><a href="#section-compound-curve">複利曲線估算</a></li>
           <li><a href="#section-compounder-checklist">個股複利檢查</a></li>
           <li><a href="#section-correlation">持股相關性矩陣</a></li>
-          <li><a href="#section-risk-parity">貝塔調整部位建議</a></li>
+          <li><a href="#section-risk-parity">貝塔調整建議</a></li>
           <li><a href="#section-scenario">大盤下跌模擬</a></li>
           <li><a href="#section-dca">定期定額比較</a></li>
         </ul>
@@ -1136,7 +1136,7 @@ async function loadCashDeployment() {
     content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
     return;
   }
-  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標--現金不夠補滿全部落差時，只會盡量按落差比例分配。</p>';
+  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標-現金不夠補滿全部落差時，只會盡量按落差比例分配。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">建議買入</th><th class="text-right">目前佔比</th>' +
     '<th class="text-right">加碼後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
@@ -1540,7 +1540,7 @@ if (sortedSectorNames.length) {
 
 const allocationChartData = {{ allocation_chart_data | default(none) | tojson }};
 if (allocationChartData && allocationChartData.labels.length) {
-  // One point per calendar day now (see allocation_history.py) -- just the
+  // One point per calendar day now (see allocation_history.py) - just the
   // date, no time-of-day, since there's only ever one point per day.
   const historyLabels = allocationChartData.labels.map((l) => l.slice(0, 10));
   const historyDatasets = Object.entries(allocationChartData.series).map(([symbol, data]) => ({
@@ -2051,7 +2051,7 @@ async function loadCompounderChecklist() {
   `).join('');
   content.innerHTML = `
     <ul class="text-sm">${items}</ul>
-    <p class="text-xs opacity-50 mt-3">以上僅為客觀數據檢查，不是投資建議，不代表「適合」或「不適合」長期持有的結論--請自行判斷。</p>
+    <p class="text-xs opacity-50 mt-3">以上僅為客觀數據檢查，不是投資建議，不代表「適合」或「不適合」長期持有的結論-請自行判斷。</p>
   `;
 }
 

@@ -28,7 +28,7 @@ def demo():
     assert abs(by_symbol["CALM"]["current_weight"] - 5000 / 12000) < 1e-9
 
     # 1/vol weighting: CALM (vol 0.10) should get a much bigger suggested
-    # share than WILD (vol 0.40) -- the whole point of risk parity.
+    # share than WILD (vol 0.40) - the whole point of risk parity.
     assert by_symbol["CALM"]["suggested_weight"] > by_symbol["WILD"]["suggested_weight"]
 
     # non-cash suggested weights must sum to (1 - cash_weight), i.e. CASH's
