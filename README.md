@@ -232,13 +232,24 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 
 ## 專案結構
 
-分層：`domain/`（純計算，無 I/O）→ `application/`（用例編排，尚未抽出）→ `infrastructure/`（DB、外部 API）→ `interface/`（HTTP）。
+四層，依賴方向由外往內（`interface` → `application` → `domain`；`infrastructure` 只被 `interface`/`application` 用）：
+
+| 層 | 職責 | 可以做什麼 | 不可以做什麼 |
+|---|---|---|---|
+| `interface/` | HTTP 端點 | 解析 request、讀 cookie、呼叫 repository 跟 application、包 `JSONResponse`/`TemplateResponse` | 不寫商業邏輯、不碰 SQLAlchemy |
+| `application/` | 用例編排 | 把多個 domain 函式串起來組成一個畫面/報表的結果 | 不碰 HTTP、不碰 session（拿到的是已經查好的資料） |
+| `domain/` | 純計算 | 回測、風險、XIRR、FIFO 損益、配置建議…全是純函式 | 不碰 DB、不碰 request |
+| `infrastructure/` | 對外系統 | SQLAlchemy models + `Repositories`、Firstrade 登入、yfinance 基本面抓取、CSV 匯出 | — |
 
 ```
 app/
   main.py                        # ASGI 進入點（薄殼，實際 app 在 interface/http.py）
   interface/
-    http.py                      # FastAPI 路由
+    http.py                      # FastAPI 路由：只做「解析 request → 呼叫 repo/service → 回應」
+  application/
+    dashboard.py                 # 首頁 context 組裝（stats／建議／再平衡／股利／已實現…）
+    goals.py                     # 目標進度用例（市值 + XIRR → build_goal_progress）
+    tax.py                       # 海外所得試算 + 稅務效率分析用例
   domain/
     portfolio/
       advice.py                  # 配置建議邏輯
@@ -271,6 +282,7 @@ app/
       goal_tracking.py           # 目標達成進度追蹤
   infrastructure/
     db.py                        # SQLAlchemy models
+    repositories.py              # Repositories：所有 DB 讀寫的唯一入口（context manager，一個 session）
     firstrade_client.py          # Firstrade 登入與持股抓取
     fundamentals.py              # 基本面即時抓取
     fundamentals_cache.py        # 基本面資料快取讀寫
@@ -283,6 +295,18 @@ scripts/
 tests/                           # 純函式的 assert-based 自我檢查（無需啟動伺服器）
 render.yaml                      # Render 部署設定
 ```
+
+### 為什麼這樣分層
+
+這是一人專案，這種分層對這個規模來說是「超規格」的 —— 但這裡值得，原因是：
+
+- **`domain/` 有近 30 個分析模組**（回測、風險、相關性、複利、DCA、DRIP、稅務…）。攤平在一個資料夾裡是一面牆，照「投組管理／市場分析／收益稅務／目標」分組後才找得到東西。
+- **測試靠的就是 domain 是純函式**：`tests/` 全部是不啟動伺服器、不碰 DB 的 `assert` 檔。把 I/O 擋在 `infrastructure/`、把 HTTP 擋在 `interface/`，domain 才能一直保持「給 dict、拿 dict」而好測。
+- **`Repositories` 是唯一碰 SQLAlchemy 的地方**：換 DB schema、加欄位、之後要不要接連線池，只改一個檔，40 個路由不用動。重構這批程式時，「介面層完全搜不到 `db.query`」本身就是一道防線。
+- **`application/` 讓路由變薄**：首頁那段 90 行的組裝邏輯（stats／建議／股利／已實現…）搬進 `application/dashboard.py` 後，路由只剩「查資料 → 呼叫 service → 回應」，那段組裝也能單獨測。
+- **相依方向單向**：`domain/` 不 import 上面任何一層，所以看一個計算函式不用先理解 web 框架或 ORM。
+
+沒做的部分（對這個專案 CP 值不高，先不碰）：request/response 的 Pydantic DTO；把 13 個直接呼叫 `yfinance` 的 domain 模組包進注入式的 gateway。
 
 ## 本機開發
 
