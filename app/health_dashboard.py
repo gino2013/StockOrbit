@@ -1,13 +1,23 @@
 """Single-card rollup of risk/concentration indicators that otherwise live
 scattered across several sections (risk, correlation, risk-parity). No new
-calculation logic - just aggregates the existing functions' output into a
-handful of headline numbers. Objective data only, no verdict.
+calculation logic - just aggregates the same underlying data into a handful
+of headline numbers. Objective data only, no verdict.
+
+Deliberately does ONE shared price download and computes correlation/beta
+directly with pandas, rather than calling compute_correlation_matrix() +
+compute_risk_metrics() (which each do their own separate yf.download(), and
+the latter also fetches each symbol's next-earnings-date via a blocking
+per-symbol Yahoo calendar call this overview never uses) - that redundant
+network round-tripping was the actual reason this endpoint felt slow.
 """
 
 from collections import defaultdict
 
-from app.correlation import compute_correlation_matrix
-from app.risk import compute_risk_metrics
+import yfinance as yf
+
+from app.risk import beta_vs_benchmark
+
+_BENCHMARK = "SPY"
 
 
 def build_health_overview(snapshots: list[dict]) -> dict:
@@ -19,19 +29,30 @@ def build_health_overview(snapshots: list[dict]) -> dict:
 
     max_concentration = max((value_by_symbol[s] / total for s in symbols), default=0.0) if total else 0.0
 
-    corr = compute_correlation_matrix(symbols) if len(symbols) >= 2 else {"symbols": [], "matrix": []}
-    off_diagonal = [
-        corr["matrix"][i][j] for i in range(len(corr["symbols"])) for j in range(len(corr["symbols"])) if i != j
-    ]
-    avg_correlation = sum(off_diagonal) / len(off_diagonal) if off_diagonal else None
+    avg_correlation = None
+    portfolio_beta = None
+    if symbols:
+        tickers = list(dict.fromkeys(symbols + [_BENCHMARK]))
+        prices = yf.download(tickers, period="1y", auto_adjust=True, progress=False)["Close"]
+        prices = prices.dropna(how="all").ffill()
+        returns = prices.pct_change()
 
-    risk_items = {item["symbol"]: item for item in compute_risk_metrics(symbols)} if symbols else {}
-    beta_terms = [
-        (value_by_symbol[s] / total) * risk_items[s]["beta"]
-        for s in symbols
-        if total and s in risk_items and risk_items[s]["beta"] is not None
-    ]
-    portfolio_beta = sum(beta_terms) if beta_terms else None
+        if len(symbols) >= 2:
+            corr = returns[symbols].corr()
+            n = len(symbols)
+            off_diagonal_sum = corr.to_numpy().sum() - n  # subtract the n ones on the diagonal
+            avg_correlation = float(off_diagonal_sum / (n * n - n))
+
+        if _BENCHMARK in returns:
+            benchmark_returns = returns[_BENCHMARK].dropna()
+            beta_terms = []
+            for symbol in symbols:
+                if symbol not in returns:
+                    continue
+                beta = beta_vs_benchmark(returns[symbol].dropna(), benchmark_returns)
+                if beta is not None and total:
+                    beta_terms.append((value_by_symbol[symbol] / total) * beta)
+            portfolio_beta = sum(beta_terms) if beta_terms else None
 
     return {
         "position_count": len(symbols),
