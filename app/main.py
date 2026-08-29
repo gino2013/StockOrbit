@@ -51,6 +51,7 @@ from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
 from app.risk_parity import suggest_risk_parity
 from app.scenario import simulate_market_drop
+from app.tax_loss_harvesting import estimate_tax_savings, find_loss_candidates
 from app.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.trending import SCREENERS, trending_tickers
 from app.xirr import portfolio_cashflows, xirr
@@ -434,6 +435,30 @@ def overseas_income(year: int | None = None):
     result = estimate_overseas_income(capital_gains, dividends, rate)
     result["year"] = year
     return JSONResponse(result)
+
+
+@app.get("/api/tax-loss-harvesting")
+def tax_loss_harvesting(year: int | None = None):
+    year = year or datetime.now().year
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+        transactions = _all_transactions(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    rate = _average_usdtwd_rate(year)
+    if rate is None:
+        return JSONResponse({"error": "無法取得今年的美元/台幣匯率資料"}, status_code=400)
+
+    candidates = find_loss_candidates(snapshots)
+    realized = compute_realized_gains(transactions)
+    capital_gains = realized_gains_for_year(realized, year)
+    dividends = dividend_income_for_year(transactions, year)
+    income = estimate_overseas_income(capital_gains, dividends, rate)
+    savings = estimate_tax_savings(candidates, income["total_twd"], rate)
+    return JSONResponse({"year": year, "candidates": candidates, "income": income, **savings})
 
 
 @app.get("/api/trending")
