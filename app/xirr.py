@@ -1,4 +1,4 @@
-"""XIRR (money-weighted annualized return) — accounts for *when* cash was
+"""XIRR (money-weighted annualized return) - accounts for *when* cash was
 put in, unlike the simple (value - cost) / cost figure already shown
 elsewhere, which treats every dollar as if it had been invested on day one.
 """
@@ -10,7 +10,7 @@ EXTERNAL_CASH_OUT_TYPES = {"WITHDRAWAL", "WITHDRAW"}
 
 
 def portfolio_cashflows(transactions: list[dict], current_value: float, as_of: date) -> list[tuple[date, float]]:
-    """External cash movements only — deposits (negative, money the investor
+    """External cash movements only - deposits (negative, money the investor
     put in) and withdrawals (positive, money taken out). Trades and
     dividends aren't external flows, they just move value around inside the
     account, already reflected in current_value.

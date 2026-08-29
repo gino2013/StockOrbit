@@ -1,4 +1,4 @@
-"""Read/write for FundamentalsCache — see app.db.FundamentalsCache for why
+"""Read/write for FundamentalsCache - see app.db.FundamentalsCache for why
 this exists (Render can't reach Yahoo's quoteSummary API directly).
 """
 

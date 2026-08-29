@@ -2,7 +2,7 @@
 objective) and news headlines with a lightweight keyword-based sentiment tag.
 
 The sentiment tag is a simple keyword count on the headline text, not real
-NLP/LLM judgment — it exists to make an obviously-bullish or obviously-
+NLP/LLM judgment - it exists to make an obviously-bullish or obviously-
 bearish headline easier to spot at a glance, not as a reliable signal.
 Mixed/unclear headlines are left neutral (no color) rather than guessed at.
 """
@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import yfinance as yf
 
-# ponytail: same reasoning as app/fundamentals.py's pool — Ticker.news is a
+# ponytail: same reasoning as app/fundamentals.py's pool - Ticker.news is a
 # per-symbol blocking HTTP call with no batch equivalent, so a small thread
 # pool overlaps the network wait instead of doing one symbol at a time.
 _MAX_WORKERS = 8

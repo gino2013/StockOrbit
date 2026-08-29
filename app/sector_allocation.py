@@ -1,7 +1,7 @@
 """Sector-level portfolio breakdown, weighted by market value.
 
 Reuses whatever sector/quoteType data FundamentalsCache already has (kept
-fresh by the scheduled GitHub Actions job, see #9) — no live fetch here, so
+fresh by the scheduled GitHub Actions job, see #9) - no live fetch here, so
 this renders on every page load like the rest of the snapshot-derived stats.
 """
 
@@ -13,9 +13,9 @@ ETF_BUCKET = "ETF"
 
 def bucket_for_symbol(symbol: str, info_by_symbol: dict[str, dict]) -> str:
     """CASH and confirmed ETFs (Yahoo's quoteType) each get one shared
-    bucket; a real company uses its sector. Anything else — no sector, not
+    bucket; a real company uses its sector. Anything else - no sector, not
     confirmed to be an ETF (e.g. cache miss, an asset type we don't
-    recognize) — gets its own bucket named after itself rather than being
+    recognize) - gets its own bucket named after itself rather than being
     dumped into a vague "other" that mixes unrelated things together.
     """
     if symbol == "CASH":

@@ -1,15 +1,15 @@
 """Rule-based, objective checklist for whether a stock's own history
 actually supports "buy and hold this specific company for a decade to
-compound" — not whether it's a good buy, not a price target. Every check
+compound" - not whether it's a good buy, not a price target. Every check
 is shown with its real number; there's deliberately no overall score or
-pass/fail verdict computed anywhere in this module — the user weighs
+pass/fail verdict computed anywhere in this module - the user weighs
 whether the combination of facts is enough to trust a long hold themselves.
 
 Two things have to both hold for individual-stock compounding to work:
 survivability (won't the company still exist and be growing in 10 years?)
 and whether its real history has actually shown compounding rather than
 just being volatile (high volatility erodes the geometric mean toward zero
-even when the arithmetic average return looks fine — see app/compound_curve.py).
+even when the arithmetic average return looks fine - see app/compound_curve.py).
 """
 
 from datetime import datetime
@@ -26,7 +26,7 @@ EROSION_GAP_THRESHOLD = 0.05  # arithmetic-vs-geometric mean gap that counts as 
 
 def build_compounder_checklist(symbol: str, fundamentals: dict, min_years: int = MIN_HISTORY_YEARS) -> dict:
     """fundamentals is one symbol's field dict, e.g. from fetch_fundamentals()
-    (already merged with FundamentalsCache fallback by the caller — see
+    (already merged with FundamentalsCache fallback by the caller - see
     /api/fundamentals for why that merge can't happen in here on Render)."""
     symbol = symbol.upper()
     risk_items = compute_risk_metrics([symbol])

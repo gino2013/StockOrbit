@@ -1,6 +1,6 @@
 """Pearson correlation matrix of daily returns across held/target symbols.
 
-Sector labels are nominal — two symbols in different sectors can still move
+Sector labels are nominal - two symbols in different sectors can still move
 almost in lockstep (e.g. both riding the same macro/large-cap-tech wave).
 This surfaces the actual statistical co-movement instead, as a plain N×N
 matrix. Objective data only: no "reduce X" conclusion, and the caller-facing

@@ -1,5 +1,5 @@
 """CSV export of the current holdings + advice snapshot, for keeping a
-dated record or sharing outside the app. Plain rows, no styling — a
+dated record or sharing outside the app. Plain rows, no styling - a
 spreadsheet app is the intended consumer, not a human reading raw text.
 """
 
@@ -45,7 +45,7 @@ def build_holdings_csv(
 def build_transactions_csv(transactions: list[dict], realized: list[dict], as_of: date) -> str:
     """Full transaction history (issue #11's Transaction table) plus FIFO
     realized-gain detail (app/realized_gains.py), as two sections of one
-    CSV — same shape as build_holdings_csv's advice-notes section below
+    CSV - same shape as build_holdings_csv's advice-notes section below
     the main table."""
     buf = io.StringIO()
     writer = csv.writer(buf)

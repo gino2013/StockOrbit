@@ -1,4 +1,4 @@
-"""Scheduled cache refresh — see .github/workflows/refresh-fundamentals-cache.yml.
+"""Scheduled cache refresh - see .github/workflows/refresh-fundamentals-cache.yml.
 
 Render's outbound IP gets a 401 Invalid Crumb from Yahoo's quoteSummary API
 (issue #9), so it can never fetch fundamentals/earnings-dates itself. GitHub

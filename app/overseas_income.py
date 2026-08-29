@@ -3,7 +3,7 @@ capital gains + dividends, for a heads-up on whether this year's numbers are
 worth mentioning to an accountant.
 
 NOT tax advice. Real thresholds/rules and the exact aggregation method
-change over time — check 財政部 (Ministry of Finance) guidance or an
+change over time - check 財政部 (Ministry of Finance) guidance or an
 accountant before relying on this for an actual filing.
 """
 

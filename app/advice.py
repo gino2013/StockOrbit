@@ -1,4 +1,4 @@
-"""Rule-based allocation advice. Not a financial model — just concentration
+"""Rule-based allocation advice. Not a financial model - just concentration
 and drift-from-target heuristics computed off the latest holdings snapshot.
 """
 
@@ -47,7 +47,7 @@ def build_advice(
                 f"偏離 {abs(drift):.1%}，建議{action}以回到目標配置。"
             )
 
-    # Held but never given a target at all (distinct from "target is 0%") —
+    # Held but never given a target at all (distinct from "target is 0%") -
     # build_rebalance_plan() silently treats these as a full-sell candidate,
     # which is easy to not realize unless it's called out here.
     untargeted = sorted(
@@ -96,7 +96,7 @@ def build_rebalance_plan(snapshots: list[dict], targets: dict[str, float]) -> li
     """For every symbol that's either currently held or has a target weight
     (excluding CASH, which is funding source/destination, not a position),
     work out how many dollars to buy or sell to hit the target allocation.
-    A held symbol with no target is treated as target 0% (full sell) —
+    A held symbol with no target is treated as target 0% (full sell) -
     it's not part of the plan, so rebalancing it out is the correct call.
     """
     total_value = sum(s["market_value"] for s in snapshots)

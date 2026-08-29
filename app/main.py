@@ -175,12 +175,12 @@ def _latest_snapshot_at(db) -> datetime | None:
 
 
 # ponytail: refreshing on every page load would mean a full Firstrade login
-# (password + TOTP) per visit — slow, and risks Firstrade flagging repeated
+# (password + TOTP) per visit - slow, and risks Firstrade flagging repeated
 # logins. Only auto-refresh when the last snapshot is older than this.
 AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 
 # ponytail: hidden easter-egg toggle (see the invisible button next to the
-# "StockOrbit" header) — a purely cosmetic display multiplier, never written
+# "StockOrbit" header) - a purely cosmetic display multiplier, never written
 # to the database, so toggling it can never corrupt real holdings data.
 FLEX_MODE_COOKIE = "flex_mode"
 FLEX_MODE_MULTIPLIER = 10.1
@@ -202,7 +202,7 @@ def _apply_flex_mode(snapshots: list[dict]) -> list[dict]:
 
 def _refresh_and_save() -> None:
     """Log into Firstrade, fetch positions + transactions + USD/TWD rate, save
-    a new snapshot. Raises on failure — callers decide whether that's fatal."""
+    a new snapshot. Raises on failure - callers decide whether that's fatal."""
     session = _login()
     positions = fetch_positions(session)
     transactions = fetch_transactions(session)
@@ -264,7 +264,7 @@ def dashboard(request: Request):
         "all_time": summarize_realized_gains(realized),
         "this_year": summarize_realized_gains(realized, year=datetime.now().year),
     }
-    # XIRR needs the *real* total value as its terminal cashflow — real
+    # XIRR needs the *real* total value as its terminal cashflow - real
     # deposit history compared against a flex-mode-inflated ending value
     # would look like a 10.1x gain that never happened, blowing up the rate
     # into nonsense (seen: 20078% instead of the real ~45%). Capture it
@@ -279,7 +279,7 @@ def dashboard(request: Request):
     # set from drifting away from summing to 100% (e.g. adding a 6th target
     # without re-trimming the other five). When that happens, each row's
     # dollar figure is still individually correct, but total buys won't
-    # equal total sells — the plan silently implies a deposit/withdrawal.
+    # equal total sells - the plan silently implies a deposit/withdrawal.
     target_weight_sum = sum(targets.values()) if targets else 0
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
@@ -351,7 +351,7 @@ def market_moves():
         db.close()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
-    # "CASH" is our synthetic cash-balance row, not a real ticker — but it
+    # "CASH" is our synthetic cash-balance row, not a real ticker - but it
     # collides with an actual Nasdaq symbol (Pathward Financial), so leaving
     # it in would pull that unrelated company's price swings/news.
     symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
@@ -375,7 +375,7 @@ def fundamentals(debug: bool = False):
             data = fetch_fundamentals(symbols, debug=debug)
         except Exception as e:
             return JSONResponse({"error": str(e)}, status_code=400)
-        # Render can't reach Yahoo's quoteSummary API (issue #9) — fall back to
+        # Render can't reach Yahoo's quoteSummary API (issue #9) - fall back to
         # the last cache a GitHub Actions job (unaffected by that block) wrote.
         stale_symbols = [s for s in symbols if not data.get(s, {}).get("_fetch_ok")]
         if stale_symbols:
@@ -400,7 +400,7 @@ def risk():
             items = compute_risk_metrics(symbols)
         except Exception as e:
             return JSONResponse({"error": str(e)}, status_code=400)
-        # Render can't reach Yahoo's calendar API (issue #9) — fall back to the
+        # Render can't reach Yahoo's calendar API (issue #9) - fall back to the
         # last cache a GitHub Actions job (unaffected by that block) wrote.
         stale_symbols = [item["symbol"] for item in items if not item.pop("earnings_fetch_ok")]
         if stale_symbols:
@@ -665,7 +665,7 @@ def holdings_history(
         return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
 
     if exclude_portfolio:
-        # Skip fetching the user's own holdings entirely — useful because
+        # Skip fetching the user's own holdings entirely - useful because
         # portfolio_value_history() requires every held symbol to have data
         # on every date, so one recently-listed holding (e.g. an ETF that
         # IPO'd in 2024) otherwise truncates how far back ANY comparison can

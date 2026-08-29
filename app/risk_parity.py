@@ -2,7 +2,7 @@
 inversely to its historical volatility (from risk.py) instead of by market
 value, so a volatile symbol gets suggested a smaller share, and a calmer
 one a bigger share. This is one of many valid ways to build a "risk parity"
-portfolio, not the only correct answer — just historical volatility fed
+portfolio, not the only correct answer - just historical volatility fed
 back into a 1/vol weighting, not investment advice.
 
 CASH has no volatility to weight by, so its current weight is left as-is

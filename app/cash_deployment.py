@@ -1,5 +1,5 @@
 """How to invest a lump of new cash toward closing the gap to target
-allocation, without selling anything — a lighter alternative to the full
+allocation, without selling anything - a lighter alternative to the full
 buy-and-sell rebalance plan for when you just have idle cash to put to work.
 """
 
@@ -18,7 +18,7 @@ def suggest_cash_deployment(snapshots: list[dict], targets: dict[str, float], ca
     new_total = current_total + cash_amount
 
     # How far below target each symbol sits, evaluated against the total
-    # *after* this cash goes in — buying doesn't just fill today's gap, it
+    # *after* this cash goes in - buying doesn't just fill today's gap, it
     # also grows the pie every other symbol's target share is measured
     # against. Symbols already at/above target get 0, never a sell.
     deficits = {}
@@ -41,7 +41,7 @@ def suggest_cash_deployment(snapshots: list[dict], targets: dict[str, float], ca
         # symbols by splitting proportionally to each one's deficit size.
         buys = {symbol: cash_amount * (deficit / total_deficit) for symbol, deficit in deficits.items()}
 
-    # Every targeted symbol is included — even a $0 buy — because growing
+    # Every targeted symbol is included - even a $0 buy - because growing
     # new_total dilutes everyone's weight a little, not just the symbols
     # that got cash. The resulting new_weight lets the caller see exactly
     # how close (or not) this gets to target, rather than assuming a
