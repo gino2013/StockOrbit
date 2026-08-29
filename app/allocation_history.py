@@ -40,6 +40,17 @@ def allocation_history(snapshot_rows: list[dict], daily: bool = True) -> list[di
     return result
 
 
+def concentration_series(history: list[dict]) -> dict:
+    """HHI (sum of squared weights - higher means more concentrated, 1/N
+    for N equally-weighted holdings) and max single-holding weight, per day.
+    Objective time series only - no "should reduce X" judgment, that's
+    app/advice.py's job for the current-moment snapshot."""
+    labels = [h["snapshot_at"].isoformat() for h in history]
+    hhi = [sum(w**2 for w in h["weights"].values()) for h in history]
+    max_weight = [max(h["weights"].values(), default=0) for h in history]
+    return {"labels": labels, "hhi": hhi, "max_weight": max_weight}
+
+
 def chart_series(history: list[dict]) -> dict:
     """Shape convenient for a Chart.js stacked area chart: one aligned series
     per symbol (0 for time points where it wasn't held), rather than sparse

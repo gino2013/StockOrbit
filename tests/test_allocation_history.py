@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.allocation_history import allocation_history, chart_series
+from app.allocation_history import allocation_history, chart_series, concentration_series
 
 
 def demo():
@@ -55,6 +55,16 @@ def demo():
     # daily=False opts back into the old one-point-per-raw-snapshot behavior.
     raw = allocation_history(same_day_rows, daily=False)
     assert len(raw) == 3
+
+    # t1 is a 60/40 split (less concentrated than t2's 50/30/20 split is
+    # more spread out still -- HHI must decrease as more equal-ish positions
+    # get added, and max_weight tracks the single biggest holding each day).
+    concentration = concentration_series(history)
+    assert abs(concentration["hhi"][0] - (0.6**2 + 0.4**2)) < 1e-9
+    assert abs(concentration["hhi"][1] - (0.5**2 + 0.3**2 + 0.2**2)) < 1e-9
+    assert concentration["hhi"][1] < concentration["hhi"][0]
+    assert abs(concentration["max_weight"][0] - 0.6) < 1e-9
+    assert abs(concentration["max_weight"][1] - 0.5) < 1e-9
 
 
 if __name__ == "__main__":
