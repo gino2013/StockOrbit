@@ -51,6 +51,7 @@ from app.overseas_income import (
     estimate_overseas_income,
     realized_gains_for_year,
 )
+from app.performance_report import build_performance_report
 from app.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.risk import compute_risk_metrics
 from app.risk_parity import suggest_risk_parity
@@ -779,6 +780,35 @@ def delete_goal():
     finally:
         db.close()
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/performance-report")
+def performance_report(
+    start: str = Form(...),
+    end: str = Form(...),
+    benchmark: str = Form("SPY"),
+):
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+        transactions = _all_transactions(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+
+    benchmark_weights, error = _parse_weighted_basket(benchmark or "SPY")
+    if error:
+        return JSONResponse({"error": f"比較基準：{error}"}, status_code=400)
+
+    try:
+        result = build_performance_report(snapshots, transactions, start, end, benchmark_weights)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    result["transactions"] = [
+        {**t, "report_date": t["report_date"].isoformat()} for t in result["transactions"]
+    ]
+    return JSONResponse(result)
 
 
 @app.post("/api/holdings-history")
