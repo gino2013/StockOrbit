@@ -8,17 +8,21 @@ from app.domain.analytics.pace_projection import project_at_pace
 
 def demo():
     results = project_at_pace(10000.0, 0.20)  # +20%/year pace
-    assert len(results) == 4
+    assert len(results) == 8
     labels = [r["label"] for r in results]
-    assert labels == ["1 個月後", "1 季後", "半年後", "1 年後"]
+    assert labels == ["1 個月後", "1 季後", "半年後", "1 年後", "3 年後", "5 年後", "10 年後", "20 年後"]
+    assert [r["long_term"] for r in results] == [False, False, False, False, True, True, True, True]
 
-    one_year = results[-1]
+    one_year = results[3]
     assert abs(one_year["projected_value"] - 12000.0) < 1e-6
     assert abs(one_year["change"] - 2000.0) < 1e-6
     assert abs(one_year["change_pct"] - 0.20) < 1e-9
 
+    twenty_year = results[-1]
+    assert abs(twenty_year["projected_value"] - 10000.0 * 1.2**20) < 1e-6
+
     # each checkpoint should compound to strictly more than the last for a
-    # positive rate, and monotonically approach the 1-year figure.
+    # positive rate.
     values = [r["projected_value"] for r in results]
     assert values == sorted(values)
     assert values[0] > 10000.0
