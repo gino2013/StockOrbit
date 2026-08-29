@@ -514,7 +514,7 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。存在資料庫裡，不是純前端暫存。</p>
+      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。</p>
       <div class="flex flex-col gap-1">
         {% for s in snapshots if s.symbol != 'CASH' %}
         <details class="collapse collapse-arrow bg-base-200" {% if notes_by_symbol.get(s.symbol) %}open{% endif %}>
@@ -757,7 +757,7 @@
       </div>
       <div id="compound-curve-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="compound-curve-note" class="text-xs opacity-50 mt-2 hidden"></div>
-      <div id="compound-curve-stats" class="stats shadow mt-3 hidden [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] [grid-auto-flow:row] [&_.stat-title]:whitespace-normal [&_.stat-value]:whitespace-normal"></div>
+      <div id="compound-curve-stats" class="stats shadow mt-3 hidden [grid-template-columns:repeat(2,1fr)] sm:[grid-template-columns:repeat(4,1fr)] [grid-auto-flow:row] [&_.stat-title]:whitespace-normal [&_.stat-value]:whitespace-normal"></div>
       <div class="h-80 mt-4"><canvas id="compoundCurveChart"></canvas></div>
     </div>
   </div>
@@ -854,15 +854,15 @@
         用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。「比較投入方案」可以填一個或多個「金額/頻率」，用分號分隔，例如 <code>1000/M; 10000/A</code> 同時比較每月投入 1000 跟每年投入 10000。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
-        <form id="dca-form" class="flex flex-wrap gap-3 items-end">
+        <form id="dca-form" class="flex flex-wrap gap-2 items-end">
           <label class="text-sm">開始<br>
-            <input name="start" type="date" required class="input input-bordered input-sm mt-1 w-40">
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1 w-36">
           </label>
           <label class="text-sm">結束<br>
-            <input name="end" type="date" required class="input input-bordered input-sm mt-1 w-40">
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1 w-36">
           </label>
           <label class="text-sm">每期投入金額<br>
-            <input name="contribution" type="number" min="1" step="any" placeholder="1000" required class="input input-bordered input-sm mt-1 w-32">
+            <input name="contribution" type="number" min="1" step="any" placeholder="1000" required class="input input-bordered input-sm mt-1 w-24">
           </label>
           <label class="text-sm">投入頻率<br>
             <select name="frequency" class="select select-bordered select-sm mt-1">
@@ -875,14 +875,14 @@
           <label class="text-sm">比較標的<br>
             <div class="relative">
               <input id="dca-compare" name="compare" placeholder="QQQ; VOO:0.6,QQQ:0.4" autocomplete="off"
-                class="input input-bordered input-sm mt-1 w-56">
+                class="input input-bordered input-sm mt-1 w-40">
               <ul id="dca-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
             </div>
           </label>
           <label class="text-sm">比較投入方案<br>
-            <input name="plans" placeholder="1000/M; 10000/A" class="input input-bordered input-sm mt-1 w-40">
+            <input name="plans" placeholder="1000/M; 10000/A" class="input input-bordered input-sm mt-1 w-32">
           </label>
-          <button type="submit" class="btn btn-neutral">執行比較</button>
+          <button type="submit" class="btn btn-neutral btn-sm">查詢</button>
         </form>
       </div>
       <div id="dca-error" class="alert alert-error text-sm mt-3 hidden"></div>
