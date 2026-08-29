@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from itertools import groupby
 
 import pandas as pd
 import yfinance as yf
@@ -29,7 +30,7 @@ from app.db import (
     Transaction,
     init_db,
 )
-from app.dividends import trailing_twelve_month_dividends, with_yield
+from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.export import build_holdings_csv, build_transactions_csv
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
@@ -294,6 +295,11 @@ def dashboard(request: Request):
     ttm_dividends = trailing_twelve_month_dividends(transactions, datetime.now().date())
     dividend_rows = with_yield(ttm_dividends, market_value_by_symbol)
     total_ttm_dividends = sum(r["ttm_dividends"] for r in dividend_rows)
+    dividend_calendar_raw = forecast_dividend_calendar(transactions, datetime.now().date())
+    dividend_calendar = [
+        {"year": year, "month": month, "entries": list(entries)}
+        for (year, month), entries in groupby(dividend_calendar_raw, key=lambda f: (f["year"], f["month"]))
+    ]
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
@@ -317,6 +323,7 @@ def dashboard(request: Request):
             "realized_summary": realized_summary,
             "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
             "dividend_rows": dividend_rows,
+            "dividend_calendar": dividend_calendar,
             "sector_allocation": sector_allocation,
             "symbol_sector_buckets": symbol_sector_buckets,
             "allocation_chart_data": allocation_chart_data,
