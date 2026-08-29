@@ -12,7 +12,7 @@ holdings, scaled to fill the remaining (1 - cash_weight) share.
 
 from collections import defaultdict
 
-from app.risk import compute_risk_metrics
+from app.domain.analytics.risk import compute_risk_metrics
 
 
 def suggest_risk_parity(snapshots: list[dict]) -> list[dict]:

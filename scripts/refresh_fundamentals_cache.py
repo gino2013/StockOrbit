@@ -18,10 +18,10 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from sqlalchemy import desc
 
-from app.db import PositionSnapshot, SessionLocal, init_db
-from app.fundamentals import fetch_fundamentals
-from app.fundamentals_cache import save_fundamentals
-from app.risk import fetch_next_earnings_date
+from app.infrastructure.db import PositionSnapshot, SessionLocal, init_db
+from app.infrastructure.fundamentals import fetch_fundamentals
+from app.infrastructure.fundamentals_cache import save_fundamentals
+from app.domain.analytics.risk import fetch_next_earnings_date
 
 
 def held_symbols(db) -> list[str]:

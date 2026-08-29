@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import dca
+from app.domain.analytics import dca
 
 
 def demo():

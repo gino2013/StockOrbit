@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.db import (  # noqa: E402
+from app.infrastructure.db import (  # noqa: E402
     Base,
     ExchangeRateSnapshot,
     InvestmentGoal,

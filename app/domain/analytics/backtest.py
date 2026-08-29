@@ -6,7 +6,7 @@ trading simulator.
 import pandas as pd
 import yfinance as yf
 
-from app.holdings_history import notable_moves, weighted_return_series
+from app.domain.analytics.holdings_history import notable_moves, weighted_return_series
 
 # to_period codes (not the "ME"/"QE"/"YE" *anchored offset* aliases) so we can
 # group the real trading-day index and take actual observed dates as

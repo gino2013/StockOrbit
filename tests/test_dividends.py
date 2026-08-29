@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
+from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 
 
 def demo():

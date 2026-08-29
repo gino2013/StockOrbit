@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from app.holdings_history import parse_weights, resample_for_display
+from app.domain.analytics.holdings_history import parse_weights, resample_for_display
 
 
 def demo():

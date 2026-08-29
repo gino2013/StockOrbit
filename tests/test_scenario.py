@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from unittest.mock import patch
 
-from app import scenario
+from app.domain.analytics import scenario
 
 
 def demo():

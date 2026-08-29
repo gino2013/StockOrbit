@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from app.compound_curve import (
+from app.domain.analytics.compound_curve import (
     _annual_returns_from_daily,
     arithmetic_mean_return,
     build_compound_curve,

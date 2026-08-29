@@ -13,7 +13,7 @@ without rebalancing, via the existing simulate_rebalanced_portfolio(...,
 import pandas as pd
 import yfinance as yf
 
-from app.backtest import rebalance_dates, simulate_rebalanced_portfolio
+from app.domain.analytics.backtest import rebalance_dates, simulate_rebalanced_portfolio
 
 
 def simulate_dca_portfolio(

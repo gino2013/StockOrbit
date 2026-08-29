@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import drip
+from app.domain.analytics import drip
 
 
 def demo():

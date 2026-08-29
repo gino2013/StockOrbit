@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from unittest.mock import patch
 
-from app import compounder_checklist as cc
+from app.domain.analytics import compounder_checklist as cc
 
 
 def demo():

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import correlation as corr_mod
+from app.domain.analytics import correlation as corr_mod
 
 
 def demo():

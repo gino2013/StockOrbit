@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.tax_loss_harvesting import EXEMPTION_TWD, TAX_RATE_ON_EXCESS, estimate_tax_savings, find_loss_candidates
+from app.domain.income.tax_loss_harvesting import EXEMPTION_TWD, TAX_RATE_ON_EXCESS, estimate_tax_savings, find_loss_candidates
 
 
 def demo():

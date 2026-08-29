@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import health_dashboard as hd
+from app.domain.analytics import health_dashboard as hd
 
 
 def demo():

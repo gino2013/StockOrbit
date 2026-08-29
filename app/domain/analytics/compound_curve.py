@@ -13,7 +13,7 @@ past rate (however computed) continued.
 
 import yfinance as yf
 
-from app.holdings_history import weighted_return_series
+from app.domain.analytics.holdings_history import weighted_return_series
 
 
 def geometric_mean_return(returns: list[float]) -> float:
