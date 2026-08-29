@@ -770,7 +770,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。不含手續費/稅金，僅供參考，不是投資建議。
+        用上面「目標配置」的權重模擬：定期定額（每期投入固定金額買進）vs 一次投入（把同樣的總金額在第一天全部投入）。「比較標的」可以填一個或多個標的，用分號分隔多條線，例如 <code>QQQ; VOO:0.6,QQQ:0.4</code>。不含手續費/稅金，僅供參考，不是投資建議。
       </p>
       <div class="bg-base-200 rounded-box p-4 mt-2">
         <form id="dca-form" class="flex flex-wrap gap-3 items-end">
@@ -787,7 +787,16 @@
             <select name="frequency" class="select select-bordered select-sm mt-1">
               <option value="M" selected>每月</option>
               <option value="Q">每季</option>
+              <option value="H">每半年</option>
+              <option value="A">每年</option>
             </select>
+          </label>
+          <label class="text-sm">比較標的<br>
+            <div class="relative">
+              <input id="dca-compare" name="compare" placeholder="QQQ; VOO:0.6,QQQ:0.4" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-56">
+              <ul id="dca-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
           </label>
           <button type="submit" class="btn btn-neutral">執行比較</button>
         </form>
@@ -1003,6 +1012,7 @@ function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
 attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
 attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
 attachTickerAutocomplete('backtest-benchmark', 'backtest-benchmark-suggestions', { multi: true });
+attachTickerAutocomplete('dca-compare', 'dca-compare-suggestions', { multi: true });
 attachTickerAutocomplete('compound-symbol', 'compound-symbol-suggestions');
 attachTickerAutocomplete('checklist-symbol', 'checklist-symbol-suggestions');
 
@@ -1851,29 +1861,48 @@ document.getElementById('dca-form').addEventListener('submit', async (e) => {
   const retClass = v => v >= 0 ? 'text-success' : 'text-error';
   const statsBox = document.getElementById('dca-stats');
   statsBox.classList.remove('hidden');
-  statsBox.innerHTML =
-    `<div class="stat"><div class="stat-title">投入總額</div><div class="stat-value text-lg">${data.total_invested.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>` +
-    `<div class="stat"><div class="stat-title">DCA 期末價值</div><div class="stat-value text-lg">${data.dca_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(data.dca_return)}">${fmtPct(data.dca_return)}</div></div>` +
-    `<div class="stat"><div class="stat-title">一次投入期末價值</div><div class="stat-value text-lg">${data.lumpsum_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(data.lumpsum_return)}">${fmtPct(data.lumpsum_return)}</div></div>`;
+  statsBox.innerHTML = data.items.map(item => `
+    <div class="stat"><div class="stat-title">${escapeHtml(item.label)} - 投入總額</div><div class="stat-value text-lg">${item.total_invested.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div></div>
+    <div class="stat"><div class="stat-title">${escapeHtml(item.label)} - DCA</div><div class="stat-value text-lg">${item.dca_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(item.dca_return)}">${fmtPct(item.dca_return)}</div></div>
+    <div class="stat"><div class="stat-title">${escapeHtml(item.label)} - 一次投入</div><div class="stat-value text-lg">${item.lumpsum_final_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div><div class="stat-desc ${retClass(item.lumpsum_return)}">${fmtPct(item.lumpsum_return)}</div></div>
+  `).join('');
+
+  // Different baskets can have different available price history (e.g. a
+  // recently-IPO'd holding) -- union all dates for the shared axis and
+  // left-pad each series with null so it lands on the correct date instead
+  // of silently shifting.
+  const unionDates = [...new Set(data.items.flatMap(item => item.dates))].sort();
+  const alignToUnion = (item, values) => {
+    const byDate = Object.fromEntries(item.dates.map((d, i) => [d, values[i]]));
+    return unionDates.map(d => byDate[d] ?? null);
+  };
+
+  const dcaColors = ['#4f46e5', '#0ea5e9', '#a855f7', '#14b8a6'];
+  const lumpsumColors = ['#f59e0b', '#ef4444', '#84cc16', '#ec4899'];
+  const datasets = data.items.flatMap((item, i) => [
+    {
+      label: `${item.label} - DCA`, data: alignToUnion(item, item.dca_value),
+      borderWidth: 1.5, pointRadius: 0, borderColor: dcaColors[i % dcaColors.length],
+    },
+    {
+      label: `${item.label} - 一次投入`, data: alignToUnion(item, item.lumpsum_value),
+      borderWidth: 1.5, pointRadius: 0, borderDash: [4, 4], borderColor: lumpsumColors[i % lumpsumColors.length],
+    },
+  ]);
 
   if (dcaChart) dcaChart.destroy();
   dcaChart = new Chart(document.getElementById('dcaChart'), {
     type: 'line',
-    data: {
-      labels: data.dates,
-      datasets: [
-        { label: 'DCA 定期定額', data: data.dca_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
-        { label: '一次投入', data: data.lumpsum_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b' },
-      ],
-    },
+    data: { labels: unionDates, datasets },
     options: {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      spanGaps: true,
       scales: { x: { ticks: { maxTicksLimit: 10 } } },
       plugins: {
         tooltip: {
           callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+            label: (ctx) => ctx.parsed.y == null ? undefined : ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
           },
         },
       },
