@@ -1390,6 +1390,8 @@ async function loadCashDeployment() {
 }
 
 // --- 目標達成進度追蹤 ---
+let goalProjectionChart = null;
+
 async function loadGoal() {
   const content = document.getElementById('goal-content');
   const deleteBtn = document.getElementById('goal-delete-btn');
@@ -1409,12 +1411,39 @@ async function loadGoal() {
   const onTrackBadge = g.on_track === null ? ''
     : g.on_track ? '<span class="badge badge-success badge-sm ml-2">進度超前所需報酬率</span>'
     : '<span class="badge badge-warning badge-sm ml-2">目前報酬率低於所需</span>';
+
+  // "at the current pace" projected hit date: a real date if the current
+  // XIRR gets there, otherwise a clear "won't reach it" line.
+  let projectedStat = '';
+  if (g.projection && g.projection.length) {
+    if (g.projected_achievement_date && g.projected_achievement_date !== g.projection[0].date) {
+      const early = g.projected_achievement_date < g.target_date;
+      projectedStat = `
+      <div class="stat">
+        <div class="stat-title">以目前 XIRR 推估達標</div>
+        <div class="stat-value text-lg ${early ? 'text-success' : 'text-warning'}">${g.projected_achievement_date}</div>
+        <div class="stat-desc">${early ? '早於' : '晚於'}目標日期</div>
+      </div>`;
+    } else if (!g.projected_achievement_date) {
+      projectedStat = `
+      <div class="stat">
+        <div class="stat-title">以目前 XIRR 推估達標</div>
+        <div class="stat-value text-lg text-error">達不到</div>
+        <div class="stat-desc">目前報酬率下市值不會成長到目標</div>
+      </div>`;
+    }
+  }
+
   let html = `
     <div class="flex justify-between text-sm mb-1">
       <span>${g.target_date} 前達到 $${g.target_amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
       <span>${progressPct}%</span>
     </div>
-    <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>
+    <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>`;
+  if (g.projection && g.projection.length) {
+    html += '<div class="h-64 mt-4"><canvas id="goalProjectionChart"></canvas></div>';
+  }
+  html += `
     <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 mt-3">
       <div class="stat">
         <div class="stat-title">目前市值</div>
@@ -1431,12 +1460,42 @@ async function loadGoal() {
       <div class="stat">
         <div class="stat-title">目前實際年化報酬率 (XIRR)</div>
         <div class="stat-value text-lg">${g.current_annual_return == null ? '-' : fmtPct(g.current_annual_return)}${onTrackBadge}</div>
-      </div>
+      </div>${projectedStat}
     </div>`;
   if (g.already_past_target_date) {
     html += '<div class="alert alert-warning text-sm py-2 mt-2">目標日期已過，考慮更新目標。</div>';
   }
   content.innerHTML = html;
+
+  if (goalProjectionChart) { goalProjectionChart.destroy(); goalProjectionChart = null; }
+  if (g.projection && g.projection.length) {
+    const labels = g.projection.map(p => p.date.slice(0, 7));
+    goalProjectionChart = new Chart(document.getElementById('goalProjectionChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: '以目前 XIRR 推估市值', data: g.projection.map(p => p.value),
+            borderColor: '#4f46e5', borderWidth: 2, pointRadius: 0, tension: 0.15 },
+          { label: `目標 $${g.target_amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`,
+            data: labels.map(() => g.target_amount),
+            borderColor: '#10b981', borderWidth: 1.5, pointRadius: 0, borderDash: [5, 4] },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { maximumFractionDigits: 0 })}` } },
+        },
+        scales: {
+          x: { ticks: { maxTicksLimit: 10 } },
+          y: { ticks: { callback: (v) => '$' + v.toLocaleString() } },
+        },
+      },
+    });
+  }
 }
 
 document.getElementById('goal-form').addEventListener('submit', async (e) => {
