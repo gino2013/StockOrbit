@@ -32,6 +32,11 @@
 - `bcd6d3b` 修正空持股/未設定目標配置時整頁 JS 崩潰的 bug（issue #126）：目標達成進度追蹤／持股健康度總覽的 JS 綁定沒跟著 HTML 的 `{% if snapshots %}` 一起擋，未捕捉的例外會讓同一個 `<script>` 區塊後面所有功能（股利再投入試算、複利曲線等）全部失效；另外複利曲線「隱藏我的持股」勾選框在沒設定目標配置時也會有同樣問題，一併補上 null 檢查
 - `f484b3d` 總覽統計卡片下方新增「接下來預測」（issue #129）：以目前 XIRR 年化報酬率複利推算 1 個月／1 季／半年／1 年後的預估市值跟預估變動金額/百分比，純粹是「照現在速度走下去」的參考，不是報酬預測
 - `8559167` 「接下來預測」新增 3/5/10/20 年後（issue #132），放在可收合的區塊裡、進站時預設收合，避免極端年化報酬率複利多年後的誇張數字一進站就直接顯示
+- `e6ae3f6` 月度/年度績效報告多兩個報酬數字（issue #48 相關）：原本只有「用目前股數回推期間市值」的組合價格報酬，容易被誤會；新增「本期資金加權報酬 (XIRR)」（用交易紀錄還原起始日持股，期間內每筆買賣按實際日期計入，年化）跟「自買入以來總報酬」（相對實際成本、不分期間），三個數字各自標清楚定義
+- `2503986` 目標達成進度追蹤新增「以目前 XIRR 推估達標日期」跟一條投影曲線：`current_value·(1+XIRR)^t = target` 反推達標時間，畫出照目前速度走下去的市值軌跡 vs 目標水平線；報酬率為 0/負時顯示「達不到」
+- `901332d` 重截 README 全部 26 張截圖為深色模式（先前混雜白天模式、各區塊假資料不一致），新增 `scripts/seed_demo_data.py`：可重現的拋棄式假資料 fixture，含持股/交易/筆記/目標/月度快照，`_check()` 自我驗證，拒絕非 sqlite 的 DATABASE_URL
+- `7081f34` DDD 重構第一、二階段：31 個扁平 `app/*.py` 依職責搬進 `domain/{portfolio,analytics,income,goals}`／`infrastructure/`／`interface/` 分層；新增 `infrastructure/repositories.py`（`Repositories` context manager），路由層所有 `SessionLocal()` + `db.query` 拔掉，改走 repository，`interface/http.py` 淨 -196 行。`app/main.py` 變 1 行 ASGI 薄殼，`uvicorn app.main:app` 不變，render/CI 照舊。無行為改動、25/25 測試通過
+- `1e0c5e5` DDD 重構第三階段：新增 `application/`（`dashboard.py`／`goals.py`／`tax.py`），首頁那段 ~90 行的 context 組裝跟其他有編排邏輯的路由搬進 service 層；新增 `infrastructure/market_data.py` 作為唯一 import `yfinance` 的地方，11 個 domain 模組改走這個 gateway。README 專案結構章節重寫，附分層職責表跟「為什麼這樣分層」說明。無行為改動、首頁 HTML 逐 byte 相同
 
 ## 2026-08-28
 
