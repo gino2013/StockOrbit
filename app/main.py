@@ -11,7 +11,7 @@ from sqlalchemy import desc
 load_dotenv()
 
 from app.advice import build_advice, build_rebalance_plan
-from app.allocation_history import allocation_history, chart_series
+from app.allocation_history import allocation_history, chart_series, concentration_series
 from app.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.cash_deployment import suggest_cash_deployment
 from app.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
@@ -260,7 +260,9 @@ def dashboard(request: Request):
         db.close()
     sector_allocation = compute_sector_allocation(snapshots, fundamentals_info_by_symbol) if snapshots else {}
     symbol_sector_buckets = symbol_buckets(snapshots, fundamentals_info_by_symbol) if snapshots else {}
-    allocation_chart_data = chart_series(allocation_history(snapshot_rows)) if snapshot_rows else None
+    daily_allocation_history = allocation_history(snapshot_rows) if snapshot_rows else None
+    allocation_chart_data = chart_series(daily_allocation_history) if daily_allocation_history else None
+    concentration_chart_data = concentration_series(daily_allocation_history) if daily_allocation_history else None
     realized = compute_realized_gains(transactions)
     realized_summary = {
         "all_time": summarize_realized_gains(realized),
@@ -318,6 +320,7 @@ def dashboard(request: Request):
             "sector_allocation": sector_allocation,
             "symbol_sector_buckets": symbol_sector_buckets,
             "allocation_chart_data": allocation_chart_data,
+            "concentration_chart_data": concentration_chart_data,
             "notes_by_symbol": notes_by_symbol,
             "current_year": datetime.now().year,
             "total_ttm_dividends": total_ttm_dividends,
