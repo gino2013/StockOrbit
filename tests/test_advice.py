@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.advice import build_advice, build_rebalance_plan, compute_allocation
+from app.domain.portfolio.advice import build_advice, build_rebalance_plan, compute_allocation
 
 
 def demo():

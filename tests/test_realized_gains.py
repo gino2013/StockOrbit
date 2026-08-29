@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.realized_gains import compute_realized_gains, summarize_realized_gains
+from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
 
 
 def demo():

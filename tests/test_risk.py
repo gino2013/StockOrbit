@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import pandas as pd
 
-from app.risk import TRADING_DAYS_PER_YEAR, annualized_volatility, beta_vs_benchmark
+from app.domain.analytics.risk import TRADING_DAYS_PER_YEAR, annualized_volatility, beta_vs_benchmark
 
 
 def demo():

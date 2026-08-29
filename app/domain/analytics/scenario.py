@@ -10,7 +10,7 @@ forecast. CASH is assumed beta 0 (unaffected).
 
 from collections import defaultdict
 
-from app.risk import compute_risk_metrics
+from app.domain.analytics.risk import compute_risk_metrics
 
 
 def simulate_market_drop(snapshots: list[dict], market_change: float) -> dict:

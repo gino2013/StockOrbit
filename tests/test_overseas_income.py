@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.overseas_income import (
+from app.domain.income.overseas_income import (
     dividend_income_for_year,
     estimate_overseas_income,
     realized_gains_for_year,

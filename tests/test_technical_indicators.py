@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import technical_indicators as ti
+from app.domain.analytics import technical_indicators as ti
 
 
 def demo():

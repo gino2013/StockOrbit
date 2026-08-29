@@ -8,7 +8,7 @@ actually the *higher* of this flat calculation vs regular income tax, are
 both out of scope - check an accountant before acting on this.
 """
 
-from app.overseas_income import EXEMPTION_TWD
+from app.domain.income.overseas_income import EXEMPTION_TWD
 
 # 個人基本稅額條例：基本所得額超過免稅額的部分，稅率 20% - this ignores the
 # real rule that you pay whichever is higher of this AMT calculation or

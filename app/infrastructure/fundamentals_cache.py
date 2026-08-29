@@ -4,8 +4,8 @@ this exists (Render can't reach Yahoo's quoteSummary API directly).
 
 from datetime import datetime, timezone
 
-from app.db import FundamentalsCache
-from app.fundamentals import FIELDS
+from app.infrastructure.db import FundamentalsCache
+from app.infrastructure.fundamentals import FIELDS
 
 
 def save_fundamentals(db, symbol: str, fields: dict, next_earnings_date: str | None) -> None:

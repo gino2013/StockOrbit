@@ -5,7 +5,7 @@ recent news headlines attached as context. Objective market data - no
 
 import yfinance as yf
 
-from app.market_moves import recent_news
+from app.domain.analytics.market_moves import recent_news
 
 SCREENERS = {
     "day_gainers": "漲幅最大",

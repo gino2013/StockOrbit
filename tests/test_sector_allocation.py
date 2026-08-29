@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.sector_allocation import compute_sector_allocation, symbol_buckets
+from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
 
 
 def demo():

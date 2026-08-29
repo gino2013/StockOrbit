@@ -7,9 +7,9 @@ export for a shareable monthly/yearly summary.
 
 from datetime import date
 
-from app.holdings_history import close_prices, portfolio_value_history, weighted_return_series
-from app.realized_gains import compute_realized_gains
-from app.xirr import xirr
+from app.domain.analytics.holdings_history import close_prices, portfolio_value_history, weighted_return_series
+from app.domain.income.realized_gains import compute_realized_gains
+from app.domain.analytics.xirr import xirr
 
 _TRADE_TYPES = ("BOUGHT", "SOLD")
 

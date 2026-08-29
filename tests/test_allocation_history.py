@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.allocation_history import allocation_history, chart_series, concentration_series
+from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
 
 
 def demo():

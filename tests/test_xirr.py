@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.xirr import portfolio_cashflows, xirr
+from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 
 def demo():

@@ -232,45 +232,56 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 
 ## 專案結構
 
+分層：`domain/`（純計算，無 I/O）→ `application/`（用例編排，尚未抽出）→ `infrastructure/`（DB、外部 API）→ `interface/`（HTTP）。
+
 ```
 app/
-  main.py                  # FastAPI 路由
-  db.py                    # SQLAlchemy models
-  firstrade_client.py      # Firstrade 登入與持股抓取
-  advice.py                # 配置建議邏輯
-  backtest.py              # 再平衡回測引擎
-  holdings_history.py      # 持股歷史走勢／加權組合比較
-  allocation_history.py    # 配置歷史走勢／持股集中度（HHI）
-  market_moves.py          # 大漲大跌偵測 + 新聞標題
-  trending.py              # 熱門標的排行
-  risk.py                  # 波動度／最大回撤／Beta／財報日
-  risk_parity.py           # 貝塔調整建議（風險平價簡化版）
-  correlation.py           # 持股相關性矩陣
-  scenario.py              # 大盤下跌情境模擬
-  technical_indicators.py  # 均線交叉／RSI
-  health_dashboard.py      # 持股健康度總覽
-  compound_curve.py        # 複利曲線估算（幾何 vs 算術平均）
-  compounder_checklist.py  # 個股複利體質檢查清單
-  dca.py                   # 定期定額（DCA）vs 一次投入比較
-  drip.py                  # 股利再投入試算 (DRIP)
-  dividends.py             # 股利追蹤／配息月曆
-  realized_gains.py        # FIFO 已實現損益
-  overseas_income.py       # 海外所得試算
-  tax_loss_harvesting.py   # 稅務效率分析（節稅候選）
-  goal_tracking.py         # 目標達成進度追蹤
-  performance_report.py    # 月度/年度績效報告
-  xirr.py                  # 資金加權年化報酬率
-  cash_deployment.py       # 現金部署建議
-  sector_allocation.py     # 產業別配置
-  fundamentals.py          # 基本面即時抓取
-  fundamentals_cache.py    # 基本面資料快取讀寫
-  export.py                # CSV 匯出
+  main.py                        # ASGI 進入點（薄殼，實際 app 在 interface/http.py）
+  interface/
+    http.py                      # FastAPI 路由
+  domain/
+    portfolio/
+      advice.py                  # 配置建議邏輯
+      cash_deployment.py         # 現金部署建議
+      sector_allocation.py       # 產業別配置
+      allocation_history.py      # 配置歷史走勢／持股集中度（HHI）
+    analytics/
+      holdings_history.py        # 持股歷史走勢／加權組合比較
+      backtest.py                # 再平衡回測引擎
+      compound_curve.py          # 複利曲線估算（幾何 vs 算術平均）
+      compounder_checklist.py    # 個股複利體質檢查清單
+      correlation.py             # 持股相關性矩陣
+      risk.py                    # 波動度／最大回撤／Beta／財報日
+      risk_parity.py             # 貝塔調整建議（風險平價簡化版）
+      scenario.py                # 大盤下跌情境模擬
+      technical_indicators.py    # 均線交叉／RSI
+      health_dashboard.py        # 持股健康度總覽
+      market_moves.py            # 大漲大跌偵測 + 新聞標題
+      trending.py                # 熱門標的排行
+      dca.py                     # 定期定額（DCA）vs 一次投入比較
+      drip.py                    # 股利再投入試算 (DRIP)
+      xirr.py                    # 資金加權年化報酬率
+      performance_report.py      # 月度/年度績效報告
+    income/
+      dividends.py               # 股利追蹤／配息月曆
+      realized_gains.py          # FIFO 已實現損益
+      overseas_income.py         # 海外所得試算
+      tax_loss_harvesting.py     # 稅務效率分析（節稅候選）
+    goals/
+      goal_tracking.py           # 目標達成進度追蹤
+  infrastructure/
+    db.py                        # SQLAlchemy models
+    firstrade_client.py          # Firstrade 登入與持股抓取
+    fundamentals.py              # 基本面即時抓取
+    fundamentals_cache.py        # 基本面資料快取讀寫
+    export.py                    # CSV 匯出
   templates/
-    dashboard.html         # 唯一的前端頁面
+    dashboard.html               # 唯一的前端頁面
 scripts/
   refresh_fundamentals_cache.py  # 排程更新基本面快取（GitHub Actions 執行）
-tests/                     # 純函式的 assert-based 自我檢查（無需啟動伺服器）
-render.yaml                # Render 部署設定
+  seed_demo_data.py              # 產生截圖用的假資料（拋棄式 DB）
+tests/                           # 純函式的 assert-based 自我檢查（無需啟動伺服器）
+render.yaml                      # Render 部署設定
 ```
 
 ## 本機開發

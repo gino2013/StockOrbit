@@ -17,7 +17,7 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
-from app.backtest import max_drawdown_details
+from app.domain.analytics.backtest import max_drawdown_details
 
 TRADING_DAYS_PER_YEAR = 252
 # ponytail: same reasoning as app/fundamentals.py's pool - Ticker.calendar is

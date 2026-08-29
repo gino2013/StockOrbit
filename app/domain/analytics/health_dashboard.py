@@ -15,7 +15,7 @@ from collections import defaultdict
 
 import yfinance as yf
 
-from app.risk import beta_vs_benchmark
+from app.domain.analytics.risk import beta_vs_benchmark
 
 _BENCHMARK = "SPY"
 

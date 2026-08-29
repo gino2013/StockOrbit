@@ -14,8 +14,8 @@ even when the arithmetic average return looks fine - see app/compound_curve.py).
 
 from datetime import datetime
 
-from app.compound_curve import arithmetic_mean_return, fetch_annual_returns, geometric_mean_return
-from app.risk import compute_risk_metrics
+from app.domain.analytics.compound_curve import arithmetic_mean_return, fetch_annual_returns, geometric_mean_return
+from app.domain.analytics.risk import compute_risk_metrics
 
 MIN_MARKET_CAP = 2_000_000_000  # below this, "micro-cap" delisting/survival risk rises sharply
 MAX_DEBT_TO_EQUITY = 100  # same threshold the fundamentals table already color-codes green at

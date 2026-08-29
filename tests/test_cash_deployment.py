@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.cash_deployment import suggest_cash_deployment
+from app.domain.portfolio.cash_deployment import suggest_cash_deployment
 
 
 def demo():

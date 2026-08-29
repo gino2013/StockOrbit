@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.goal_tracking import build_goal_progress, projected_achievement_date, required_annual_return
+from app.domain.goals.goal_tracking import build_goal_progress, projected_achievement_date, required_annual_return
 
 
 def demo():

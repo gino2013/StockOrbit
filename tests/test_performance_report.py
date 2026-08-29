@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app import performance_report as pr
+from app.domain.analytics import performance_report as pr
 
 
 def demo():

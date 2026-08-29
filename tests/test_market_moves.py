@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.market_moves import classify_sentiment
+from app.domain.analytics.market_moves import classify_sentiment
 
 
 def demo():
