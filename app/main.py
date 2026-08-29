@@ -34,6 +34,7 @@ from app.db import (
 from app.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.export import build_holdings_csv, build_transactions_csv
 from app.goal_tracking import build_goal_progress
+from app.health_dashboard import build_health_overview
 from app.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.fundamentals import fetch_fundamentals
 from app.fundamentals_cache import load_fundamentals
@@ -400,6 +401,22 @@ def fundamentals(debug: bool = False):
     finally:
         db.close()
     return JSONResponse({"fundamentals": data})
+
+
+@app.get("/api/health-overview")
+def health_overview():
+    db = SessionLocal()
+    try:
+        snapshots = _latest_snapshots(db)
+    finally:
+        db.close()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    try:
+        result = build_health_overview(snapshots)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/risk")
