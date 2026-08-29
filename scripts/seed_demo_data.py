@@ -38,7 +38,7 @@ HOLDINGS = {
     "MSFT": (10, 350.00, 420.00),
     "VOO": (8, 500.00, 575.00),
     "QQQ": (6, 466.67, 550.00),
-    "NVDA": (15, 120.00, 173.33),
+    "NVDA": (15, 185.00, 173.33),  # deliberately underwater: exercises 稅務效率分析
     "CASH": (1, 128.00, 128.00),
 }
 
@@ -165,10 +165,12 @@ def _check():
         total_mv = sum(r.market_value for r in rows)
         total_cost = sum(r.cost_basis for r in rows)
         assert abs(total_mv - 18628.0) < 1.0, total_mv
-        assert abs((total_mv - total_cost) / total_cost - 0.2074) < 0.01
+        assert abs((total_mv - total_cost) / total_cost - 0.1356) < 0.01
         assert db.query(PositionNote).count() == 5
         assert db.query(Transaction).filter(Transaction.trans_type == "SOLD").count() == 2
         assert abs(sum(w for w in TARGETS.values()) - 1.0) < 1e-9
+        nvda = next(r for r in rows if r.symbol == "NVDA")
+        assert nvda.market_value < nvda.cost_basis, "NVDA should be underwater for 稅務效率分析"
         print(f"OK - {len(rows)} holdings, total MV ${total_mv:,.0f}, "
               f"gain {(total_mv - total_cost) / total_cost:+.1%}, "
               f"{db.query(Transaction).count()} transactions")
