@@ -12,6 +12,7 @@ from app.domain.portfolio.allocation_history import allocation_history, chart_se
 from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
+from app.domain.analytics.pace_projection import project_at_pace
 from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 FLEX_MODE_MULTIPLIER = 10.1
@@ -93,12 +94,14 @@ def build_dashboard_context(
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
         "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
     }
+    pace_projection = project_at_pace(total_value, annualized_return) if annualized_return is not None else []
 
     return {
         "snapshots": snapshots,
         "advice": advice,
         "targets": targets,
         "stats": stats,
+        "pace_projection": pace_projection,
         "rebalance_plan": rebalance_plan,
         "target_weight_sum": target_weight_sum,
         "realized_summary": realized_summary,
