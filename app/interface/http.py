@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import desc
 
 load_dotenv()
 
@@ -20,18 +19,8 @@ from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drip import simulate_drip
-from app.infrastructure.db import (
-    ExchangeRateSnapshot,
-    FundamentalsCache,
-    InvestmentGoal,
-    PositionNote,
-    PositionSnapshot,
-    SessionLocal,
-    TargetAllocation,
-    Transaction,
-    TransactionNote,
-    init_db,
-)
+from app.infrastructure.repositories import Repositories
+from app.infrastructure.db import init_db
 from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.domain.goals.goal_tracking import build_goal_progress
@@ -101,23 +90,6 @@ def _parse_multi_basket(raw: str) -> tuple[list[tuple[str, dict[str, float]]] | 
     return baskets, None
 
 
-def _latest_snapshots(db) -> list[dict]:
-    latest = db.query(PositionSnapshot.snapshot_at).order_by(desc(PositionSnapshot.snapshot_at)).first()
-    if not latest:
-        return []
-    rows = db.query(PositionSnapshot).filter(PositionSnapshot.snapshot_at == latest[0]).all()
-    return [
-        {
-            "symbol": r.symbol,
-            "quantity": r.quantity,
-            "market_value": r.market_value,
-            "price": r.price,
-            "cost_basis": r.cost_basis,
-        }
-        for r in rows
-    ]
-
-
 @app.get("/api/symbol-search")
 def symbol_search(q: str = ""):
     q = q.strip()
@@ -146,13 +118,6 @@ def _fetch_usd_twd_rate() -> float | None:
         return None
 
 
-def _latest_usd_twd_rate(db) -> float | None:
-    row = db.query(ExchangeRateSnapshot).filter(ExchangeRateSnapshot.pair == "USDTWD").order_by(
-        desc(ExchangeRateSnapshot.fetched_at)
-    ).first()
-    return row.rate if row else None
-
-
 def _average_usdtwd_rate(year: int) -> float | None:
     try:
         end = min(datetime.now(), datetime(year, 12, 31)).strftime("%Y-%m-%d")
@@ -162,26 +127,6 @@ def _average_usdtwd_rate(year: int) -> float | None:
         return None if history.empty else float(history.mean().iloc[0])
     except Exception:
         return None
-
-
-def _all_transactions(db) -> list[dict]:
-    return [
-        {
-            "id": t.id,
-            "symbol": t.symbol,
-            "trans_type": t.trans_type,
-            "report_date": t.report_date,
-            "quantity": t.quantity,
-            "trade_price": t.trade_price,
-            "amount": t.amount,
-        }
-        for t in db.query(Transaction).all()
-    ]
-
-
-def _latest_snapshot_at(db) -> datetime | None:
-    row = db.query(PositionSnapshot.snapshot_at).order_by(desc(PositionSnapshot.snapshot_at)).first()
-    return row[0] if row else None
 
 
 # ponytail: refreshing on every page load would mean a full Firstrade login
@@ -216,30 +161,14 @@ def _refresh_and_save() -> None:
     session = _login()
     positions = fetch_positions(session)
     transactions = fetch_transactions(session)
-    db = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        for p in positions:
-            db.add(PositionSnapshot(snapshot_at=now, **p))
-        for t in transactions:
-            tid = Transaction.make_id(t)
-            if db.get(Transaction, tid) is None:
-                db.add(Transaction(id=tid, fetched_at=now, **t))
-        rate = _fetch_usd_twd_rate()
-        if rate is not None:
-            db.add(ExchangeRateSnapshot(pair="USDTWD", rate=rate, fetched_at=now))
-        db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.save_refresh(positions, transactions, _fetch_usd_twd_rate())
 
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
-    db = SessionLocal()
-    try:
-        last_snapshot_at = _latest_snapshot_at(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        last_snapshot_at = repo.latest_snapshot_at()
 
     if last_snapshot_at is not None:
         stale = last_snapshot_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) - AUTO_REFRESH_STALE_AFTER
@@ -249,23 +178,14 @@ def dashboard(request: Request):
             except Exception:
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-        usd_twd_rate = _latest_usd_twd_rate(db) if snapshots else None
-        transactions = _all_transactions(db)
-        fundamentals_info_by_symbol = {
-            row.symbol: {"quoteType": row.quoteType, "sector": row.sector}
-            for row in db.query(FundamentalsCache).all()
-        }
-        snapshot_rows = [
-            {"snapshot_at": r.snapshot_at, "symbol": r.symbol, "market_value": r.market_value}
-            for r in db.query(PositionSnapshot).all()
-        ]
-        notes_by_symbol = dict(db.query(PositionNote.symbol, PositionNote.note).all())
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        targets = repo.targets()
+        usd_twd_rate = repo.usd_twd_rate() if snapshots else None
+        transactions = repo.all_transactions()
+        fundamentals_info_by_symbol = repo.fundamentals_meta()
+        snapshot_rows = repo.all_snapshot_points()
+        notes_by_symbol = repo.notes()
     sector_allocation = compute_sector_allocation(snapshots, fundamentals_info_by_symbol) if snapshots else {}
     symbol_sector_buckets = symbol_buckets(snapshots, fundamentals_info_by_symbol) if snapshots else {}
     daily_allocation_history = allocation_history(snapshot_rows) if snapshot_rows else None
@@ -363,11 +283,8 @@ def toggle_flex_mode(request: Request):
 
 @app.get("/api/market-moves")
 def market_moves():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     # "CASH" is our synthetic cash-balance row, not a real ticker - but it
@@ -384,9 +301,8 @@ def market_moves():
 
 @app.get("/api/fundamentals")
 def fundamentals(debug: bool = False):
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
         if not snapshots:
             return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
         symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
@@ -398,22 +314,17 @@ def fundamentals(debug: bool = False):
         # the last cache a GitHub Actions job (unaffected by that block) wrote.
         stale_symbols = [s for s in symbols if not data.get(s, {}).get("_fetch_ok")]
         if stale_symbols:
-            cached = load_fundamentals(db, stale_symbols)
+            cached = repo.fundamentals_cache(stale_symbols)
             for symbol, cached_fields in cached.items():
                 fetched_at = cached_fields.pop("fetched_at", None)
                 data[symbol] = {**data[symbol], **cached_fields, "_cached_at": fetched_at}
-    finally:
-        db.close()
     return JSONResponse({"fundamentals": data})
 
 
 @app.get("/api/health-overview")
 def health_overview():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     try:
@@ -425,9 +336,8 @@ def health_overview():
 
 @app.get("/api/risk")
 def risk():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
         if not snapshots:
             return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
         symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
@@ -439,7 +349,7 @@ def risk():
         # last cache a GitHub Actions job (unaffected by that block) wrote.
         stale_symbols = [item["symbol"] for item in items if not item.pop("earnings_fetch_ok")]
         if stale_symbols:
-            cached = load_fundamentals(db, stale_symbols)
+            cached = repo.fundamentals_cache(stale_symbols)
             by_symbol = {item["symbol"]: item for item in items}
             for symbol, cached_fields in cached.items():
                 next_earnings = cached_fields.get("next_earnings_date")
@@ -448,18 +358,13 @@ def risk():
                     by_symbol[symbol]["next_earnings_date"] = next_earnings
                     by_symbol[symbol]["earnings_soon"] = 0 <= days <= 14
                     by_symbol[symbol]["_cached_at"] = cached_fields.get("fetched_at")
-    finally:
-        db.close()
     return JSONResponse({"items": items})
 
 
 @app.get("/api/technical-indicators")
 def technical_indicators():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
@@ -473,11 +378,8 @@ def technical_indicators():
 @app.get("/api/overseas-income")
 def overseas_income(year: int | None = None):
     year = year or datetime.now().year
-    db = SessionLocal()
-    try:
-        transactions = _all_transactions(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        transactions = repo.all_transactions()
     realized = compute_realized_gains(transactions)
     capital_gains = realized_gains_for_year(realized, year)
     dividends = dividend_income_for_year(transactions, year)
@@ -490,12 +392,9 @@ def overseas_income(year: int | None = None):
 @app.get("/api/tax-loss-harvesting")
 def tax_loss_harvesting(year: int | None = None):
     year = year or datetime.now().year
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-        transactions = _all_transactions(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        transactions = repo.all_transactions()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     rate = _average_usdtwd_rate(year)
@@ -540,11 +439,8 @@ def compound_curve(symbol: str, start_year: int, end_year: int, future_years: in
     result["end_year"] = end_year
     result["annual_returns"] = returns
 
-    db = SessionLocal()
-    try:
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-    finally:
-        db.close()
+    with Repositories() as repo:
+        targets = repo.targets()
     if targets:
         try:
             portfolio = build_portfolio_compound_curve(targets, start_year, end_year, future_years)
@@ -558,15 +454,12 @@ def compound_curve(symbol: str, start_year: int, end_year: int, future_years: in
 @app.get("/api/compounder-checklist")
 def compounder_checklist(symbol: str):
     symbol = symbol.upper()
-    db = SessionLocal()
-    try:
+    with Repositories() as repo:
         fundamentals = fetch_fundamentals([symbol]).get(symbol, {})
         if not fundamentals.get("_fetch_ok"):
-            cached = load_fundamentals(db, [symbol]).get(symbol)
+            cached = repo.fundamentals_cache([symbol]).get(symbol)
             if cached:
                 fundamentals = {**fundamentals, **cached}
-    finally:
-        db.close()
     try:
         result = build_compounder_checklist(symbol, fundamentals)
     except Exception as e:
@@ -576,11 +469,8 @@ def compounder_checklist(symbol: str):
 
 @app.get("/api/correlation")
 def correlation():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
@@ -595,11 +485,8 @@ def correlation():
 
 @app.get("/api/risk-parity")
 def risk_parity():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     try:
@@ -613,11 +500,8 @@ def risk_parity():
 def scenario(market_change: float):
     if market_change > 0:
         return JSONResponse({"error": "請輸入負值或 0（大盤跌幅）"}, status_code=400)
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     try:
@@ -629,12 +513,9 @@ def scenario(market_change: float):
 
 @app.get("/api/export/csv")
 def export_csv():
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        targets = repo.targets()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     advice = build_advice(snapshots, targets)
@@ -651,11 +532,8 @@ def export_csv():
 
 @app.get("/api/export/transactions-csv")
 def export_transactions_csv():
-    db = SessionLocal()
-    try:
-        transactions = _all_transactions(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        transactions = repo.all_transactions()
     if not transactions:
         return JSONResponse({"error": "還沒有交易紀錄，請先按「重新抓取持股」"}, status_code=400)
     realized = compute_realized_gains(transactions)
@@ -670,12 +548,9 @@ def export_transactions_csv():
 
 @app.get("/api/cash-deployment")
 def cash_deployment(amount: float):
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        targets = repo.targets()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     if not targets:
@@ -686,59 +561,33 @@ def cash_deployment(amount: float):
 
 @app.post("/api/notes")
 def set_note(symbol: str = Form(...), note: str = Form("")):
-    db = SessionLocal()
-    try:
-        existing = db.get(PositionNote, symbol.upper())
-        if existing:
-            existing.note = note
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            db.add(PositionNote(symbol=symbol.upper(), note=note))
-        db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.upsert_note(symbol, note)
     return RedirectResponse("/#section-notes", status_code=303)
 
 
 @app.post("/api/targets")
 def set_target(symbol: str = Form(...), target_weight: float = Form(...)):
-    db = SessionLocal()
-    try:
-        existing = db.get(TargetAllocation, symbol.upper())
-        if existing:
-            existing.target_weight = target_weight
-        else:
-            db.add(TargetAllocation(symbol=symbol.upper(), target_weight=target_weight))
-        db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.upsert_target(symbol, target_weight)
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/api/targets/delete")
 def delete_target(symbol: str = Form(...)):
-    db = SessionLocal()
-    try:
-        existing = db.get(TargetAllocation, symbol.upper())
-        if existing:
-            db.delete(existing)
-            db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.delete_target(symbol)
     return RedirectResponse("/", status_code=303)
 
 
 @app.get("/api/goal")
 def get_goal():
-    db = SessionLocal()
-    try:
-        goal = db.get(InvestmentGoal, "default")
+    with Repositories() as repo:
+        goal = repo.goal()
         if not goal:
             return JSONResponse({"goal": None})
-        snapshots = _latest_snapshots(db)
-        transactions = _all_transactions(db)
-    finally:
-        db.close()
+        snapshots = repo.latest_snapshots()
+        transactions = repo.all_transactions()
     current_value = sum(s["market_value"] for s in snapshots)
     cashflows = portfolio_cashflows(transactions, current_value, datetime.now().date())
     current_return = xirr(cashflows)
@@ -756,31 +605,15 @@ def set_goal(target_amount: float = Form(...), target_date: str = Form(...)):
         target_date_parsed = date.fromisoformat(target_date)
     except ValueError:
         return JSONResponse({"error": "日期格式錯誤"}, status_code=400)
-    db = SessionLocal()
-    try:
-        existing = db.get(InvestmentGoal, "default")
-        if existing:
-            existing.target_amount = target_amount
-            existing.target_date = target_date_parsed
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            db.add(InvestmentGoal(id="default", target_amount=target_amount, target_date=target_date_parsed))
-        db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.upsert_goal(target_amount, target_date_parsed)
     return JSONResponse({"ok": True})
 
 
 @app.post("/api/goal/delete")
 def delete_goal():
-    db = SessionLocal()
-    try:
-        existing = db.get(InvestmentGoal, "default")
-        if existing:
-            db.delete(existing)
-            db.commit()
-    finally:
-        db.close()
+    with Repositories() as repo:
+        repo.delete_goal()
     return JSONResponse({"ok": True})
 
 
@@ -790,12 +623,9 @@ def performance_report(
     end: str = Form(...),
     benchmark: str = Form("SPY"),
 ):
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-        transactions = _all_transactions(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        transactions = repo.all_transactions()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
 
@@ -807,16 +637,8 @@ def performance_report(
         result = build_performance_report(snapshots, transactions, start, end, benchmark_weights)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    db = SessionLocal()
-    try:
-        tx_ids = [t["id"] for t in result["transactions"]]
-        notes_by_id = dict(
-            db.query(TransactionNote.transaction_id, TransactionNote.note)
-            .filter(TransactionNote.transaction_id.in_(tx_ids))
-            .all()
-        )
-    finally:
-        db.close()
+    with Repositories() as repo:
+        notes_by_id = repo.transaction_notes([t["id"] for t in result["transactions"]])
     result["transactions"] = [
         {**t, "report_date": t["report_date"].isoformat(), "note": notes_by_id.get(t["id"], "")}
         for t in result["transactions"]
@@ -826,19 +648,10 @@ def performance_report(
 
 @app.post("/api/transaction-notes")
 def set_transaction_note(transaction_id: str = Form(...), note: str = Form("")):
-    db = SessionLocal()
-    try:
-        if db.get(Transaction, transaction_id) is None:
+    with Repositories() as repo:
+        if not repo.transaction_exists(transaction_id):
             return JSONResponse({"error": "找不到這筆交易"}, status_code=404)
-        existing = db.get(TransactionNote, transaction_id)
-        if existing:
-            existing.note = note
-            existing.updated_at = datetime.now(timezone.utc)
-        else:
-            db.add(TransactionNote(transaction_id=transaction_id, note=note))
-        db.commit()
-    finally:
-        db.close()
+        repo.upsert_transaction_note(transaction_id, note)
     return JSONResponse({"ok": True})
 
 
@@ -898,11 +711,8 @@ def holdings_history(
             "notable_moves": [],
         })
 
-    db = SessionLocal()
-    try:
-        snapshots = _latest_snapshots(db)
-    finally:
-        db.close()
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     holdings = {s["symbol"]: s["quantity"] for s in snapshots}
@@ -997,11 +807,8 @@ def backtest(
             return JSONResponse({"error": str(e)}, status_code=400)
         return JSONResponse(result)
 
-    db = SessionLocal()
-    try:
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-    finally:
-        db.close()
+    with Repositories() as repo:
+        targets = repo.targets()
     if not targets:
         return JSONResponse({"error": "尚未設定目標配置"}, status_code=400)
     total_weight = sum(targets.values())
@@ -1056,11 +863,8 @@ def dca(
 ):
     if contribution <= 0:
         return JSONResponse({"error": "每期投入金額需大於 0"}, status_code=400)
-    db = SessionLocal()
-    try:
-        targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
-    finally:
-        db.close()
+    with Repositories() as repo:
+        targets = repo.targets()
 
     baskets = []
     if targets:
