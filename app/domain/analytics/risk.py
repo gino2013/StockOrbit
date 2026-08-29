@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 
 import pandas as pd
-import yfinance as yf
+from app.infrastructure import market_data
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def fetch_next_earnings_date(symbol: str) -> tuple[date | None, bool]:
     a genuine "no upcoming earnings" answer - so callers know when it's worth
     falling back to a cached value instead of trusting this "None"."""
     try:
-        calendar = yf.Ticker(symbol).calendar
+        calendar = market_data.earnings_calendar(symbol)
     except Exception as e:
         logger.warning("calendar(%s) failed: %s: %s", symbol, type(e).__name__, e)
         return None, False
@@ -68,7 +68,7 @@ def compute_risk_metrics(
     if not symbols:
         return []
     tickers = list(dict.fromkeys(symbols + [benchmark]))
-    prices = yf.download(tickers, period="1y", auto_adjust=True, progress=False)["Close"]
+    prices = market_data.download_close(tickers, period="1y")
     prices = prices.dropna(how="all").ffill()
     returns = prices.pct_change()
 

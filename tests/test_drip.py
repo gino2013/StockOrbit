@@ -20,11 +20,7 @@ def demo():
     dividends.iloc[4] = 2.0  # a single $2/share dividend right before the price rise
     history = pd.DataFrame({"Close": closes, "Dividends": dividends})
 
-    class FakeTicker:
-        def history(self, start, end, auto_adjust):
-            return history
-
-    with patch.object(drip.yf, "Ticker", return_value=FakeTicker()):
+    with patch.object(drip.market_data, "ticker_history", return_value=history):
         result = drip.simulate_drip("AAA", "2025-01-01", "2025-01-15", initial_investment=1000.0)
 
     # cash scenario: original share count never changes, dividend cash sits idle earning nothing.
@@ -38,11 +34,7 @@ def demo():
     assert abs(result["total_dividends_per_share"] - 2.0) < 1e-9
 
     # too little data -> a clear error, not a crash.
-    class EmptyTicker:
-        def history(self, start, end, auto_adjust):
-            return history.head(1)
-
-    with patch.object(drip.yf, "Ticker", return_value=EmptyTicker()):
+    with patch.object(drip.market_data, "ticker_history", return_value=history.head(1)):
         try:
             drip.simulate_drip("AAA", "2025-01-01", "2025-01-02")
             assert False, "expected ValueError"

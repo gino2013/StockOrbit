@@ -1,8 +1,6 @@
 from datetime import date, datetime, timedelta, timezone
-from itertools import groupby
 
 import pandas as pd
-import yfinance as yf
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -10,25 +8,25 @@ from fastapi.templating import Jinja2Templates
 
 load_dotenv()
 
-from app.domain.portfolio.advice import build_advice, build_rebalance_plan
-from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
-from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
+from app.application.dashboard import build_dashboard_context
+from app.application.goals import goal_progress
+from app.application.tax import overseas_income_report, tax_loss_report
+from app.infrastructure import market_data
+from app.infrastructure.repositories import Repositories
+from app.infrastructure.db import init_db
+from app.infrastructure.export import build_holdings_csv, build_transactions_csv
+from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
+from app.infrastructure.fundamentals import fetch_fundamentals
+from app.domain.portfolio.advice import build_advice
 from app.domain.portfolio.cash_deployment import suggest_cash_deployment
+from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.domain.analytics.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
 from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
 from app.domain.analytics.drip import simulate_drip
-from app.infrastructure.repositories import Repositories
-from app.infrastructure.db import init_db
-from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
-from app.infrastructure.export import build_holdings_csv, build_transactions_csv
-from app.domain.goals.goal_tracking import build_goal_progress
 from app.domain.analytics.health_dashboard import build_health_overview
-from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
-from app.infrastructure.fundamentals import fetch_fundamentals
-from app.infrastructure.fundamentals_cache import load_fundamentals
 from app.domain.analytics.holdings_history import (
     notable_moves,
     parse_weights,
@@ -37,21 +35,13 @@ from app.domain.analytics.holdings_history import (
     weighted_return_series,
 )
 from app.domain.analytics.market_moves import price_swings, recent_news
-from app.domain.income.overseas_income import (
-    dividend_income_for_year,
-    estimate_overseas_income,
-    realized_gains_for_year,
-)
 from app.domain.analytics.performance_report import build_performance_report
-from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
+from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
 from app.domain.analytics.scenario import simulate_market_drop
-from app.domain.income.tax_loss_harvesting import estimate_tax_savings, find_loss_candidates
 from app.domain.analytics.technical_indicators import compute_technical_indicators
-from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.domain.analytics.trending import SCREENERS, trending_tickers
-from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
@@ -97,7 +87,7 @@ def symbol_search(q: str = ""):
     if len(q) < 2:
         return JSONResponse([])
     try:
-        quotes = yf.Search(q, max_results=8).quotes
+        quotes = market_data.search_symbols(q)
     except Exception:
         return JSONResponse([])
     seen = set()
@@ -113,7 +103,7 @@ def symbol_search(q: str = ""):
 
 def _fetch_usd_twd_rate() -> float | None:
     try:
-        history = yf.Ticker("USDTWD=X").history(period="5d")["Close"]
+        history = market_data.ticker_history("USDTWD=X", period="5d")["Close"]
         return None if history.empty else float(history.iloc[-1])
     except Exception:
         return None
@@ -122,9 +112,7 @@ def _fetch_usd_twd_rate() -> float | None:
 def _average_usdtwd_rate(year: int) -> float | None:
     try:
         end = min(datetime.now(), datetime(year, 12, 31)).strftime("%Y-%m-%d")
-        history = yf.download(
-            "USDTWD=X", start=f"{year}-01-01", end=end, auto_adjust=True, progress=False
-        )["Close"]
+        history = market_data.download_close("USDTWD=X", start=f"{year}-01-01", end=end)
         return None if history.empty else float(history.mean().iloc[0])
     except Exception:
         return None
@@ -137,23 +125,8 @@ AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 
 # ponytail: hidden easter-egg toggle (see the invisible button next to the
 # "StockOrbit" header) - a purely cosmetic display multiplier, never written
-# to the database, so toggling it can never corrupt real holdings data.
+# to the database. The scaling itself lives in app.application.dashboard.
 FLEX_MODE_COOKIE = "flex_mode"
-FLEX_MODE_MULTIPLIER = 10.1
-
-
-def _apply_flex_mode(snapshots: list[dict]) -> list[dict]:
-    # round() to avoid float artifacts (e.g. 23.85817 * 10.1 == 240.967517000000002)
-    # showing up raw in the un-formatted {{ s.quantity }} template cell.
-    return [
-        {
-            **s,
-            "quantity": round(s["quantity"] * FLEX_MODE_MULTIPLIER, 6),
-            "cost_basis": round(s["cost_basis"] * FLEX_MODE_MULTIPLIER, 2),
-            "market_value": round(s["market_value"] * FLEX_MODE_MULTIPLIER, 2),
-        }
-        for s in snapshots
-    ]
 
 
 def _refresh_and_save() -> None:
@@ -181,86 +154,18 @@ def dashboard(request: Request):
 
     with Repositories() as repo:
         snapshots = repo.latest_snapshots()
-        targets = repo.targets()
-        usd_twd_rate = repo.usd_twd_rate() if snapshots else None
-        transactions = repo.all_transactions()
-        fundamentals_info_by_symbol = repo.fundamentals_meta()
-        snapshot_rows = repo.all_snapshot_points()
-        notes_by_symbol = repo.notes()
-    sector_allocation = compute_sector_allocation(snapshots, fundamentals_info_by_symbol) if snapshots else {}
-    symbol_sector_buckets = symbol_buckets(snapshots, fundamentals_info_by_symbol) if snapshots else {}
-    daily_allocation_history = allocation_history(snapshot_rows) if snapshot_rows else None
-    allocation_chart_data = chart_series(daily_allocation_history) if daily_allocation_history else None
-    concentration_chart_data = concentration_series(daily_allocation_history) if daily_allocation_history else None
-    realized = compute_realized_gains(transactions)
-    realized_summary = {
-        "all_time": summarize_realized_gains(realized),
-        "this_year": summarize_realized_gains(realized, year=datetime.now().year),
-    }
-    # XIRR needs the *real* total value as its terminal cashflow - real
-    # deposit history compared against a flex-mode-inflated ending value
-    # would look like a 10.1x gain that never happened, blowing up the rate
-    # into nonsense (seen: 20078% instead of the real ~45%). Capture it
-    # before flex mode scales snapshots, same way total_gain_pct already
-    # stays correct under flex mode because both its inputs scale together.
-    real_total_value = sum(s["market_value"] for s in snapshots)
-    if request.cookies.get(FLEX_MODE_COOKIE) == "1":
-        snapshots = _apply_flex_mode(snapshots)
-    advice = build_advice(snapshots, targets, sector_allocation=sector_allocation) if snapshots else None
-    rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
-    # Targets are edited one symbol at a time, so nothing stops the stored
-    # set from drifting away from summing to 100% (e.g. adding a 6th target
-    # without re-trimming the other five). When that happens, each row's
-    # dollar figure is still individually correct, but total buys won't
-    # equal total sells - the plan silently implies a deposit/withdrawal.
-    target_weight_sum = sum(targets.values()) if targets else 0
-    total_value = sum(s["market_value"] for s in snapshots)
-    total_cost = sum(s["cost_basis"] for s in snapshots)
-    total_gain = total_value - total_cost
-    cashflows = portfolio_cashflows(transactions, real_total_value, datetime.now().date())
-    annualized_return = xirr(cashflows)
-    market_value_by_symbol = {s["symbol"]: s["market_value"] for s in snapshots}
-    ttm_dividends = trailing_twelve_month_dividends(transactions, datetime.now().date())
-    dividend_rows = with_yield(ttm_dividends, market_value_by_symbol)
-    total_ttm_dividends = sum(r["ttm_dividends"] for r in dividend_rows)
-    dividend_calendar_raw = forecast_dividend_calendar(transactions, datetime.now().date())
-    dividend_calendar = [
-        {"year": year, "month": month, "entries": list(entries)}
-        for (year, month), entries in groupby(dividend_calendar_raw, key=lambda f: (f["year"], f["month"]))
-    ]
-    stats = {
-        "total_value": total_value,
-        "total_gain": total_gain,
-        "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
-        "annualized_return": annualized_return,
-        "position_count": sum(1 for s in snapshots if s["symbol"] != "CASH"),
-        "usd_twd_rate": usd_twd_rate,
-        "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
-        "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
-    }
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {
-            "snapshots": snapshots,
-            "advice": advice,
-            "targets": targets,
-            "stats": stats,
-            "rebalance_plan": rebalance_plan,
-            "target_weight_sum": target_weight_sum,
-            "realized_summary": realized_summary,
-            "realized_trades": sorted(realized, key=lambda r: r["report_date"], reverse=True),
-            "dividend_rows": dividend_rows,
-            "dividend_calendar": dividend_calendar,
-            "sector_allocation": sector_allocation,
-            "symbol_sector_buckets": symbol_sector_buckets,
-            "allocation_chart_data": allocation_chart_data,
-            "concentration_chart_data": concentration_chart_data,
-            "notes_by_symbol": notes_by_symbol,
-            "current_year": datetime.now().year,
-            "total_ttm_dividends": total_ttm_dividends,
-        },
-    )
+        context = build_dashboard_context(
+            snapshots=snapshots,
+            targets=repo.targets(),
+            transactions=repo.all_transactions(),
+            fundamentals_meta=repo.fundamentals_meta(),
+            snapshot_points=repo.all_snapshot_points(),
+            notes=repo.notes(),
+            usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
+            flex_mode=request.cookies.get(FLEX_MODE_COOKIE) == "1",
+            as_of=datetime.now().date(),
+        )
+    return templates.TemplateResponse(request, "dashboard.html", context)
 
 
 @app.post("/api/refresh")
@@ -381,13 +286,7 @@ def overseas_income(year: int | None = None):
     year = year or datetime.now().year
     with Repositories() as repo:
         transactions = repo.all_transactions()
-    realized = compute_realized_gains(transactions)
-    capital_gains = realized_gains_for_year(realized, year)
-    dividends = dividend_income_for_year(transactions, year)
-    rate = _average_usdtwd_rate(year)
-    result = estimate_overseas_income(capital_gains, dividends, rate)
-    result["year"] = year
-    return JSONResponse(result)
+    return JSONResponse(overseas_income_report(transactions, year, _average_usdtwd_rate(year)))
 
 
 @app.get("/api/tax-loss-harvesting")
@@ -401,14 +300,7 @@ def tax_loss_harvesting(year: int | None = None):
     rate = _average_usdtwd_rate(year)
     if rate is None:
         return JSONResponse({"error": "無法取得今年的美元/台幣匯率資料"}, status_code=400)
-
-    candidates = find_loss_candidates(snapshots)
-    realized = compute_realized_gains(transactions)
-    capital_gains = realized_gains_for_year(realized, year)
-    dividends = dividend_income_for_year(transactions, year)
-    income = estimate_overseas_income(capital_gains, dividends, rate)
-    savings = estimate_tax_savings(candidates, income["total_twd"], rate)
-    return JSONResponse({"year": year, "candidates": candidates, "income": income, **savings})
+    return JSONResponse(tax_loss_report(snapshots, transactions, year, rate))
 
 
 @app.get("/api/trending")
@@ -587,14 +479,13 @@ def get_goal():
         goal = repo.goal()
         if not goal:
             return JSONResponse({"goal": None})
-        snapshots = repo.latest_snapshots()
-        transactions = repo.all_transactions()
-    current_value = sum(s["market_value"] for s in snapshots)
-    cashflows = portfolio_cashflows(transactions, current_value, datetime.now().date())
-    current_return = xirr(cashflows)
-    progress = build_goal_progress(
-        current_value, goal.target_amount, goal.target_date, current_return, datetime.now().date()
-    )
+        progress = goal_progress(
+            target_amount=goal.target_amount,
+            target_date=goal.target_date,
+            snapshots=repo.latest_snapshots(),
+            transactions=repo.all_transactions(),
+            as_of=datetime.now().date(),
+        )
     return JSONResponse({"goal": progress})
 
 

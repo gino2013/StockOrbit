@@ -5,7 +5,7 @@ older positions, not an exact reconstruction.
 """
 
 import pandas as pd
-import yfinance as yf
+from app.infrastructure import market_data
 
 _RESAMPLE_FREQ = {"M": "ME", "Q": "QE", "A": "YE"}  # "D" (daily) needs no resampling
 
@@ -15,7 +15,7 @@ def close_prices(symbols: list[str], start: str, end: str) -> pd.DataFrame:
     window. Shared by portfolio_value_history and the period-XIRR
     reconstruction so the yfinance download + gap-fill logic lives in one place.
     """
-    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
+    data = market_data.download_close(symbols, start=start, end=end)
     data = data.dropna(how="all").ffill().dropna()
     if len(data) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
@@ -39,7 +39,7 @@ def weighted_return_series(weights: dict[str, float], start: str, end: str) -> p
     against the actual portfolio, not for dollar amounts.
     """
     symbols = list(weights.keys())
-    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
+    data = market_data.download_close(symbols, start=start, end=end)
     data = data.dropna(how="all").ffill().dropna()
     if len(data) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")

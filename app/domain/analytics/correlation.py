@@ -8,7 +8,7 @@ disclaimer that high correlation isn't necessarily same-sector and doesn't
 by itself mean diversification failed.
 """
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 
 def compute_correlation_matrix(symbols: list[str], period: str = "1y") -> dict:
@@ -16,7 +16,7 @@ def compute_correlation_matrix(symbols: list[str], period: str = "1y") -> dict:
     if len(symbols) < 2:
         return {"symbols": symbols, "matrix": []}
 
-    prices = yf.download(symbols, period=period, auto_adjust=True, progress=False)["Close"]
+    prices = market_data.download_close(symbols, period=period)
     prices = prices.dropna(how="all").ffill()
     returns = prices.pct_change().dropna(how="all")
     corr = returns.corr()

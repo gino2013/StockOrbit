@@ -36,7 +36,7 @@ def demo():
     prices = pd.Series(range(280), index=dates, dtype=float) + 100
     fake_data = pd.DataFrame({"AAA": prices})
 
-    with patch.object(ti.yf, "download", return_value={"Close": fake_data}):
+    with patch.object(ti.market_data, "download_close", return_value=fake_data):
         results = ti.compute_technical_indicators(["AAA"])
     assert len(results) == 1
     r = results[0]
@@ -56,7 +56,7 @@ def demo():
     short_dates = pd.bdate_range("2024-01-01", periods=10)
     short_prices = pd.Series(range(10), index=short_dates, dtype=float) + 100
     short_data = pd.DataFrame({"BBB": short_prices})
-    with patch.object(ti.yf, "download", return_value={"Close": short_data}):
+    with patch.object(ti.market_data, "download_close", return_value=short_data):
         short_results = ti.compute_technical_indicators(["BBB"])
     assert short_results[0]["insufficient_history"] is True
 

@@ -11,7 +11,7 @@ without rebalancing, via the existing simulate_rebalanced_portfolio(...,
 """
 
 import pandas as pd
-import yfinance as yf
+from app.infrastructure import market_data
 
 from app.domain.analytics.backtest import rebalance_dates, simulate_rebalanced_portfolio
 
@@ -38,7 +38,7 @@ def run_dca_comparison(
     weights: dict[str, float], start: str, end: str, contribution: float, frequency: str = "M"
 ) -> dict:
     symbols = list(weights.keys())
-    data = yf.download(symbols, start=start, end=end, auto_adjust=True, progress=False)["Close"]
+    data = market_data.download_close(symbols, start=start, end=end)
     data = data.dropna(how="all").ffill().dropna()
     if len(data) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")

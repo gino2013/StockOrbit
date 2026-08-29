@@ -24,7 +24,7 @@ def demo():
     spy = 100 * (1 + daily_returns * 0.5).cumprod()  # half the swing -> not perfectly correlated
     prices = pd.DataFrame({"AAA": aaa, "BBB": bbb, "SPY": spy})
 
-    with patch.object(hd.yf, "download", return_value={"Close": prices}), \
+    with patch.object(hd.market_data, "download_close", return_value=prices), \
          patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
         result = hd.build_health_overview(snapshots)
 
@@ -36,14 +36,14 @@ def demo():
 
     # fewer than 2 non-cash symbols -> no correlation to average, no crash.
     single_prices = pd.DataFrame({"AAA": aaa, "SPY": spy})
-    with patch.object(hd.yf, "download", return_value={"Close": single_prices}), \
+    with patch.object(hd.market_data, "download_close", return_value=single_prices), \
          patch.object(hd, "beta_vs_benchmark", return_value=1.0):
         result_one = hd.build_health_overview([{"symbol": "AAA", "market_value": 100}])
     assert result_one["avg_correlation"] is None
     assert result_one["position_count"] == 1
 
     # missing beta for a symbol -> excluded from the weighted average, not treated as 0.
-    with patch.object(hd.yf, "download", return_value={"Close": prices}), \
+    with patch.object(hd.market_data, "download_close", return_value=prices), \
          patch.object(hd, "beta_vs_benchmark", side_effect=[None, 0.6]):
         result_missing = hd.build_health_overview(snapshots)
     assert abs(result_missing["portfolio_beta"] - 0.30 * 0.6) < 1e-9  # only BBB's term counted

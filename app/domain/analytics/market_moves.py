@@ -10,7 +10,7 @@ Mixed/unclear headlines are left neutral (no color) rather than guessed at.
 import re
 from concurrent.futures import ThreadPoolExecutor
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 # ponytail: same reasoning as app/fundamentals.py's pool - Ticker.news is a
 # per-symbol blocking HTTP call with no batch equivalent, so a small thread
@@ -54,7 +54,7 @@ def classify_sentiment(title: str) -> str:
 def price_swings(symbols: list[str]) -> list[dict]:
     if not symbols:
         return []
-    data = yf.download(symbols, period="10d", auto_adjust=True, progress=False)["Close"]
+    data = market_data.download_close(symbols, period="10d")
     data = data.dropna(how="all").ffill().dropna()
     if len(data) < 2:
         return []
@@ -75,10 +75,7 @@ def price_swings(symbols: list[str]) -> list[dict]:
 
 
 def _fetch_headlines(symbol: str, limit_per_symbol: int) -> tuple[str, list[dict]]:
-    try:
-        items = yf.Ticker(symbol).news or []
-    except Exception:
-        items = []
+    items = market_data.ticker_news(symbol)
     headlines = []
     for item in items[:limit_per_symbol]:
         content = item.get("content", {})

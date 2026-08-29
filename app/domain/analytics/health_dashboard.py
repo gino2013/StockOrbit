@@ -5,7 +5,7 @@ of headline numbers. Objective data only, no verdict.
 
 Deliberately does ONE shared price download and computes correlation/beta
 directly with pandas, rather than calling compute_correlation_matrix() +
-compute_risk_metrics() (which each do their own separate yf.download(), and
+compute_risk_metrics() (which each do their own separate price download, and
 the latter also fetches each symbol's next-earnings-date via a blocking
 per-symbol Yahoo calendar call this overview never uses) - that redundant
 network round-tripping was the actual reason this endpoint felt slow.
@@ -13,7 +13,7 @@ network round-tripping was the actual reason this endpoint felt slow.
 
 from collections import defaultdict
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 from app.domain.analytics.risk import beta_vs_benchmark
 
@@ -33,7 +33,7 @@ def build_health_overview(snapshots: list[dict]) -> dict:
     portfolio_beta = None
     if symbols:
         tickers = list(dict.fromkeys(symbols + [_BENCHMARK]))
-        prices = yf.download(tickers, period="1y", auto_adjust=True, progress=False)["Close"]
+        prices = market_data.download_close(tickers, period="1y")
         prices = prices.dropna(how="all").ffill()
         returns = prices.pct_change()
 

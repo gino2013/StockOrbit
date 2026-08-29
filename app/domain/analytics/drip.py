@@ -12,11 +12,11 @@ Two scenarios starting from the same initial share count:
 No taxes/fees modeled, same simplification as the rest of the app.
 """
 
-import yfinance as yf
+from app.infrastructure import market_data
 
 
 def simulate_drip(symbol: str, start: str, end: str, initial_investment: float = 10000.0) -> dict:
-    history = yf.Ticker(symbol).history(start=start, end=end, auto_adjust=False)
+    history = market_data.ticker_history(symbol, start=start, end=end, auto_adjust=False)
     history = history.dropna(subset=["Close"])
     if len(history) < 2:
         raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
