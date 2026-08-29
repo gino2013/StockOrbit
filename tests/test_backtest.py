@@ -37,6 +37,11 @@ def demo():
 
     assert rebalance_dates(business_days, "none") == []
 
+    # "H" (half-year) has no pandas Period alias -- bucket by (year, half) manually.
+    two_years = pd.bdate_range("2024-01-01", "2025-12-31")
+    half_dates = rebalance_dates(two_years, "H")
+    assert [d.date().isoformat() for d in half_dates] == ["2024-07-01", "2025-01-01", "2025-07-01"]
+
 
 if __name__ == "__main__":
     demo()

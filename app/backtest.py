@@ -18,6 +18,12 @@ _PERIOD_CODES = {"M": "M", "Q": "Q", "A": "Y"}
 
 
 def rebalance_dates(index: pd.DatetimeIndex, rebalance: str) -> list:
+    if rebalance == "H":
+        # pandas has no built-in half-year Period alias (to_period("H") means
+        # hourly) - bucket by (year, first/second half) manually instead.
+        half_labels = index.year.astype(str) + "H" + (((index.quarter - 1) // 2) + 1).astype(str)
+        first_per_period = pd.Series(index, index=half_labels).groupby(level=0).first()
+        return sorted(first_per_period.tolist())[1:]  # skip day 1 - nothing to rebalance yet
     if rebalance == "none" or rebalance not in _PERIOD_CODES:
         return []
     periods = index.to_period(_PERIOD_CODES[rebalance])

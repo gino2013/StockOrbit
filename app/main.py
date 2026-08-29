@@ -833,6 +833,7 @@ def dca(
     end: str = Form(...),
     contribution: float = Form(...),
     frequency: str = Form("M"),
+    compare: str = Form(""),
 ):
     if contribution <= 0:
         return JSONResponse({"error": "每期投入金額需大於 0"}, status_code=400)
@@ -841,15 +842,31 @@ def dca(
         targets = {t.symbol: t.target_weight for t in db.query(TargetAllocation).all()}
     finally:
         db.close()
-    if not targets:
-        return JSONResponse({"error": "尚未設定目標配置"}, status_code=400)
-    total_weight = sum(targets.values())
-    if abs(total_weight - 1) > 0.01:
-        return JSONResponse(
-            {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
-        )
-    try:
-        result = run_dca_comparison(targets, start, end, contribution, frequency)
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
-    return JSONResponse(result)
+
+    baskets = []
+    if targets:
+        total_weight = sum(targets.values())
+        if abs(total_weight - 1) > 0.01:
+            return JSONResponse(
+                {"error": f"目標配置權重總和需為 100%，目前為 {total_weight:.0%}"}, status_code=400
+            )
+        baskets.append(("我的目標配置", targets))
+
+    if compare:
+        extra, error = _parse_multi_basket(compare)
+        if error:
+            return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
+        baskets += extra or []
+
+    if not baskets:
+        return JSONResponse({"error": "尚未設定目標配置，且沒有輸入比較標的"}, status_code=400)
+
+    items = []
+    for label, weights in baskets:
+        try:
+            result = run_dca_comparison(weights, start, end, contribution, frequency)
+        except Exception as e:
+            return JSONResponse({"error": f"{label}：{e}"}, status_code=400)
+        result["label"] = label
+        items.append(result)
+    return JSONResponse({"items": items})
