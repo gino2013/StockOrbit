@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -13,8 +13,9 @@ from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.infrastructure import market_data
 from app.infrastructure.repositories import Repositories
-from app.infrastructure.db import init_db
-from app.interface.auth import ensure_owner
+from app.infrastructure.db import SessionLocal, User, init_db
+from app.interface import auth
+from app.interface.auth import COOKIE_NAME, ensure_owner
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
@@ -44,10 +45,99 @@ from app.domain.analytics.scenario import simulate_market_drop
 from app.domain.analytics.technical_indicators import compute_technical_indicators
 from app.domain.analytics.trending import SCREENERS, trending_tickers
 
-app = FastAPI(title="StockOrbit")
+async def _bind_request_user(request: Request) -> None:
+    """App-level dependency: publish the middleware-loaded user into the
+    request ContextVar so `Repositories()` scopes to the caller. Runs in the
+    endpoint's own execution context, so it reaches sync threadpool handlers."""
+    auth.bind_current_user(getattr(request.state, "user", None))
+
+
+app = FastAPI(title="StockOrbit", dependencies=[Depends(_bind_request_user)])
 templates = Jinja2Templates(directory="app/templates")
 init_db()
-ensure_owner()  # the is_owner account backs Repositories(user_id=None) until auth is wired
+ensure_owner()
+
+# Paths reachable without a session. Everything else requires one.
+_PUBLIC_PREFIXES = ("/login", "/register", "/logout", "/static", "/docs", "/redoc", "/openapi.json", "/favicon")
+
+
+@app.middleware("http")
+async def _require_login(request: Request, call_next):
+    path = request.url.path
+    if not any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+        user = auth._load_user(request)
+        if user is None:
+            if path.startswith("/api/"):
+                return JSONResponse({"error": "請先登入"}, status_code=401)
+            return RedirectResponse("/login", status_code=303)
+        request.state.user = user
+    return await call_next(request)
+
+
+def _current_user(request: Request) -> User:
+    return request.state.user  # guaranteed by _require_login for non-public paths
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/"):
+    return templates.TemplateResponse(request, "login.html", {"error": None, "next": next})
+
+
+@app.post("/login")
+def login(request: Request, email: str = Form(...), password: str = Form(...), next: str = Form("/")):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email.strip().lower()).first()
+        ok = user is not None and auth.verify_password(password, user.password_hash)
+        cookie = auth.make_session_cookie(user) if ok else None
+    finally:
+        db.close()
+    if not ok:
+        return templates.TemplateResponse(
+            request, "login.html", {"error": "帳號或密碼錯誤", "next": next}, status_code=401
+        )
+    resp = RedirectResponse(next if next.startswith("/") else "/", status_code=303)
+    resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/register", response_class=HTMLResponse)
+def register_page(request: Request):
+    return templates.TemplateResponse(request, "register.html", {"error": None})
+
+
+@app.post("/register")
+def register(request: Request, email: str = Form(...), password: str = Form(...)):
+    email = email.strip().lower()
+    err = None
+    if "@" not in email or len(email) > 254:
+        err = "email 格式不正確"
+    elif len(password) < 8:
+        err = "密碼至少 8 個字元"
+    if err is None:
+        db = SessionLocal()
+        try:
+            if db.query(User).filter(User.email == email).first() is not None:
+                err = "這個 email 已經註冊過了"
+            else:
+                user = User(email=email, password_hash=auth.hash_password(password))
+                db.add(user)
+                db.commit()
+                cookie = auth.make_session_cookie(user)
+        finally:
+            db.close()
+    if err is not None:
+        return templates.TemplateResponse(request, "register.html", {"error": err}, status_code=400)
+    resp = RedirectResponse("/", status_code=303)
+    resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
+    return resp
+
+
+@app.post("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
 
 
 def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | None]:
@@ -143,10 +233,13 @@ def _refresh_and_save() -> None:
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
+    user = _current_user(request)
     with Repositories() as repo:
         last_snapshot_at = repo.latest_snapshot_at()
 
-    if last_snapshot_at is not None:
+    # Only the owner auto-refreshes (env Firstrade credentials). Other users
+    # connect their own account on the settings page (a later step).
+    if user.is_owner and last_snapshot_at is not None:
         stale = last_snapshot_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) - AUTO_REFRESH_STALE_AFTER
         if stale:
             try:
@@ -167,11 +260,17 @@ def dashboard(request: Request):
             flex_mode=request.cookies.get(FLEX_MODE_COOKIE) == "1",
             as_of=datetime.now().date(),
         )
-    return templates.TemplateResponse(request, "dashboard.html", context)
+    return templates.TemplateResponse(request, "dashboard.html", {**context, "user": user})
 
 
 @app.post("/api/refresh")
-def refresh():
+def refresh(request: Request):
+    if not _current_user(request).is_owner:
+        return HTMLResponse(
+            "<p>自動抓取目前只開放給站台擁有者。其他帳號的 Firstrade 連結功能開發中。</p>"
+            "<p><a href='/'>返回</a></p>",
+            status_code=403,
+        )
     try:
         _refresh_and_save()
     except Exception as e:

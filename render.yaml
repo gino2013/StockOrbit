@@ -15,16 +15,18 @@ services:
       - key: DATABASE_URL
         sync: false
       # --- multi-user (see docs/multi-user-architecture.md) ---
-      # APP_SECRET_KEY: signs session cookies; >= 32 chars. Required once auth is wired.
+      # APP_SECRET_KEY: REQUIRED now (auth is wired) - signs session cookies, >= 32 chars.
       - key: APP_SECRET_KEY
         sync: false
-      # OWNER_EMAIL: the account that keeps the FT_* env-credential auto-sync.
+      # OWNER_EMAIL / OWNER_INITIAL_PASSWORD: the account that keeps the FT_* env auto-sync.
       - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_INITIAL_PASSWORD
         sync: false
       # FT_CREDENTIAL_KEY: Fernet key for per-user Firstrade credential storage.
       # Unset -> per-user Firstrade sync is disabled. Keep separate from APP_SECRET_KEY.
       - key: FT_CREDENTIAL_KEY
         sync: false
-    # buildCommand gains `&& alembic upgrade head` in the step-2 PR, AFTER a
-    # one-time `alembic stamp 0001_baseline` on the existing prod DB (its
-    # tables already exist and 0001 would try to re-create them).
+    # DB migrations are run by hand for now (free tier). On the existing prod DB, once:
+    #   alembic stamp 0001_baseline && alembic upgrade head
+    # then re-run `alembic upgrade head` after each future schema change.

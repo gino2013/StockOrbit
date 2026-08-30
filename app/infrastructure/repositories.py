@@ -57,6 +57,10 @@ def _resolve_owner_id() -> str:
 
 class Repositories:
     def __init__(self, user_id: str | None = None) -> None:
+        if user_id is None:
+            from app.interface.auth import current_user_id
+
+            user_id = current_user_id()
         self._user_id = user_id or _resolve_owner_id()
         self._db = SessionLocal()
 
