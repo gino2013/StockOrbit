@@ -1012,7 +1012,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        掃描這檔標的完整歷史股價，列出每一次「買在高點、之後要等很久才回到原本高點」的時間區間，讓你檢視這檔標的過去曾經出現過哪些長期套牢的進場時機。只列出回本花費超過設定天數的區間，排除正常的短期波動。純粹回顧歷史事實，不是預測。
+        掃描這檔標的完整歷史股價，列出每一次「買在高點、之後要等很久才回到原本高點」的熊市崩跌時間點跟區間，讓你檢視這檔標的過去曾經出現過哪些長期套牢的進場時機。只列出回本花費超過設定門檻的區間，排除正常的短期波動。純粹回顧歷史事實，不是預測。
       </p>
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div class="relative">
@@ -1021,7 +1021,16 @@
           <ul id="drawdown-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
         </div>
         <div>
-          <label class="text-xs opacity-60 block mb-1">最短回本天數</label>
+          <label class="text-xs opacity-60 block mb-1">回本要花超過</label>
+          <div class="join">
+            <button type="button" onclick="setDrawdownMinDays(90)" class="btn btn-sm join-item">3 個月</button>
+            <button type="button" onclick="setDrawdownMinDays(180)" class="btn btn-sm join-item">半年</button>
+            <button type="button" onclick="setDrawdownMinDays(365)" class="btn btn-sm join-item">1 年</button>
+            <button type="button" onclick="setDrawdownMinDays(730)" class="btn btn-sm join-item">2 年</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">自訂天數（更長）</label>
           <input id="drawdown-min-days" type="number" min="1" step="1" value="60" class="input input-bordered input-sm w-28">
         </div>
         <button type="button" onclick="loadDrawdownPeriods()" class="btn btn-neutral btn-sm">查詢</button>
@@ -2580,6 +2589,11 @@ function fmtDurationDays(days) {
   if (years === 0) return `${months} 個月`;
   if (months === 0) return `${years} 年`;
   return `${years} 年 ${months} 個月`;
+}
+
+function setDrawdownMinDays(days) {
+  document.getElementById('drawdown-min-days').value = days;
+  loadDrawdownPeriods();
 }
 
 async function loadDrawdownPeriods() {
