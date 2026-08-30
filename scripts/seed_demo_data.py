@@ -13,6 +13,7 @@ is not personal financial data.
 
 import os
 import sys
+import uuid
 from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -26,8 +27,10 @@ from app.infrastructure.db import (  # noqa: E402
     SessionLocal,
     TargetAllocation,
     Transaction,
+    User,
     engine,
 )
+from app.interface.auth import ensure_owner  # noqa: E402
 
 ACCOUNT = "DEMO-00000000"
 TODAY = date(2026, 8, 29)
@@ -105,7 +108,7 @@ def _qty_at(symbol: str, months_ago: int) -> float:
 def _wipe(db):
     for model in (
         PositionSnapshot, TargetAllocation, ExchangeRateSnapshot,
-        Transaction, PositionNote, InvestmentGoal,
+        Transaction, PositionNote, InvestmentGoal, User,
     ):
         db.query(model).delete()
 
@@ -115,7 +118,14 @@ def seed():
     db = SessionLocal()
     try:
         _wipe(db)
+        db.commit()
+    finally:
+        db.close()
 
+    uid = ensure_owner()  # a demo owner account; every seeded row is scoped to it
+
+    db = SessionLocal()
+    try:
         # --- current + historical position snapshots ---
         for m in range(SNAPSHOT_MONTHS, -1, -1):
             snap_at = datetime(TODAY.year, TODAY.month, TODAY.day, tzinfo=timezone.utc) - timedelta(days=30 * m)
@@ -126,15 +136,16 @@ def seed():
                     continue
                 px = price if symbol == "CASH" else round(price * factor, 2)
                 db.add(PositionSnapshot(
+                    user_id=uid,
                     account_number=ACCOUNT, symbol=symbol, quantity=qty,
                     cost_basis=round(avg_cost * qty, 2) if symbol != "CASH" else 128.0,
                     market_value=round(px * qty, 2), price=px, snapshot_at=snap_at,
                 ))
 
         for symbol, weight in TARGETS.items():
-            db.add(TargetAllocation(symbol=symbol, target_weight=weight))
+            db.add(TargetAllocation(user_id=uid, symbol=symbol, target_weight=weight))
 
-        db.add(ExchangeRateSnapshot(pair="USDTWD", rate=31.82,
+        db.add(ExchangeRateSnapshot(pair="USDTWD", rate=31.82,  # global, not user-scoped
                                     fetched_at=datetime.now(timezone.utc)))
 
         for days_ago, ttype, symbol, qty, price, amount, desc in TRANSACTIONS:
@@ -143,13 +154,13 @@ def seed():
                 "report_date": TODAY - timedelta(days=days_ago), "quantity": qty,
                 "trade_price": price, "amount": amount, "description": desc,
             }
-            db.add(Transaction(id=Transaction.make_id(row), **row))
+            db.add(Transaction(id=Transaction.make_id(row), user_id=uid, **row))
 
         for symbol, note in NOTES.items():
-            db.add(PositionNote(symbol=symbol, note=note))
+            db.add(PositionNote(user_id=uid, symbol=symbol, note=note))
 
-        db.add(InvestmentGoal(id="default", target_amount=100000.0,
-                              target_date=date(2032, 1, 1)))
+        db.add(InvestmentGoal(id=uuid.uuid4().hex, user_id=uid,
+                              target_amount=100000.0, target_date=date(2032, 1, 1)))
 
         db.commit()
     finally:

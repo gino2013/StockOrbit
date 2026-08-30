@@ -10,6 +10,7 @@ Env:
 
 import base64
 import hashlib
+import logging
 import os
 
 import bcrypt
@@ -17,6 +18,8 @@ from fastapi import HTTPException, Request
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app.infrastructure.db import SessionLocal, User
+
+logger = logging.getLogger(__name__)
 
 COOKIE_NAME = "so_session"
 SESSION_MAX_AGE = 30 * 24 * 3600  # seconds
@@ -120,3 +123,48 @@ def require_owner(request: Request) -> User:
     if not user.is_owner:
         raise HTTPException(status_code=403, detail="owner only")
     return user
+
+
+# --- owner bootstrap ------------------------------------------------------
+
+_DEV_OWNER_EMAIL = "owner@localhost"
+_DEV_OWNER_PASSWORD = "owner"  # local dev only - never used when OWNER_EMAIL is set
+
+
+def ensure_owner() -> str:
+    """Make sure the single `is_owner` account exists and return its id.
+
+    Prod: `OWNER_EMAIL` (+ `OWNER_INITIAL_PASSWORD`) name the owner. Local
+    dev with neither set falls back to owner@localhost / "owner" with a
+    warning. Called from app startup and from the step-2 data migration;
+    also the fallback target for `Repositories(user_id=None)`.
+    """
+    email = (os.environ.get("OWNER_EMAIL") or "").strip().lower()
+    if email:
+        password = os.environ.get("OWNER_INITIAL_PASSWORD")
+        if not password:
+            raise RuntimeError("OWNER_EMAIL is set but OWNER_INITIAL_PASSWORD is not")
+    else:
+        email, password = _DEV_OWNER_EMAIL, _DEV_OWNER_PASSWORD
+        logger.warning("OWNER_EMAIL not set - using the local dev owner %s / %r", email, password)
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            user = db.query(User).filter(User.is_owner.is_(True)).first()
+        if user is None:
+            user = User(
+                email=email,
+                password_hash=hash_password(password),
+                email_verified=True,
+                is_owner=True,
+            )
+            db.add(user)
+        else:
+            user.is_owner = True
+        db.commit()
+        return user.id
+    finally:
+        db.close()
+

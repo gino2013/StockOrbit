@@ -14,6 +14,7 @@ from app.application.tax import overseas_income_report, tax_loss_report
 from app.infrastructure import market_data
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import init_db
+from app.interface.auth import ensure_owner
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
@@ -46,6 +47,7 @@ from app.domain.analytics.trending import SCREENERS, trending_tickers
 app = FastAPI(title="StockOrbit")
 templates = Jinja2Templates(directory="app/templates")
 init_db()
+ensure_owner()  # the is_owner account backs Repositories(user_id=None) until auth is wired
 
 
 def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | None]:
