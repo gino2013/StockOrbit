@@ -60,12 +60,25 @@ def find_drawdown_periods(symbol: str, period: str = "max", min_duration_days: i
     if trough_date is not None:
         close_episode(dates[-1], recovered=False)
 
+    # Episodes never overlap by construction (each new peak starts exactly
+    # where the previous episode recovered, or later), so summing their
+    # durations is a plain day count of "how many days in this whole history
+    # were spent inside one of these long drawdowns" - a rough odds-of-a-
+    # random-lump-sum-buy-date-landing-in-one-of-these estimate, not a
+    # forecast of future risk.
+    total_days = (dates[-1] - dates[0]).days
+    days_in_drawdown = sum(ep["duration_days"] for ep in episodes)
+    buy_in_crash_probability = days_in_drawdown / total_days if total_days else 0.0
+
     return {
         "symbol": symbol,
         "start_date": dates[0].strftime("%Y-%m-%d"),
         "end_date": dates[-1].strftime("%Y-%m-%d"),
         "min_duration_days": min_duration_days,
         "episodes": episodes,
+        "total_days": total_days,
+        "days_in_drawdown": days_in_drawdown,
+        "buy_in_crash_probability": buy_in_crash_probability,
         # Full price series so the caller can chart the episodes in context
         # rather than just listing them as a table.
         "dates": [d.strftime("%Y-%m-%d") for d in dates],

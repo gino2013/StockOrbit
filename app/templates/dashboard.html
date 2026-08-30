@@ -1047,6 +1047,7 @@
       </div>
       <div id="drawdown-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="drawdown-empty" class="text-xs opacity-60 mt-3 hidden">歷史區間內沒有符合條件的長期套牢時間點。</div>
+      <div id="drawdown-probability" class="text-sm mt-3 hidden"></div>
       <div class="h-72 mt-4" id="drawdown-chart-wrap" style="display:none"><canvas id="drawdownChart"></canvas></div>
       <div class="overflow-x-auto mt-3">
         <table class="table table-sm" id="drawdown-table" style="display:none">
@@ -2625,10 +2626,12 @@ async function loadDrawdownPeriods() {
   const minDays = document.getElementById('drawdown-min-days').value || 60;
   const errorBox = document.getElementById('drawdown-error');
   const emptyBox = document.getElementById('drawdown-empty');
+  const probBox = document.getElementById('drawdown-probability');
   const table = document.getElementById('drawdown-table');
   const chartWrap = document.getElementById('drawdown-chart-wrap');
   errorBox.classList.add('hidden');
   emptyBox.classList.add('hidden');
+  probBox.classList.add('hidden');
   table.style.display = 'none';
   chartWrap.style.display = 'none';
   if (!symbol) return;
@@ -2659,6 +2662,11 @@ async function loadDrawdownPeriods() {
     </tr>
   `).join('');
   table.style.display = '';
+
+  probBox.innerHTML = `這段歷史（${escapeHtml(data.start_date)} ~ ${escapeHtml(data.end_date)}，共 ${data.total_days} 天）裡，隨機挑一天買進，大約有 ` +
+    `<b class="text-error">${(data.buy_in_crash_probability * 100).toFixed(1)}%</b> 的機率會買在上面列出的熊市崩跌區間內` +
+    `（${data.days_in_drawdown} / ${data.total_days} 天）。`;
+  probBox.classList.remove('hidden');
 
   // Shade each qualifying episode's peak-to-recovery range on the price
   // line and mark the peak/trough points; hovering anywhere in that range
