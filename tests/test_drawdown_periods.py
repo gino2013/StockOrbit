@@ -32,6 +32,10 @@ def demo():
     assert ep["recovered"] is False
     assert ep["recovery_date"] is None
     assert ep["duration_days"] == (dates[-1] - dates[0]).days
+    # the single episode spans the entire queried history here -> 100% odds.
+    assert result["total_days"] == (dates[-1] - dates[0]).days
+    assert result["days_in_drawdown"] == ep["duration_days"]
+    assert abs(result["buy_in_crash_probability"] - 1.0) < 1e-9
 
     # a series that fully recovers should mark recovered=True with a date
     dates2 = pd.bdate_range("2020-01-01", periods=5)
@@ -53,6 +57,8 @@ def demo():
     with patch.object(dp.yf, "download", return_value={"Close": fake_data3}):
         result3 = dp.find_drawdown_periods("CCC", min_duration_days=30)
     assert result3["episodes"] == []
+    assert result3["days_in_drawdown"] == 0
+    assert result3["buy_in_crash_probability"] == 0.0
 
     # too little history -> raises, doesn't crash silently
     try:
