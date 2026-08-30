@@ -1030,13 +1030,14 @@
           </div>
         </div>
         <div>
-          <label class="text-xs opacity-60 block mb-1">自訂天數（更長）</label>
+          <label class="text-xs opacity-60 block mb-1">自訂天數</label>
           <input id="drawdown-min-days" type="number" min="1" step="1" value="60" class="input input-bordered input-sm w-28">
         </div>
         <button type="button" onclick="loadDrawdownPeriods()" class="btn btn-neutral btn-sm">查詢</button>
       </div>
       <div id="drawdown-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="drawdown-empty" class="text-xs opacity-60 mt-3 hidden">歷史區間內沒有符合條件的長期套牢時間點。</div>
+      <div class="h-72 mt-4" id="drawdown-chart-wrap" style="display:none"><canvas id="drawdownChart"></canvas></div>
       <div class="overflow-x-auto mt-3">
         <table class="table table-sm" id="drawdown-table" style="display:none">
           <thead>
@@ -2584,11 +2585,20 @@ async function loadDrip() {
 
 // --- 定投高點回本風險 ---
 function fmtDurationDays(days) {
-  const years = Math.floor(days / 365);
-  const months = Math.round((days % 365) / 30);
+  let years = Math.floor(days / 365);
+  let months = Math.round((days % 365) / 30);
+  if (months === 12) { years += 1; months = 0; }
   if (years === 0) return `${months} 個月`;
   if (months === 0) return `${years} 年`;
   return `${years} 年 ${months} 個月`;
+}
+
+// 輕微 -> 嚴重的四級顏色標注，門檻對齊上面的快選按鈕（3個月/半年/1年/2年）。
+function durationSeverityClass(days) {
+  if (days < 90) return 'text-success';
+  if (days < 365) return 'text-warning';
+  if (days < 730) return 'text-error';
+  return 'text-error font-bold';
 }
 
 function setDrawdownMinDays(days) {
@@ -2596,15 +2606,19 @@ function setDrawdownMinDays(days) {
   loadDrawdownPeriods();
 }
 
+let drawdownChart = null;
+
 async function loadDrawdownPeriods() {
   const symbol = document.getElementById('drawdown-symbol').value.trim();
   const minDays = document.getElementById('drawdown-min-days').value || 60;
   const errorBox = document.getElementById('drawdown-error');
   const emptyBox = document.getElementById('drawdown-empty');
   const table = document.getElementById('drawdown-table');
+  const chartWrap = document.getElementById('drawdown-chart-wrap');
   errorBox.classList.add('hidden');
   emptyBox.classList.add('hidden');
   table.style.display = 'none';
+  chartWrap.style.display = 'none';
   if (!symbol) return;
 
   const res = await fetch(`/api/drawdown-periods?symbol=${encodeURIComponent(symbol)}&min_duration_days=${minDays}`);
@@ -2629,10 +2643,57 @@ async function loadDrawdownPeriods() {
       <td class="text-right">${fmtPrice(ep.trough_price)}</td>
       <td class="text-right text-error">${fmtPct(ep.max_drawdown_pct)}</td>
       <td>${ep.recovered ? escapeHtml(ep.recovery_date) : '<span class="opacity-60">尚未回本</span>'}</td>
-      <td class="text-right">${fmtDurationDays(ep.duration_days)}</td>
+      <td class="text-right ${durationSeverityClass(ep.duration_days)}">${fmtDurationDays(ep.duration_days)}</td>
     </tr>
   `).join('');
   table.style.display = '';
+
+  // Shade each qualifying episode's peak-to-recovery range on the price
+  // line and mark the peak/trough points; hovering anywhere in that range
+  // (index mode) surfaces the matching point's detail via afterLabel.
+  const annotations = {};
+  const detailsByDate = {};
+  data.episodes.forEach((ep, i) => {
+    annotations[`range${i}`] = {
+      type: 'box', xMin: ep.peak_date, xMax: ep.recovery_date || data.end_date,
+      backgroundColor: 'rgba(244, 63, 94, 0.08)', borderWidth: 0,
+    };
+    annotations[`peak${i}`] = {
+      type: 'point', xValue: ep.peak_date, yValue: ep.peak_price,
+      backgroundColor: '#f43f5e', radius: 4, borderWidth: 0,
+    };
+    annotations[`trough${i}`] = {
+      type: 'point', xValue: ep.trough_date, yValue: ep.trough_price,
+      backgroundColor: '#f43f5e', radius: 4, borderWidth: 0,
+    };
+    detailsByDate[ep.peak_date] = `熊市高點：${fmtPrice(ep.peak_price)}`;
+    detailsByDate[ep.trough_date] = `熊市低點：${fmtPrice(ep.trough_price)}（跌 ${fmtPct(ep.max_drawdown_pct)}）， ` +
+      (ep.recovered ? `${ep.recovery_date} 回本，花了 ${fmtDurationDays(ep.duration_days)}` : '尚未回本');
+  });
+
+  if (drawdownChart) drawdownChart.destroy();
+  drawdownChart = new Chart(document.getElementById('drawdownChart'), {
+    type: 'line',
+    data: {
+      labels: data.dates,
+      datasets: [{ label: data.symbol, data: data.prices, borderWidth: 1.2, pointRadius: 0, borderColor: '#4f46e5' }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 10 } } },
+      plugins: {
+        annotation: { annotations },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${fmtPrice(ctx.parsed.y)}`,
+            afterLabel: (ctx) => detailsByDate[ctx.label] || '',
+          },
+        },
+      },
+    },
+  });
+  chartWrap.style.display = '';
 }
 
 loadDrawdownPeriods();

@@ -66,4 +66,8 @@ def find_drawdown_periods(symbol: str, period: str = "max", min_duration_days: i
         "end_date": dates[-1].strftime("%Y-%m-%d"),
         "min_duration_days": min_duration_days,
         "episodes": episodes,
+        # Full price series so the caller can chart the episodes in context
+        # rather than just listing them as a table.
+        "dates": [d.strftime("%Y-%m-%d") for d in dates],
+        "prices": [float(p) for p in prices],
     }

@@ -20,6 +20,8 @@ def demo():
         result = dp.find_drawdown_periods("AAA", min_duration_days=30)
 
     assert result["symbol"] == "AAA"
+    assert result["dates"] == [d.strftime("%Y-%m-%d") for d in dates]
+    assert result["prices"] == prices
     episodes = result["episodes"]
     assert len(episodes) == 1
     ep = episodes[0]
