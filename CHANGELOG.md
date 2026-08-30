@@ -7,6 +7,7 @@
 ## 2026-08-31
 
 - `45c131e` 補上「接下來預測」跟「定投高點回本風險」的 README 截圖跟說明（兩個功能上線時漏掉沒更新 README），順便更新功能摘要清單、更新紀錄、專案結構模組列表
+- 多使用者化第 4 步：收緊 tenancy migration（`0004`）——`user_id` 改 NOT NULL，5 張表的主鍵改成複合鍵（`target_allocations`/`position_notes`：`(user_id, symbol)`；`transaction_notes`：`(user_id, transaction_id)`；`transactions`：`(user_id, id)`），讓不同使用者可以持有同一個標的代號/交易筆記而不會撞鍵；`investment_goals` 拿掉獨立的 `id` 欄位，改用 `user_id` 直接當主鍵。`position_snapshots` 維持原本的 `id` 單獨主鍵不變。SQLite／PostgreSQL 都支援（PostgreSQL 分支動態查詢既有主鍵約束名稱，不寫死假設）。新增 `tests/test_migration_0004.py`，含「Render 現況」情境驗證：既有資料在 migration 後完整保留並正確歸戶
 - 多使用者化第 3 步：新增 email + 密碼登入（`/login` `/register` `/logout` + 樣板），中介層擋掉未登入的請求（`/api/*` 回 401、其他轉 `/login`）。首頁跟所有 `/api/*` 現在都綁在使用者身上（透過 request ContextVar → `Repositories()` 自動按使用者隔離，不用改 40 個路由簽章）。首頁 header 顯示 email + 登出；非擁有者看到「連結 Firstrade 開發中」空狀態；`/api/refresh` 只開放給擁有者。實測兩個帳號 HTTP 層完全隔離
 - `87c95c9` 全系統 bug 稽核修正三個問題（issue #148）：分析師評等欄位 Yahoo 回傳字串 "none" 時被誤當成真評等顯示（用真實資料重現，IONQ）；大盤下跌情境模擬對算不出 Beta 的標的靜默當成 beta=0、低估跌幅卻沒有提示，現在會揭露哪些標的被排除；配息月曆「本月」預測沒有排除已發放過的股利，同標的本月已領過的股利可能又被列成即將發放
 - 修正正式環境登入一律 500 的問題：Render 免費方案沒有 Shell，手動跑 `alembic upgrade head`這條路走不通，改成 app 開機時自動跑 migration（`run_pending_migrations()`）；沒有 `alembic_version` 記錄的資料庫會先推斷目前的表結構對應到哪個版本再補跑剩下的，處理「`users`/`firstrade_credentials` 表已被舊版 `create_all()` 建出來、但 6 張表還缺 `user_id`」這種卡在中間的真實情境，既有資料保留並回填給 owner，不會被清空。另外 `APP_SECRET_KEY` 沒設 / DB 結構跟現在的 model 對不上時，改成開機當下就在 log 報清楚錯誤（`check_app_secret_key()` / `check_schema_matches_models()`），不再是點登入才跳出一片空白的 Internal Server Error
