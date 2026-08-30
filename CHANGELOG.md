@@ -9,6 +9,7 @@
 - `bec6ad4` 「定投高點回本風險」新增 3個月/半年/1年/2年 門檻快選按鈕（issue #136），點下去直接帶入對應天數重新查詢，自訂天數欄位留給更長的門檻用；核心邏輯（issue #122）不變，純前端 UX 改善
 - 多使用者化第 1 步（見 `docs/multi-user-architecture.md`）：新增 `users` / `firstrade_credentials` model、`app/interface/auth.py`（bcrypt 密碼雜湊 + itsdangerous 簽名 session cookie）、`app/infrastructure/crypto.py`（Fernet 加密 Firstrade 憑證），導入 Alembic（`0001_baseline` 基準線 + `0002_users_creds`）。純基礎建設，還沒接進任何路由
 - 多使用者化第 2 步：6 張使用者資料表加上 `user_id`（nullable + index，migration `0003`），從 `OWNER_EMAIL` 建立 owner 帳號並把既有資料全部歸戶給它；`Repositories` 改成 `Repositories(user_id)`，每個查詢都按使用者隔離（`user_id=None` 暫時解析成 owner，第 3 步才由 `current_user` 帶入）。新增 `tests/test_repositories_tenancy.py`。仍未擋登入、無行為改動
+- `196996e` 「定投高點回本風險」新增折線圖（issue #140）：完整歷史股價圖上把每個符合門檻的熊市區間淺紅底標出、高低點各標一個紅點，滑鼠移過去 tooltip 顯示細節；表格「花費時間」欄位依嚴重程度上色（<3個月綠、3個月-1年黃、1-2年紅、2年以上紅底粗體）；順便修掉 12 個月會誤顯示成「X 年 12 個月」沒進位成「X+1 年」的 bug
 
 ## 2026-08-29
 
