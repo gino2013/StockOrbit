@@ -174,17 +174,41 @@ def ensure_owner() -> str:
     try:
         user = db.query(User).filter(User.email == email).first()
         if user is None:
-            user = db.query(User).filter(User.is_owner.is_(True)).first()
-        if user is None:
-            user = User(
-                email=email,
-                password_hash=hash_password(password),
-                email_verified=True,
-                is_owner=True,
-            )
-            db.add(user)
-        else:
-            user.is_owner = True
+            existing_owner = db.query(User).filter(User.is_owner.is_(True)).first()
+            if existing_owner is not None and existing_owner.email == _DEV_OWNER_EMAIL:
+                # The very first deploy ran before OWNER_EMAIL/OWNER_INITIAL_PASSWORD
+                # were configured on the host, so this placeholder dev-owner row
+                # got created and persisted as the real is_owner account. Now that
+                # real values are set, adopt them onto that same row (same id, so
+                # nothing it already owns needs re-backfilling). Only fires while
+                # the stored email is still literally the placeholder - once
+                # reconciled, the email-match lookup above succeeds directly and
+                # this branch is never reached again, so a later password change
+                # is never clobbered.
+                logger.warning(
+                    "Reconciling placeholder owner account (%s) to configured "
+                    "OWNER_EMAIL - this should only happen once.", _DEV_OWNER_EMAIL
+                )
+                existing_owner.email = email
+                existing_owner.password_hash = hash_password(password)
+                user = existing_owner
+            elif existing_owner is not None:
+                logger.warning(
+                    "OWNER_EMAIL=%s matches no existing user, but an owner account "
+                    "already exists as %s - leaving it as-is. Set OWNER_EMAIL back "
+                    "to that address, or reassign ownership manually.",
+                    email, existing_owner.email,
+                )
+                user = existing_owner
+            else:
+                user = User(
+                    email=email,
+                    password_hash=hash_password(password),
+                    email_verified=True,
+                    is_owner=True,
+                )
+                db.add(user)
+        user.is_owner = True
         db.commit()
         return user.id
     finally:
