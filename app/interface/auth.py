@@ -70,6 +70,12 @@ def _secret() -> str:
     return key
 
 
+def check_app_secret_key() -> None:
+    """Called once at startup so a missing/short APP_SECRET_KEY is a clear
+    line in the deploy log, not a generic 500 on the first login attempt."""
+    _secret()
+
+
 def _serializer(salt: str) -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(_secret(), salt=salt)
 

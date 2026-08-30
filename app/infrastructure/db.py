@@ -2,6 +2,7 @@ import hashlib
 import os
 import uuid
 from datetime import date, datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import (
     Boolean,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    inspect,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -223,3 +225,84 @@ class FirestradeCredential(Base):
 
 def init_db():
     Base.metadata.create_all(engine)
+
+
+def _infer_untracked_revision() -> str | None:
+    """For a DB with no `alembic_version` table, work out which migration
+    its *structure* already matches, by inspecting the tables/columns each
+    revision adds. Every revision is purely additive, so this is a strict
+    ladder - and it isn't just "0 or 1 migrations behind": the old
+    `init_db()`/`create_all()` ran at every deploy pre-Alembic, and
+    `create_all` only ever adds a wholly-missing table, never a column to
+    one that already exists. So a DB can plausibly be sitting mid-ladder -
+    e.g. `users`/`firstrade_credentials` already created by an earlier
+    deploy's create_all, but the six tenancy tables still missing
+    `user_id`. Returns None for a genuinely empty DB (nothing to stamp -
+    `upgrade head` runs every migration from the start).
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table("position_snapshots"):
+        return None
+    if not inspector.has_table("users"):
+        return "0001_baseline"
+    cols = {c["name"] for c in inspector.get_columns("position_snapshots")}
+    if "user_id" not in cols:
+        return "0002_users_creds"
+    return "0003_tenancy_cols"  # structure already matches head
+
+
+def run_pending_migrations() -> None:
+    """Apply any Alembic migrations that haven't run yet. Idempotent - a
+    no-op once the DB is already at head. Render's free plan has no Shell,
+    so `alembic upgrade head` can't be run by hand there; calling this at
+    app startup means a plain deploy is enough.
+
+    A DB with no `alembic_version` table (i.e. never migrated with Alembic)
+    is stamped at whatever revision its actual structure already matches
+    (see `_infer_untracked_revision`) before `upgrade head` runs, so Alembic
+    never tries to re-CREATE a table or re-ADD a column that's already there.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+
+    root = Path(__file__).resolve().parent.parent.parent
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "alembic"))
+
+    with engine.connect() as conn:
+        current_rev = MigrationContext.configure(conn).get_current_revision()
+
+    if current_rev is None:
+        inferred = _infer_untracked_revision()
+        if inferred is not None:
+            command.stamp(cfg, inferred)
+
+    command.upgrade(cfg, "head")
+
+
+def check_schema_matches_models() -> None:
+    """Fail fast and legibly when a pre-existing DB is missing columns that
+    `create_all` (used above) never adds to a table that already exists -
+    i.e. an unrun Alembic migration. Without this, the first request that
+    touches the missing column dies with a raw 500 and a stack trace buried
+    in the server log (see: the multi-user step-2/3 user_id columns landing
+    on a prod DB nobody had migrated yet).
+    """
+    inspector = inspect(engine)
+    missing: dict[str, list[str]] = {}
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue  # a wholly-new table: create_all already made it
+        actual = {c["name"] for c in inspector.get_columns(table.name)}
+        expected = {c.name for c in table.columns}
+        gap = expected - actual
+        if gap:
+            missing[table.name] = sorted(gap)
+    if missing:
+        detail = "; ".join(f"{t}: {', '.join(cols)}" for t, cols in missing.items())
+        raise RuntimeError(
+            f"Database schema is out of date - missing columns ({detail}). "
+            "Run `alembic upgrade head` (first time on an existing DB: "
+            "`alembic stamp 0001_baseline` before it)."
+        )
