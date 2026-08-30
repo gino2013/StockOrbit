@@ -1847,7 +1847,9 @@ function pegClass(v) { return v == null ? '' : v < 1 ? 'text-success' : v > 2 ? 
 function debtEquityClass(v) { return v == null ? '' : v < 100 ? 'text-success' : v > 200 ? 'text-error' : 'text-warning'; }
 function betaClass(v) { return v == null ? '' : v < 0.8 ? 'text-success' : v > 1.5 ? 'text-error' : 'text-warning'; }
 function recommendationClass(key) {
-  if (!key) return '';
+  // Yahoo returns the literal string "none" when there's analyst coverage
+  // but no consensus rating - that's absence of data, not a real rating.
+  if (!key || key === 'none') return '';
   if (['strong_buy', 'buy'].includes(key)) return 'text-success';
   if (['sell', 'strong_sell', 'underperform'].includes(key)) return 'text-error';
   return 'text-warning';
@@ -1894,7 +1896,7 @@ async function loadFundamentals() {
       <td class="text-right ${betaClass(f.beta)}">${fmtNum(f.beta, 2)}</td>
       <td class="text-right whitespace-nowrap">${range}</td>
       <td class="text-right">${fmtPrice(f.targetMeanPrice)}</td>
-      <td class="text-right ${recommendationClass(f.recommendationKey)}">${escapeHtml(f.recommendationKey || '-')}</td>
+      <td class="text-right ${recommendationClass(f.recommendationKey)}">${escapeHtml(f.recommendationKey && f.recommendationKey !== 'none' ? f.recommendationKey : '-')}</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -3083,6 +3085,9 @@ async function loadScenario(presetChange) {
   let html = `<p class="text-sm mb-2">大盤跌 ${fmtPct(data.market_change)} 時，組合估計跌幅：` +
     `<b class="text-error">${fmtPct(data.portfolio_change)}</b>` +
     ` (約 ${data.portfolio_value_change.toLocaleString('en-US', { maximumFractionDigits: 0 })})</p>`;
+  if (data.uncovered_symbols && data.uncovered_symbols.length) {
+    html += `<p class="text-xs opacity-60 mb-2">${escapeHtml(data.uncovered_symbols.join('、'))} 缺乏足夠歷史資料算不出 Beta，估計中暫時視為不受影響（低估這幾檔的下跌幅度）。</p>`;
+  }
   html += '<table class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">Beta</th><th class="text-right">目前市值</th>' +
     '<th class="text-right">估計跌幅</th><th class="text-right">估計金額變化</th></tr></thead><tbody>';
