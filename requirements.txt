@@ -8,3 +8,7 @@ python-multipart
 firstrade==0.0.39
 yfinance
 pandas
+alembic
+bcrypt
+itsdangerous
+cryptography
