@@ -16,7 +16,6 @@ pass an explicit id from `current_user`.
 
 from __future__ import annotations
 
-import uuid
 from datetime import date, datetime, timezone
 
 from sqlalchemy import desc
@@ -203,7 +202,6 @@ class Repositories:
         else:
             self._db.add(
                 InvestmentGoal(
-                    id=uuid.uuid4().hex,
                     user_id=self._user_id,
                     target_amount=target_amount,
                     target_date=target_date,

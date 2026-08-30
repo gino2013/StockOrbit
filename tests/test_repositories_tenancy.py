@@ -85,6 +85,24 @@ def demo():
     with Repositories() as owner:
         assert owner.targets() == {"AAA": 0.5}
 
+    # composite PK (user_id, symbol/transaction_id/id): two users can hold
+    # the exact same natural key without colliding - this is the whole
+    # point of migration 0004 folding user_id into the primary key.
+    with Repositories("uA") as a, Repositories("uB") as b:
+        a.upsert_target("SPY", 0.5)
+        b.upsert_target("SPY", 0.9)  # would raise IntegrityError pre-0004
+        a.upsert_note("SPY", "a's spy note")
+        b.upsert_note("SPY", "b's spy note")
+    with Repositories("uA") as a, Repositories("uB") as b:
+        assert a.targets()["SPY"] == 0.5 and b.targets()["SPY"] == 0.9
+        assert a.notes()["SPY"] == "a's spy note" and b.notes()["SPY"] == "b's spy note"
+
+    # goal PK is user_id alone now (no more "default" singleton) - both
+    # users already have one from earlier in this test; each is independent.
+    with Repositories("uA") as a, Repositories("uB") as b:
+        assert a.goal().target_amount == 1000.0
+        assert b.goal() is None  # uB's goal was deleted above
+
 
 if __name__ == "__main__":
     demo()

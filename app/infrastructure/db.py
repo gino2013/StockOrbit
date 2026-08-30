@@ -27,15 +27,19 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
-def _user_id_col():
-    """Tenancy FK. Nullable for now (multi-user step 2); step 4 makes it
-    NOT NULL and folds it into the composite primary keys."""
+def _user_id_col(*, primary_key: bool = False):
+    """Tenancy FK, NOT NULL (see migration 0004). `primary_key=True` folds
+    it into a table's composite primary key - two users may then hold rows
+    with the same natural key (e.g. the same target symbol) without
+    colliding; a bare index is still applied automatically as part of the
+    primary key, so no separate `index=True` is needed in that case."""
     return Column(
         "user_id",
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
+        nullable=False,
+        primary_key=primary_key,
+        index=not primary_key,
     )
 
 
@@ -60,8 +64,8 @@ class PositionSnapshot(Base):
 class TargetAllocation(Base):
     __tablename__ = "target_allocations"
 
+    user_id = _user_id_col(primary_key=True)
     symbol = Column(String, primary_key=True)
-    user_id = _user_id_col()
     target_weight = Column(Float, nullable=False)
 
 
@@ -118,8 +122,12 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
+    # id alone was globally unique before multi-user (it's a content hash
+    # that includes account_number, and each user has their own Firstrade
+    # account_number - see make_id()); (user_id, id) makes that tenancy
+    # boundary an explicit DB constraint rather than an accident of hashing.
     id = Column(String, primary_key=True)
-    user_id = _user_id_col()
+    user_id = _user_id_col(primary_key=True)
     account_number = Column(String, nullable=False)
     symbol = Column(String, index=True)
     trans_type = Column(String, nullable=False, index=True)  # BOUGHT/SOLD/DIV/INTEREST/DEPOSIT/OTHER
@@ -149,8 +157,8 @@ class PositionNote(Base):
 
     __tablename__ = "position_notes"
 
+    user_id = _user_id_col(primary_key=True)
     symbol = Column(String, primary_key=True)
-    user_id = _user_id_col()
     note = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -164,21 +172,20 @@ class TransactionNote(Base):
 
     __tablename__ = "transaction_notes"
 
+    user_id = _user_id_col(primary_key=True)
     transaction_id = Column(String, primary_key=True)
-    user_id = _user_id_col()
     note = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class InvestmentGoal(Base):
-    """Single long-term target (amount + date) to track progress against.
-    Singleton row keyed by a fixed id, same upsert-by-key shape as
-    PositionNote - only one goal at a time, no history kept."""
+    """One long-term target (amount + date) per user to track progress
+    against. `user_id` is the primary key directly - one goal at a time per
+    user, no history kept, no separate `id` needed."""
 
     __tablename__ = "investment_goals"
 
-    id = Column(String, primary_key=True, default="default")
-    user_id = _user_id_col()
+    user_id = _user_id_col(primary_key=True)
     target_amount = Column(Float, nullable=False)
     target_date = Column(Date, nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -248,7 +255,10 @@ def _infer_untracked_revision() -> str | None:
     cols = {c["name"] for c in inspector.get_columns("position_snapshots")}
     if "user_id" not in cols:
         return "0002_users_creds"
-    return "0003_tenancy_cols"  # structure already matches head
+    goal_cols = {c["name"] for c in inspector.get_columns("investment_goals")}
+    if "id" in goal_cols:
+        return "0003_tenancy_cols"
+    return "0004_tenancy_pks"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

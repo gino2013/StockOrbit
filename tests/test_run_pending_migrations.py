@@ -75,17 +75,28 @@ from app.infrastructure.db import Base, engine
 from sqlalchemy import text
 Base.metadata.create_all(engine)
 with engine.begin() as conn:
+    # position_snapshots/transactions/target_allocations/position_notes/
+    # transaction_notes only differ (current models vs this historical
+    # shape) in their PK *constraint*, not their columns, so stripping
+    # user_id via copy-drop-rename works for them directly.
     for table, cols in [
         ("position_snapshots", "id,account_number,symbol,quantity,cost_basis,market_value,price,raw_json,snapshot_at"),
         ("transactions", "id,account_number,symbol,trans_type,report_date,quantity,trade_price,amount,description,raw_json,fetched_at"),
         ("target_allocations", "symbol,target_weight"),
         ("position_notes", "symbol,note,updated_at"),
         ("transaction_notes", "transaction_id,note,updated_at"),
-        ("investment_goals", "id,target_amount,target_date,updated_at"),
     ]:
         conn.execute(text(f"CREATE TABLE {{table}}_old AS SELECT {{cols}} FROM {{table}}"))
         conn.execute(text(f"DROP TABLE {{table}}"))
         conn.execute(text(f"ALTER TABLE {{table}}_old RENAME TO {{table}}"))
+    # investment_goals lost its `id` column entirely in 0004, so the
+    # current model has no `id` to copy from - rebuild the true pre-0003
+    # shape (migration 0001's original DDL) from scratch instead.
+    conn.execute(text("DROP TABLE investment_goals"))
+    conn.execute(text(
+        "CREATE TABLE investment_goals (id VARCHAR PRIMARY KEY, target_amount FLOAT NOT NULL, "
+        "target_date DATE NOT NULL, updated_at DATETIME)"
+    ))
     conn.execute(text(
         "INSERT INTO position_snapshots (id,account_number,symbol,quantity,cost_basis,market_value,price,snapshot_at) "
         "VALUES ('x1','A1','AAPL',10,1000,1200,120,'2026-01-01')"
