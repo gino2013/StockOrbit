@@ -25,10 +25,23 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
+def _user_id_col():
+    """Tenancy FK. Nullable for now (multi-user step 2); step 4 makes it
+    NOT NULL and folds it into the composite primary keys."""
+    return Column(
+        "user_id",
+        String,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+
 class PositionSnapshot(Base):
     __tablename__ = "position_snapshots"
 
     id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    user_id = _user_id_col()
     account_number = Column(String, nullable=False)
     symbol = Column(String, nullable=False, index=True)
     quantity = Column(Float, nullable=False)
@@ -46,6 +59,7 @@ class TargetAllocation(Base):
     __tablename__ = "target_allocations"
 
     symbol = Column(String, primary_key=True)
+    user_id = _user_id_col()
     target_weight = Column(Float, nullable=False)
 
 
@@ -103,6 +117,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(String, primary_key=True)
+    user_id = _user_id_col()
     account_number = Column(String, nullable=False)
     symbol = Column(String, index=True)
     trans_type = Column(String, nullable=False, index=True)  # BOUGHT/SOLD/DIV/INTEREST/DEPOSIT/OTHER
@@ -133,6 +148,7 @@ class PositionNote(Base):
     __tablename__ = "position_notes"
 
     symbol = Column(String, primary_key=True)
+    user_id = _user_id_col()
     note = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -147,6 +163,7 @@ class TransactionNote(Base):
     __tablename__ = "transaction_notes"
 
     transaction_id = Column(String, primary_key=True)
+    user_id = _user_id_col()
     note = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -159,6 +176,7 @@ class InvestmentGoal(Base):
     __tablename__ = "investment_goals"
 
     id = Column(String, primary_key=True, default="default")
+    user_id = _user_id_col()
     target_amount = Column(Float, nullable=False)
     target_date = Column(Date, nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
