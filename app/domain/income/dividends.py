@@ -40,10 +40,13 @@ def forecast_dividend_calendar(transactions: list[dict], as_of: date, months_ahe
     not an official payment schedule - amounts/dates can and do change.
     """
     by_symbol_month: dict[tuple[str, int], list[tuple[date, float]]] = defaultdict(list)
+    already_paid: set[tuple[str, int, int]] = set()
     for t in transactions:
         if t["trans_type"] != "DIV" or not t.get("symbol"):
             continue
         by_symbol_month[(t["symbol"], t["report_date"].month)].append((t["report_date"], t["amount"]))
+        if t["report_date"] <= as_of:
+            already_paid.add((t["symbol"], t["report_date"].year, t["report_date"].month))
 
     forecast = []
     for i in range(months_ahead):
@@ -51,6 +54,12 @@ def forecast_dividend_calendar(transactions: list[dict], as_of: date, months_ahe
         target_year = as_of.year + (as_of.month - 1 + i) // 12
         for (symbol, month), payments in by_symbol_month.items():
             if month != target_month:
+                continue
+            # i == 0 is the current calendar month - if this symbol already
+            # paid its dividend for this specific month/year, it's history,
+            # not an upcoming forecast (avoids double-listing a payment
+            # that's already landed as if it were still coming).
+            if (symbol, target_year, target_month) in already_paid:
                 continue
             latest_amount = max(payments, key=lambda p: p[0])[1]
             forecast.append({

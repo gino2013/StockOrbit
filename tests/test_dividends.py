@@ -50,6 +50,15 @@ def demo():
     # and BOUGHT rows must never leak into the dividend forecast.
     assert sorted(f["month"] for f in forecast if f["symbol"] == "QQQ") == [1, 7, 10]
 
+    # a symbol that already paid THIS calendar month shouldn't also show up
+    # as an "upcoming" forecast entry for that same month/year - it already
+    # happened, it's history now, not a forecast.
+    transactions_already_paid = transactions + [
+        {"trans_type": "DIV", "symbol": "QQQ", "report_date": date(2026, 8, 5), "amount": 8.0},
+    ]
+    forecast2 = forecast_dividend_calendar(transactions_already_paid, as_of=date(2026, 8, 27), months_ahead=12)
+    assert not any(f["symbol"] == "QQQ" and f["year"] == 2026 and f["month"] == 8 for f in forecast2)
+
 
 if __name__ == "__main__":
     demo()

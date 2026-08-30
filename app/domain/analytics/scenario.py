@@ -26,10 +26,17 @@ def simulate_market_drop(snapshots: list[dict], market_change: float) -> dict:
 
     items = []
     estimated_total_change = 0.0
+    uncovered_symbols = []
     for symbol, value in value_by_symbol.items():
         beta = 0.0 if symbol == "CASH" else risk_items.get(symbol, {}).get("beta")
         estimated_change = beta * market_change if beta is not None else None
+        # No beta -> no basis to estimate this symbol's move, so it
+        # contributes $0 to the total change (same as if it were flat) -
+        # surfaced via uncovered_symbols so the caller can disclose that
+        # this understates the estimate, rather than silently implying beta=0.
         estimated_value_change = value * estimated_change if estimated_change is not None else 0.0
+        if estimated_change is None:
+            uncovered_symbols.append(symbol)
         estimated_total_change += estimated_value_change
         items.append(
             {
@@ -47,4 +54,5 @@ def simulate_market_drop(snapshots: list[dict], market_change: float) -> dict:
         "portfolio_change": estimated_total_change / total,
         "portfolio_value_change": estimated_total_change,
         "items": items,
+        "uncovered_symbols": uncovered_symbols,
     }
