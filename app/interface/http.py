@@ -13,9 +13,14 @@ from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.infrastructure import market_data
 from app.infrastructure.repositories import Repositories
-from app.infrastructure.db import SessionLocal, User, init_db
+from app.infrastructure.db import (
+    SessionLocal,
+    User,
+    check_schema_matches_models,
+    run_pending_migrations,
+)
 from app.interface import auth
-from app.interface.auth import COOKIE_NAME, ensure_owner
+from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
@@ -54,7 +59,11 @@ async def _bind_request_user(request: Request) -> None:
 
 app = FastAPI(title="StockOrbit", dependencies=[Depends(_bind_request_user)])
 templates = Jinja2Templates(directory="app/templates")
-init_db()
+# Fail fast and legibly at startup, in the deploy log - not a raw 500 on the
+# first login/request. See docs/multi-user-architecture.md.
+check_app_secret_key()
+run_pending_migrations()  # replaces the old init_db()/create_all - see db.py
+check_schema_matches_models()  # belt-and-suspenders: verify the migration actually landed
 ensure_owner()
 
 # Paths reachable without a session. Everything else requires one.
