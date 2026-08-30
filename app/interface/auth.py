@@ -9,6 +9,7 @@ Env:
 """
 
 import base64
+import contextvars
 import hashlib
 import logging
 import os
@@ -24,6 +25,21 @@ logger = logging.getLogger(__name__)
 COOKIE_NAME = "so_session"
 SESSION_MAX_AGE = 30 * 24 * 3600  # seconds
 _BCRYPT_ROUNDS = 12
+
+# The signed-in user's id for the current request. Set by an app-level
+# dependency (see http._bind_request_user) so `Repositories()` with no
+# argument scopes to the caller without threading a user through 40 routes.
+_current_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "current_user_id", default=None
+)
+
+
+def bind_current_user(user: "User | None") -> None:
+    _current_user_id.set(user.id if user is not None else None)
+
+
+def current_user_id() -> str | None:
+    return _current_user_id.get()
 
 
 # --- passwords ---------------------------------------------------------------

@@ -341,8 +341,11 @@ cp .env.example .env   # 填入下面的環境變數
 
 | 變數 | 說明 |
 |---|---|
-| `FT_USERNAME` / `FT_PASSWORD` | Firstrade 登入帳密 |
+| `APP_SECRET_KEY` | **必填**，至少 32 字元。簽署登入 session cookie 用。本機隨便一串長字串即可，正式環境要用亂數 |
+| `OWNER_EMAIL` / `OWNER_INITIAL_PASSWORD` | 站台擁有者帳號（保留 `FT_*` env 自動同步的那個）。都不設的話，本機開發會自動建 `owner@localhost` / `owner` |
+| `FT_USERNAME` / `FT_PASSWORD` | 站台擁有者的 Firstrade 登入帳密 |
 | `FT_MFA_SECRET` | 2FA 的 TOTP 密鑰（**不是**簡訊/email 收到的驗證碼，也不是備用代碼）。在 Firstrade 網站設定「驗證應用程式」2FA 時，QR code 旁邊「無法掃描/手動輸入」連結會顯示這組字串。留空的話，帳號若開了 2FA，自動抓取會直接失敗 |
+| `FT_CREDENTIAL_KEY` | Fernet 金鑰，用來加密其他使用者存進來的 Firstrade 憑證（`python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`）。不設的話「連結 Firstrade」功能停用。**跟 `APP_SECRET_KEY` 分開，只放環境變數** |
 | `DATABASE_URL` | 資料庫連線字串，本機預設 `sqlite:///./stockorbit.db`，正式環境填 Postgres 連線字串 |
 
 `.env` 已加進 `.gitignore`，不會被提交。
