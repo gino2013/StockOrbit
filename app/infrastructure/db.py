@@ -1,8 +1,20 @@
 import hashlib
 import os
+import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Column, Date, DateTime, Float, String, Text, create_engine
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./stockorbit.db")
@@ -150,6 +162,45 @@ class InvestmentGoal(Base):
     target_amount = Column(Float, nullable=False)
     target_date = Column(Date, nullable=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class User(Base):
+    """An account. Data in every other user-scoped table is keyed by user_id.
+
+    `session_version` is bumped to invalidate all of a user's signed session
+    cookies at once (password reset, "log out everywhere"). `is_owner` marks
+    the single account named by the OWNER_EMAIL env var, which may fall back
+    to the FT_* env credentials for Firstrade sync (see firstrade_client).
+    """
+
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: uuid.uuid4().hex)
+    email = Column(String, nullable=False, unique=True, index=True)  # stored lower-cased
+    password_hash = Column(String, nullable=False)
+    email_verified = Column(Boolean, nullable=False, default=False)
+    session_version = Column(Integer, nullable=False, default=1)
+    is_owner = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class FirestradeCredential(Base):
+    """A user's Firstrade login, each field Fernet-encrypted with
+    FT_CREDENTIAL_KEY (see app.infrastructure.crypto). One row per user.
+
+    Storing brokerage credentials is a deliberate, high-risk choice: a DB
+    dump plus the key is full account takeover. The key lives only in the
+    environment, never in this table or git.
+    """
+
+    __tablename__ = "firstrade_credentials"
+
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    username_enc = Column(Text, nullable=False)
+    password_enc = Column(Text, nullable=False)
+    mfa_secret_enc = Column(Text, nullable=False, default="")
+    last_sync_at = Column(DateTime)
+    last_sync_error = Column(Text)
 
 
 def init_db():

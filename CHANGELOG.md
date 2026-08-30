@@ -7,6 +7,7 @@
 ## 2026-08-30
 
 - `bec6ad4` 「定投高點回本風險」新增 3個月/半年/1年/2年 門檻快選按鈕（issue #136），點下去直接帶入對應天數重新查詢，自訂天數欄位留給更長的門檻用；核心邏輯（issue #122）不變，純前端 UX 改善
+- 多使用者化第 1 步（見 `docs/multi-user-architecture.md`）：新增 `users` / `firstrade_credentials` model、`app/interface/auth.py`（bcrypt 密碼雜湊 + itsdangerous 簽名 session cookie）、`app/infrastructure/crypto.py`（Fernet 加密 Firstrade 憑證），導入 Alembic（`0001_baseline` 基準線 + `0002_users_creds`）。純基礎建設，還沒接進任何路由
 
 ## 2026-08-29
 
