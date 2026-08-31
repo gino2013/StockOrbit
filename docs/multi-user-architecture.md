@@ -108,4 +108,5 @@ a header email + logout link.
    logs when SMTP unset), `/verify` + resend, `/forgot` + `/reset`,
    per-IP rate limiting on `/login` `/register` `/forgot`, `/terms` +
    `/privacy`, README security section.
-7. *(optional)* CSV import as a no-credential path.
+7. ✅ CSV import as a no-credential path (`csv_import.py`, `/settings/import/{positions,transactions}`,
+   simple documented header schema, per-row errors, verified-email gated).

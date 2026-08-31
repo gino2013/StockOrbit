@@ -360,6 +360,15 @@ cp .env.example .env   # 填入下面的環境變數
 - **緩解措施**：Firstrade 連結功能擋在 `email_verified` 後面；每人自動同步限流；帳號可在「設定」頁輸入自己的 email 確認後硬刪除全部資料（8 張表）；登入／註冊／忘記密碼有每 IP 的簡易限流（in-process，重啟會重置）。
 - **建議**：如果不想承擔上述風險，可以不設 `FT_CREDENTIAL_KEY`（連結功能整個停用），只用擁有者自己的 `FT_*` env 帳號跑單人模式。
 
+### CSV 匯入（不需要帳密的替代路徑）
+
+不想連結 Firstrade 帳號的使用者，可以在「設定」頁上傳 CSV（需先完成信箱驗證）。第一列是欄位名稱、之後每列一筆，欄名大小寫與前後空白不拘：
+
+- **持股**：`symbol`、`quantity` 必填；`avg_cost`（每股均價）或 `cost_basis`（總成本）、`price`、`market_value`、`account_number` 選填。`market_value` 留空時用 `price × quantity` 推算。
+- **交易紀錄**：`date`（`YYYY-MM-DD` 或 `MM/DD/YYYY`）、`type` 必填；`symbol`、`quantity`、`price`、`amount`、`description`、`account_number` 選填。`type` 接受 `buy`/`sell`/`dividend`/`interest`/`deposit`（其他值原樣轉大寫）。`amount` 留空時，買賣會用 `quantity × price` 帶正負號推算。
+
+匯入交易用內容雜湊去重，同一份檔案重複上傳不會產生重複資料。欄位對不上會回報是哪一列哪個欄位的問題。
+
 ## 部署（Render + Neon）
 
 1. 在 [Neon](https://neon.tech) 建一個免費的 Postgres，拿到連線字串
@@ -392,7 +401,7 @@ for f in tests/test_*.py; do .venv/bin/python "$f" || echo "FAILED: $f"; done
 - 持股歷史走勢／再平衡回測都支援多條比較線（分號分隔）與「移除我的持股組合」選項
 - favicon／頁首圖示換成柴犬圖片
 - 新增「接下來預測」（依目前 XIRR 推算未來各期間市值）跟「定投高點回本風險」（找出歷史上買在高點要很久才回本的熊市崩跌區間，圖表標出高低點）
-- 程式碼依 DDD 分層重構為 `domain/application/infrastructure/interface`；多使用者化進行中（見 `docs/multi-user-architecture.md`）：Email + 密碼登入、開放註冊、每人資料隔離、「設定」頁可連結自己的 Firstrade 帳號並各自同步、信箱驗證與重設密碼、登入／註冊限流、使用條款／隱私權頁
+- 程式碼依 DDD 分層重構為 `domain/application/infrastructure/interface`；多使用者化完成（見 `docs/multi-user-architecture.md`）：Email + 密碼登入、開放註冊、每人資料隔離、「設定」頁可連結自己的 Firstrade 帳號並各自同步、CSV 匯入（不需帳密的替代路徑）、信箱驗證與重設密碼、登入／註冊限流、使用條款／隱私權頁
 
 ## 注意事項
 
