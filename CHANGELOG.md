@@ -7,6 +7,7 @@
 ## 2026-08-31
 
 - `1fd4b97` 「定投高點回本風險」新增「買到熊市爛點的機率」（issue #154）：整段查詢區間內隨機挑一天買進，落在上面列出的熊市崩跌區間內的機率（區間總天數 / 整段歷史總天數）
+- `d8d64dc` 登入／註冊頁標題加上 StockOrbit 柴犬 logo（重用 dashboard.html 頁首已內嵌的同一張 base64 圖片，縮小成 8x8）
 - `45c131e` 補上「接下來預測」跟「定投高點回本風險」的 README 截圖跟說明（兩個功能上線時漏掉沒更新 README），順便更新功能摘要清單、更新紀錄、專案結構模組列表
 - 多使用者化第 4 步：收緊 tenancy migration（`0004`）——`user_id` 改 NOT NULL，5 張表的主鍵改成複合鍵（`target_allocations`/`position_notes`：`(user_id, symbol)`；`transaction_notes`：`(user_id, transaction_id)`；`transactions`：`(user_id, id)`），讓不同使用者可以持有同一個標的代號/交易筆記而不會撞鍵；`investment_goals` 拿掉獨立的 `id` 欄位，改用 `user_id` 直接當主鍵。`position_snapshots` 維持原本的 `id` 單獨主鍵不變。SQLite／PostgreSQL 都支援（PostgreSQL 分支動態查詢既有主鍵約束名稱，不寫死假設）。新增 `tests/test_migration_0004.py`，含「Render 現況」情境驗證：既有資料在 migration 後完整保留並正確歸戶
 - 修正 owner 帳號登不進去的問題：`OWNER_EMAIL`/`OWNER_INITIAL_PASSWORD` 設定之前就先部署過的話，`ensure_owner()` 會用內建預設值（`owner@localhost` / `owner`）建一個佔位 owner 帳號並寫進資料庫；之後補設定這兩個環境變數重新部署，程式只會把既有 owner 那筆的 `is_owner` 繼續設成 True，不會更新它的 email/密碼，導致「明明設定了卻登不進去、密碼其實是舊的預設值」。改成：找不到 email 對應的使用者、但已有一筆 `is_owner=True` 的佔位帳號時，把該筆的 email/密碼改成現在設定的值（同一筆資料，不會產生重複帳號）；一旦改好，之後開機 email 直接對得上，不會再被動到，之後真的改密碼也不會被蓋回去
