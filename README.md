@@ -18,7 +18,7 @@
 
 ![接下來預測：以目前 XIRR 複利推算未來各期間市值](docs/screenshot-pace-projection.png)
 
-假設維持目前的年化報酬率（XIRR）複利下去，1 個月／1 季／半年／1 年後大概會是什麼樣子——純粹是「照現在的速度走下去」的參考，不是報酬預測。3／5／10／20 年這種長期推算放在預設收合的區塊裡（極端 XIRR 複利很多年後的數字會很誇張，收合避免一進站就嚇到人）。
+假設維持目前的年化報酬率（XIRR）複利下去，1 個月／1 季／半年／1 年後大概會是什麼樣子，純粹是「照現在的速度走下去」的參考，不是報酬預測。3／5／10／20 年這種長期推算放在預設收合的區塊裡（極端 XIRR 複利很多年後的數字會很誇張，收合避免一進站就嚇到人）。
 
 #### 目標達成進度追蹤
 
@@ -177,7 +177,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 
 ![定投高點回本風險：熊市崩跌區間圖表跟明細表格](docs/screenshot-drawdown-periods.png)
 
-掃描任一標的完整歷史股價，找出每一次「買在高點、之後要等很久才回到原本高點」的熊市崩跌時間點跟區間——歷史上曾經出現過哪些長期套牢的進場時機，一次看完。回本門檻可以用 3個月／半年／1年／2年 快選按鈕，也可以自訂天數。圖表上每個符合門檻的區間會用淺紅底標出、高低點各標一個點，滑鼠移過去看細節；表格的「花費時間」依嚴重程度上色（輕微綠、中等黃、嚴重紅、超嚴重紅底粗體）。純粹回顧歷史事實，不是預測。
+掃描任一標的完整歷史股價，找出每一次「買在高點、之後要等很久才回到原本高點」的熊市崩跌時間點跟區間，歷史上曾經出現過哪些長期套牢的進場時機，一次看完。回本門檻可以用 3個月／半年／1年／2年 快選按鈕，也可以自訂天數。圖表上每個符合門檻的區間會用淺紅底標出、高低點各標一個點，滑鼠移過去看細節；表格的「花費時間」依嚴重程度上色（輕微綠、中等黃、嚴重紅、超嚴重紅底粗體）。純粹回顧歷史事實，不是預測。
 
 #### 月度/年度績效報告
 
@@ -253,7 +253,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 | `interface/` | HTTP 端點 | 解析 request、讀 cookie、呼叫 repository 跟 application、包 `JSONResponse`/`TemplateResponse` | 不寫商業邏輯、不碰 SQLAlchemy |
 | `application/` | 用例編排 | 把多個 domain 函式串起來組成一個畫面/報表的結果 | 不碰 HTTP、不碰 session（拿到的是已經查好的資料） |
 | `domain/` | 純計算 | 回測、風險、XIRR、FIFO 損益、配置建議…全是純函式 | 不碰 DB、不碰 request |
-| `infrastructure/` | 對外系統 | SQLAlchemy models + `Repositories`、Firstrade 登入、yfinance 基本面抓取、CSV 匯出 | — |
+| `infrastructure/` | 對外系統 | SQLAlchemy models + `Repositories`、Firstrade 登入、yfinance 基本面抓取、CSV 匯出 | - |
 
 ```
 app/
@@ -315,16 +315,16 @@ render.yaml                      # Render 部署設定
 
 ### 為什麼這樣分層
 
-這是一人專案，這種分層對這個規模來說是「超規格」的 —— 但這裡值得，原因是：
+以一人維護的專案而言，這樣的分層規格看似偏高，但實際帶來以下效益：
 
-- **`domain/` 有近 30 個分析模組**（回測、風險、相關性、複利、DCA、DRIP、稅務…）。攤平在一個資料夾裡是一面牆，照「投組管理／市場分析／收益稅務／目標」分組後才找得到東西。
-- **測試靠的就是 domain 是純函式**：`tests/` 全部是不啟動伺服器、不碰 DB 的 `assert` 檔。把 I/O 擋在 `infrastructure/`、把 HTTP 擋在 `interface/`，domain 才能一直保持「給 dict、拿 dict」而好測。
-- **`Repositories` 是唯一碰 SQLAlchemy 的地方**：換 DB schema、加欄位、之後要不要接連線池，只改一個檔，40 個路由不用動。重構這批程式時，「介面層完全搜不到 `db.query`」本身就是一道防線。
-- **`application/` 讓路由變薄**：首頁那段 90 行的組裝邏輯（stats／建議／股利／已實現…）搬進 `application/dashboard.py` 後，路由只剩「查資料 → 呼叫 service → 回應」，那段組裝也能單獨測。
-- **`market_data.py` 是唯一 import `yfinance` 的地方**：原本十幾個 domain 模組各自 `import yfinance`、各自帶 `auto_adjust=True, progress=False`。現在全部走這個 gateway，網路層的預設值跟怪癖集中在一個檔，domain 模組不再直接相依一個網路套件。
-- **相依方向單向**：`domain/` 不 import `interface/` 或 `application/`，所以看一個計算函式不用先理解 web 框架或 ORM。`domain/` 對 `infrastructure/market_data` 的相依是刻意的例外——當成「像 `pandas` 一樣的資料存取工具」，沒有再為它加一層注入式的 port/adapter（對這個規模 CP 值不高）。
+- **`domain/` 有近 30 個分析模組**（回測、風險、相關性、複利、DCA、DRIP、稅務等）。若全部平放在同一層資料夾中會難以查找，依「投組管理／市場分析／收益稅務／目標」分組後才容易定位。
+- **測試仰賴 domain 為純函式**：`tests/` 全部是不啟動伺服器、不存取資料庫的 `assert` 測試檔。將 I/O 隔離於 `infrastructure/`、將 HTTP 隔離於 `interface/`，domain 才能維持「輸入 dict、輸出 dict」的可測性。
+- **`Repositories` 是唯一存取 SQLAlchemy 的地方**：異動資料庫結構、新增欄位，或日後導入連線池，只需修改單一檔案，40 個路由皆不受影響。重構過程中「介面層完全搜不到 `db.query`」本身即是一道驗證防線。
+- **`application/` 讓路由保持精簡**：首頁原本約 90 行的資料組裝邏輯（統計數字／建議／股利／已實現損益等）搬進 `application/dashboard.py` 後，路由只剩「查詢資料 → 呼叫 service → 回應」，組裝邏輯也可獨立測試。
+- **`market_data.py` 是唯一 import `yfinance` 的地方**：原本十餘個 domain 模組各自 `import yfinance`、各自帶入 `auto_adjust=True, progress=False`。現在統一經由此 gateway，網路層的預設值與行為差異集中於單一檔案，domain 模組不再直接依賴特定網路套件。
+- **相依方向單向**：`domain/` 不 import `interface/` 或 `application/`，理解一個計算函式無需先理解 web 框架或 ORM。`domain/` 對 `infrastructure/market_data` 的相依屬刻意例外，將其視為類似 `pandas` 的資料存取工具，未額外導入 port/adapter 注入層（以目前規模而言效益有限）。
 
-沒做的部分（對這個專案 CP 值不高，先不碰）：request/response 的 Pydantic DTO；`market_data` 的 port/adapter 依賴反轉（現在是直接 import）。
+尚未處理的部分（目前效益有限，暫不處理）：request/response 的 Pydantic DTO；`market_data` 的 port/adapter 依賴反轉（現為直接 import）。
 
 ## 本機開發
 
