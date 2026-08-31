@@ -50,10 +50,6 @@
       </form>
     </div>
     <div class="flex items-center gap-2">
-      {% if user %}<span class="text-xs opacity-60 hidden sm:inline">{{ user.email }}</span>{% endif %}
-      <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
-        <span id="theme-icon"></span>
-      </button>
       {% if snapshots %}
       <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
       <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>
@@ -64,6 +60,10 @@
         <button type="submit" class="btn btn-neutral btn-sm">重新抓取持股</button>
       </form>
       {% endif %}
+      <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
+        <span id="theme-icon"></span>
+      </button>
+      {% if user %}<span class="text-xs opacity-60 hidden sm:inline">{{ user.email }}</span>{% endif %}
       <form action="/logout" method="post">
         <button type="submit" class="btn btn-ghost btn-sm">登出</button>
       </form>
