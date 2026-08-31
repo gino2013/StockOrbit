@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>隱私權政策 · StockOrbit</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
+<style>body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }</style>
+</head>
+<body class="bg-base-200 min-h-screen p-4">
+  <div class="max-w-2xl mx-auto py-6">
+    <div class="card bg-base-100 shadow">
+      <div class="card-body gap-3 text-sm leading-relaxed">
+        <h1 class="text-xl font-bold">隱私權政策</h1>
+        <p class="opacity-70">StockOrbit 是個人開發的開源小工具，不做行銷、不賣資料、沒有第三方追蹤或分析工具。</p>
+
+        <h2 class="font-semibold mt-2">收集哪些資料</h2>
+        <ul class="list-disc list-inside opacity-80">
+          <li>Email、bcrypt 雜湊後的密碼（原始密碼不會被儲存）</li>
+          <li>選填：Firstrade 帳號、密碼、TOTP 密鑰，用伺服器端金鑰（<code>FT_CREDENTIAL_KEY</code>）加密儲存，只用來自動登入 Firstrade 抓取你自己的持股與交易紀錄</li>
+          <li>從 Firstrade 抓回來的持股、交易紀錄，僅存你自己帳號名下，其他使用者看不到</li>
+          <li>Session cookie（登入狀態用）、一個純前端顯示用的偏好 cookie（flex mode），都不含個資</li>
+        </ul>
+
+        <h2 class="font-semibold mt-2">怎麼使用這些資料</h2>
+        <p>唯一用途：讓你登入後看到自己的持股儀表板與分析。不會分享給第三方，不會用於行銷，不會賣給任何人。</p>
+
+        <h2 class="font-semibold mt-2">資料保留與刪除</h2>
+        <p>可以隨時在「設定」頁輸入你的 email 確認後，永久刪除帳號 —
+          會立即刪掉你名下所有資料表的資料列（持股快照、交易紀錄、目標配置、筆記、投資目標、Firstrade 連結），
+          無法復原、不會留備份。</p>
+
+        <h2 class="font-semibold mt-2">Firstrade 憑證的殘餘風險</h2>
+        <p>即使加密儲存，資料庫外洩加上加密金鑰一起外洩，仍等於你的 Firstrade 帳號被盜用 —
+          這是儲存第三方帳密本身無法完全消除的風險，請自行評估是否要提供，並使用獨立密碼。</p>
+
+        <h2 class="font-semibold mt-2">聯絡方式</h2>
+        <p>問題請到
+          <a href="https://github.com/gino2013/StockOrbit/issues" class="link" target="_blank" rel="noopener">GitHub Issues</a>。</p>
+
+        <p class="opacity-60 mt-2"><a href="/register" class="link">回註冊</a> ・ <a href="/terms" class="link">使用條款</a></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -346,9 +346,19 @@ cp .env.example .env   # 填入下面的環境變數
 | `FT_USERNAME` / `FT_PASSWORD` | 站台擁有者的 Firstrade 登入帳密 |
 | `FT_MFA_SECRET` | 2FA 的 TOTP 密鑰（**不是**簡訊/email 收到的驗證碼，也不是備用代碼）。在 Firstrade 網站設定「驗證應用程式」2FA 時，QR code 旁邊「無法掃描/手動輸入」連結會顯示這組字串。留空的話，帳號若開了 2FA，自動抓取會直接失敗 |
 | `FT_CREDENTIAL_KEY` | Fernet 金鑰，用來加密其他使用者存進來的 Firstrade 憑證（`python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`）。不設的話「連結 Firstrade」功能停用。**跟 `APP_SECRET_KEY` 分開，只放環境變數** |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS）。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結）。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER` |
 | `DATABASE_URL` | 資料庫連線字串，本機預設 `sqlite:///./stockorbit.db`，正式環境填 Postgres 連線字串 |
 
 `.env` 已加進 `.gitignore`，不會被提交。
+
+### 安全性與多使用者風險
+
+開放註冊後，其他人可以用自己的 email 註冊、在「設定」頁選擇性地連結自己的 Firstrade 帳號。這帶來幾個必須自己承擔的風險：
+
+- **儲存第三方券商帳密**：Firstrade 帳號、密碼、TOTP 密鑰以 `FT_CREDENTIAL_KEY` 加密後存進 `firstrade_credentials` 表。即便加密，**資料庫外洩加上 `FT_CREDENTIAL_KEY` 一起外洩，就等於每一個使用者的券商帳號被盜用**。金鑰只放環境變數、`render.yaml` 標 `sync: false`、不寫進資料庫或版控、不記進 log；但殘餘風險是真實的，隨使用者數量放大。
+- **非官方 scraper**：`firstrade==0.0.39` 是非官方套件，同一個 Render IP 大量登入可能被 Firstrade 判定為異常而鎖帳號。每個使用者的自動同步限流成 10 分鐘一次就是唯一的緩衝。
+- **緩解措施**：Firstrade 連結功能擋在 `email_verified` 後面；每人自動同步限流；帳號可在「設定」頁輸入自己的 email 確認後硬刪除全部資料（8 張表）；登入／註冊／忘記密碼有每 IP 的簡易限流（in-process，重啟會重置）。
+- **建議**：如果不想承擔上述風險，可以不設 `FT_CREDENTIAL_KEY`（連結功能整個停用），只用擁有者自己的 `FT_*` env 帳號跑單人模式。
 
 ## 部署（Render + Neon）
 
@@ -382,7 +392,7 @@ for f in tests/test_*.py; do .venv/bin/python "$f" || echo "FAILED: $f"; done
 - 持股歷史走勢／再平衡回測都支援多條比較線（分號分隔）與「移除我的持股組合」選項
 - favicon／頁首圖示換成柴犬圖片
 - 新增「接下來預測」（依目前 XIRR 推算未來各期間市值）跟「定投高點回本風險」（找出歷史上買在高點要很久才回本的熊市崩跌區間，圖表標出高低點）
-- 程式碼依 DDD 分層重構為 `domain/application/infrastructure/interface`；多使用者化基礎建設進行中（見 `docs/multi-user-architecture.md`）
+- 程式碼依 DDD 分層重構為 `domain/application/infrastructure/interface`；多使用者化進行中（見 `docs/multi-user-architecture.md`）：Email + 密碼登入、開放註冊、每人資料隔離、「設定」頁可連結自己的 Firstrade 帳號並各自同步、信箱驗證與重設密碼、登入／註冊限流、使用條款／隱私權頁
 
 ## 注意事項
 

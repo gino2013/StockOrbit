@@ -15,6 +15,7 @@
 
 ## 2026-08-31
 
+- 多使用者化第 6 步：開放註冊的安全性補強。新增 `app/infrastructure/mailer.py`（stdlib `smtplib`，不加新套件；`SMTP_HOST` 沒設時改成把信件內容寫進 log，本機／還沒接寄信服務時註冊不會卡住）。註冊後寄信箱驗證信（`/verify?token=`，15 分鐘有效，用 `itsdangerous` 簽章 + purpose salt 防止驗證連結被當重設連結用）；「設定」頁顯示驗證狀態並可「重寄驗證信」。新增忘記密碼流程（`/forgot` → 寄信 → `/reset?token=`），重設成功會 bump `session_version` 讓所有既有 session 失效。`/login`／`/register`／`/forgot` 加上每 IP 的簡易滑動視窗限流（in-process，重啟重置，`deque` 幾行搞定不加 `slowapi`）。新增 `/terms`、`/privacy` 靜態頁，從註冊頁連過去。README 補上「安全性與多使用者風險」段落與 `SMTP_*` 環境變數說明。新增 `tests/test_mailer.py`、`tests/test_email_flows.py`
 - 多使用者化第 5 步：`/settings` 頁（帳號資訊、變更密碼、Firstrade 連結、刪除帳號）。Firstrade 帳密用 `FT_CREDENTIAL_KEY` 加密存進 `firstrade_credentials`，只顯示「已連結・最後同步時間／錯誤訊息」，密碼欄位只寫不讀。`_login()` 改吃可選的 `FtCreds`：擁有者沒存帳密時退回 env（`FT_USERNAME`/`PASSWORD`/`MFA_SECRET`），其他使用者要先在設定頁連結才能同步；`/api/refresh` 因此開放給已連結帳密的一般使用者，並加上每人 10 分鐘節流（用 `last_sync_at`）。首頁自動同步比照辦理（擁有者或已連結者），第一次連結後不用等 30 分鐘過期就會馬上抓一次；新增「還沒有資料」空狀態導引到設定頁。Firstrade 表單擋在 `email_verified` 後面（信箱驗證還沒做，目前等於只有擁有者能用，故意保守）。變更密碼會讓其他裝置的登入 session 失效（bump `session_version`）但這個裝置維持登入；刪除帳號需要打字輸入自己的 email 確認，硬刪 8 張表裡屬於這個使用者的所有資料列
 - `9405100` 頁首右側控制項排序調整（issue #168）：改成「匯出CSV、匯出PDF、匯出交易紀錄、重新抓取持股、深色模式圖示、信箱、登出」，把跟使用者身分相關的兩個項目（深色模式切換、信箱）移到緊鄰登出按鈕左邊
 - `cf5e987` UI 修正一輪（issue #165）：「健康度總覽」nav 標籤還原成「持股健康度總覽」；頁首跟側邊欄的 StockOrbit icon／標題都改成可以點回首頁；側邊欄標題文字太淡沒加粗，拿掉 daisyUI menu-title 預設樣式改成粗體亮白；修正深色/淺色模式切換很慢的問題——原本每次切換都整頁 `location.reload()`，這頁面一堆區塊會在載入時自動打 yfinance API，改成純前端切換 `data-theme`，瞬間完成不用重新整理

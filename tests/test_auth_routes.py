@@ -10,6 +10,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_DB}"
 os.environ["APP_SECRET_KEY"] = "z" * 40
 os.environ.pop("OWNER_EMAIL", None)
 
+from fastapi import BackgroundTasks  # noqa: E402
 from starlette.requests import Request  # noqa: E402
 
 from app.infrastructure.db import SessionLocal, User  # noqa: E402
@@ -21,13 +22,17 @@ def _req(path="/x"):
                     "headers": [], "query_string": b"", "app": http.app})
 
 
+def _register(**kw):
+    return http.register(_req(), BackgroundTasks(), **kw)
+
+
 def _set_cookie_names(resp):
     return [h.decode().split("=", 1)[0] for k, h in resp.raw_headers if k == b"set-cookie"]
 
 
 def demo():
     # --- register ---
-    r = http.register(_req(), email="New@Test.co", password="password123")
+    r = _register(email="New@Test.co", password="password123")
     assert r.status_code == 303 and auth.COOKIE_NAME in _set_cookie_names(r)
     db = SessionLocal()
     u = db.query(User).filter(User.email == "new@test.co").first()
@@ -35,9 +40,9 @@ def demo():
     db.close()
 
     # duplicate / bad email / short password -> 400, no new row
-    assert http.register(_req(), email="new@test.co", password="password123").status_code == 400
-    assert http.register(_req(), email="nope", password="password123").status_code == 400
-    assert http.register(_req(), email="ok@test.co", password="short").status_code == 400
+    assert _register(email="new@test.co", password="password123").status_code == 400
+    assert _register(email="nope", password="password123").status_code == 400
+    assert _register(email="ok@test.co", password="short").status_code == 400
     db = SessionLocal()
     assert db.query(User).filter(User.is_owner.is_(False)).count() == 1  # only "new@test.co"
     db.close()

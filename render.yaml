@@ -27,6 +27,19 @@ services:
       # Unset -> per-user Firstrade sync is disabled. Keep separate from APP_SECRET_KEY.
       - key: FT_CREDENTIAL_KEY
         sync: false
+      # SMTP_*: sends the email-verification and password-reset mails.
+      # Unset -> mailer just logs the message (registration still works; the
+      # owner can read the pending verification link from the deploy log).
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
     # DB migrations are run by hand for now (free tier). On the existing prod DB, once:
     #   alembic stamp 0001_baseline && alembic upgrade head
     # then re-run `alembic upgrade head` after each future schema change.
