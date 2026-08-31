@@ -13,7 +13,6 @@ is not personal financial data.
 
 import os
 import sys
-import uuid
 from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -159,8 +158,7 @@ def seed():
         for symbol, note in NOTES.items():
             db.add(PositionNote(user_id=uid, symbol=symbol, note=note))
 
-        db.add(InvestmentGoal(id=uuid.uuid4().hex, user_id=uid,
-                              target_amount=100000.0, target_date=date(2032, 1, 1)))
+        db.add(InvestmentGoal(user_id=uid, target_amount=100000.0, target_date=date(2032, 1, 1)))
 
         db.commit()
     finally:
