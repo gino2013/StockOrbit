@@ -1,32 +1,46 @@
 """Wraps the unofficial `firstrade` package to fetch current holdings and
 account history (trades, dividends, interest, deposits).
 
-Requires FT_USERNAME / FT_PASSWORD env vars, and FT_MFA_SECRET (the TOTP
-secret, not a backup code) so login can complete without an interactive
-prompt for a mailed/texted one-time code.
+Two credential sources: explicit `FtCreds` (per-user, decrypted by the
+caller from `firstrade_credentials` - see app.infrastructure.crypto), or
+the FT_USERNAME / FT_PASSWORD / FT_MFA_SECRET env vars (the site owner's
+account, when no per-user credentials are passed). FT_MFA_SECRET/
+mfa_secret is the TOTP secret, not a backup code, so login can complete
+without an interactive prompt for a mailed/texted one-time code.
 """
 
 import json
 import os
+from dataclasses import dataclass
 from datetime import datetime
 
 from firstrade import account
 
 
-def _login() -> account.FTSession:
-    username = os.environ.get("FT_USERNAME")
-    password = os.environ.get("FT_PASSWORD")
-    mfa_secret = os.environ.get("FT_MFA_SECRET", "")
+@dataclass(frozen=True)
+class FtCreds:
+    username: str
+    password: str
+    mfa_secret: str = ""
+
+
+def _login(creds: FtCreds | None = None) -> account.FTSession:
+    if creds is not None:
+        username, password, mfa_secret = creds.username, creds.password, creds.mfa_secret
+    else:
+        username = os.environ.get("FT_USERNAME")
+        password = os.environ.get("FT_PASSWORD")
+        mfa_secret = os.environ.get("FT_MFA_SECRET", "")
     if not username or not password:
-        raise RuntimeError("FT_USERNAME / FT_PASSWORD are not set")
+        raise RuntimeError("Firstrade 帳號密碼未設定")
 
     session = account.FTSession(
         username=username, password=password, mfa_secret=mfa_secret, save_session=True
     )
     if session.login():
         raise RuntimeError(
-            "Firstrade login needs a one-time code and FT_MFA_SECRET was not "
-            "accepted. Set FT_MFA_SECRET to your TOTP secret for unattended login."
+            "Firstrade 登入需要一次性驗證碼，但 TOTP 密鑰未通過驗證。請確認輸入的是"
+            "「驗證應用程式」用的 TOTP 密鑰，不是簡訊/email 收到的驗證碼。"
         )
     return session
 

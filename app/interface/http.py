@@ -14,6 +14,7 @@ from app.application.tax import overseas_income_report, tax_loss_report
 from app.infrastructure import market_data
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import (
+    FirestradeCredential,
     SessionLocal,
     User,
     check_schema_matches_models,
@@ -21,8 +22,9 @@ from app.infrastructure.db import (
 )
 from app.interface import auth
 from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
+from app.infrastructure import crypto
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
-from app.infrastructure.firstrade_client import _login, fetch_positions, fetch_transactions
+from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.domain.portfolio.advice import build_advice
 from app.domain.portfolio.cash_deployment import suggest_cash_deployment
@@ -149,6 +151,114 @@ def logout():
     return resp
 
 
+def _settings_context(request: Request, user: User, **extra) -> dict:
+    with Repositories(user.id) as repo:
+        creds_row = repo.firstrade_credential()
+    return {
+        "user": user,
+        "ft_enabled": crypto.is_enabled(),
+        "ft_creds": creds_row,
+        "error": None,
+        "message": None,
+        **extra,
+    }
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    user = _current_user(request)
+    return templates.TemplateResponse(request, "settings.html", _settings_context(request, user))
+
+
+@app.post("/settings/change-password")
+def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+):
+    user = _current_user(request)
+    db = SessionLocal()
+    try:
+        db_user = db.query(User).filter(User.id == user.id).first()
+        if not auth.verify_password(current_password, db_user.password_hash):
+            db.expunge(db_user)
+            return templates.TemplateResponse(
+                request, "settings.html",
+                _settings_context(request, user, error="目前密碼不正確"), status_code=400,
+            )
+        if len(new_password) < 8:
+            db.expunge(db_user)
+            return templates.TemplateResponse(
+                request, "settings.html",
+                _settings_context(request, user, error="新密碼至少 8 個字元"), status_code=400,
+            )
+        db_user.password_hash = auth.hash_password(new_password)
+        db_user.session_version += 1  # log out every other session
+        db.commit()
+        cookie = auth.make_session_cookie(db_user)  # keep this session logged in
+    finally:
+        db.close()
+    resp = templates.TemplateResponse(
+        request, "settings.html", _settings_context(request, user, message="密碼已更新，其他登入裝置已被登出。")
+    )
+    resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
+    return resp
+
+
+@app.post("/settings/firstrade")
+def save_firstrade(
+    request: Request,
+    ft_username: str = Form(...),
+    ft_password: str = Form(...),
+    ft_mfa_secret: str = Form(""),
+):
+    user = _current_user(request)
+    if not crypto.is_enabled():
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="此站台尚未啟用 Firstrade 連結功能"), status_code=400,
+        )
+    if not user.email_verified:
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="此功能需要先完成信箱驗證"), status_code=403,
+        )
+    with Repositories(user.id) as repo:
+        repo.save_firstrade_credentials(
+            crypto.encrypt(ft_username.strip()),
+            crypto.encrypt(ft_password),
+            crypto.encrypt(ft_mfa_secret.strip()),
+        )
+    return templates.TemplateResponse(
+        request, "settings.html", _settings_context(request, user, message="已儲存，下次重新整理首頁會自動同步。")
+    )
+
+
+@app.post("/settings/firstrade/delete")
+def delete_firstrade(request: Request):
+    user = _current_user(request)
+    with Repositories(user.id) as repo:
+        repo.delete_firstrade_credentials()
+    return templates.TemplateResponse(
+        request, "settings.html", _settings_context(request, user, message="已移除 Firstrade 連結。")
+    )
+
+
+@app.post("/settings/delete-account")
+def delete_account(request: Request, confirm_email: str = Form(...)):
+    user = _current_user(request)
+    if confirm_email.strip().lower() != user.email.lower():
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="請輸入你的帳號 email 以確認刪除"), status_code=400,
+        )
+    with Repositories(user.id) as repo:
+        repo.delete_account()
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
+
+
 def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | None]:
     """Parse a "SYM:weight,SYM:weight" string, validating it sums to 100%.
     Returns (weights, None) or (None, error_message)."""
@@ -230,14 +340,45 @@ AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 FLEX_MODE_COOKIE = "flex_mode"
 
 
-def _refresh_and_save() -> None:
+def _stored_creds(repo: Repositories) -> tuple[FtCreds | None, FirestradeCredential | None]:
+    """Decrypt this user's stored Firstrade credentials, if any."""
+    row = repo.firstrade_credential()
+    if row is None:
+        return None, None
+    if not crypto.is_enabled():
+        raise RuntimeError("Firstrade 連結功能目前未啟用（FT_CREDENTIAL_KEY 未設定）")
+    creds = FtCreds(
+        username=crypto.decrypt(row.username_enc),
+        password=crypto.decrypt(row.password_enc),
+        mfa_secret=crypto.decrypt(row.mfa_secret_enc) if row.mfa_secret_enc else "",
+    )
+    return creds, row
+
+
+def _refresh_and_save(user: User) -> None:
     """Log into Firstrade, fetch positions + transactions + USD/TWD rate, save
-    a new snapshot. Raises on failure - callers decide whether that's fatal."""
-    session = _login()
-    positions = fetch_positions(session)
-    transactions = fetch_transactions(session)
-    with Repositories() as repo:
+    a new snapshot. Raises on failure - callers decide whether that's fatal.
+
+    Uses this user's stored credentials if they've connected one; the owner
+    falls back to the FT_* env vars when they haven't stored any. Everyone
+    else must connect an account first (see /settings)."""
+    with Repositories(user.id) as repo:
+        creds, creds_row = _stored_creds(repo)
+    if creds is None and not user.is_owner:
+        raise RuntimeError("尚未連結 Firstrade 帳號，請先到「設定」頁輸入帳密")
+    try:
+        session = _login(creds)
+        positions = fetch_positions(session)
+        transactions = fetch_transactions(session)
+    except Exception as e:
+        if creds_row is not None:
+            with Repositories(user.id) as repo:
+                repo.record_sync(ok=False, error=str(e))
+        raise
+    with Repositories(user.id) as repo:
         repo.save_refresh(positions, transactions, _fetch_usd_twd_rate())
+        if creds_row is not None:
+            repo.record_sync(ok=True, error=None)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -245,14 +386,19 @@ def dashboard(request: Request):
     user = _current_user(request)
     with Repositories() as repo:
         last_snapshot_at = repo.latest_snapshot_at()
+        has_creds = repo.firstrade_credential() is not None
 
-    # Only the owner auto-refreshes (env Firstrade credentials). Other users
-    # connect their own account on the settings page (a later step).
-    if user.is_owner and last_snapshot_at is not None:
-        stale = last_snapshot_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) - AUTO_REFRESH_STALE_AFTER
+    # The owner auto-refreshes from env credentials by default; anyone else
+    # only auto-refreshes once they've connected their own Firstrade account
+    # on the settings page. First-ever load after connecting (no snapshot
+    # yet) refreshes right away instead of waiting for the staleness window.
+    if user.is_owner or has_creds:
+        stale = last_snapshot_at is None or (
+            last_snapshot_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) - AUTO_REFRESH_STALE_AFTER
+        )
         if stale:
             try:
-                _refresh_and_save()
+                _refresh_and_save(user)
             except Exception:
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
@@ -269,19 +415,39 @@ def dashboard(request: Request):
             flex_mode=request.cookies.get(FLEX_MODE_COOKIE) == "1",
             as_of=datetime.now().date(),
         )
-    return templates.TemplateResponse(request, "dashboard.html", {**context, "user": user})
+    return templates.TemplateResponse(
+        request, "dashboard.html", {**context, "user": user, "ft_connected": has_creds}
+    )
+
+
+# ponytail: per-user, in-process only (resets on redeploy/restart) - fine for
+# a handful of users on a single Render instance; a shared store only matters
+# once this runs on more than one instance.
+MANUAL_REFRESH_COOLDOWN = timedelta(minutes=10)
 
 
 @app.post("/api/refresh")
 def refresh(request: Request):
-    if not _current_user(request).is_owner:
+    user = _current_user(request)
+    with Repositories(user.id) as repo:
+        creds_row = repo.firstrade_credential()
+    if creds_row is None and not user.is_owner:
         return HTMLResponse(
-            "<p>自動抓取目前只開放給站台擁有者。其他帳號的 Firstrade 連結功能開發中。</p>"
-            "<p><a href='/'>返回</a></p>",
-            status_code=403,
+            "<p>尚未連結 Firstrade 帳號，請先到「設定」頁輸入帳密。</p>"
+            "<p><a href='/settings'>前往設定</a></p>",
+            status_code=400,
         )
+    if creds_row is not None and creds_row.last_sync_at is not None:
+        last = creds_row.last_sync_at.replace(tzinfo=timezone.utc)
+        wait = MANUAL_REFRESH_COOLDOWN - (datetime.now(timezone.utc) - last)
+        if wait > timedelta(0):
+            minutes = max(1, int(wait.total_seconds() // 60) + 1)
+            return HTMLResponse(
+                f"<p>剛抓取過，請再等 {minutes} 分鐘後再試。</p><p><a href='/'>返回</a></p>",
+                status_code=429,
+            )
     try:
-        _refresh_and_save()
+        _refresh_and_save(user)
     except Exception as e:
         return HTMLResponse(f"<p>抓取失敗: {e}</p><p><a href='/'>返回</a></p>", status_code=400)
     return RedirectResponse("/", status_code=303)
