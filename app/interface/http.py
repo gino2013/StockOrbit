@@ -1,3 +1,4 @@
+import os
 import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
@@ -119,6 +120,14 @@ def _current_user(request: Request) -> User:
     return request.state.user  # guaranteed by _require_login for non-public paths
 
 
+def _email_verification_required() -> bool:
+    """Whether the Firstrade-credential form and CSV import are gated behind a
+    verified email. Default on; set REQUIRE_EMAIL_VERIFICATION=false to lift
+    the gate when no SMTP sender is configured (see mailer.py) - at the cost
+    of the open-registration abuse protection that gate provides."""
+    return os.environ.get("REQUIRE_EMAIL_VERIFICATION", "true").strip().lower() not in ("false", "0", "no")
+
+
 def _send_verification_email(request: Request, background_tasks: BackgroundTasks, email: str) -> None:
     token = auth.make_email_token("verify", email)
     link = f"{str(request.base_url).rstrip('/')}/verify?token={token}"
@@ -186,7 +195,8 @@ def register(request: Request, background_tasks: BackgroundTasks, email: str = F
             db.close()
     if err is not None:
         return templates.TemplateResponse(request, "register.html", {"error": err}, status_code=400)
-    _send_verification_email(request, background_tasks, email)
+    if _email_verification_required():
+        _send_verification_email(request, background_tasks, email)
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
     return resp
@@ -235,6 +245,12 @@ def forgot(request: Request, background_tasks: BackgroundTasks, email: str = For
         user = db.query(User).filter(User.email == email).first()
     finally:
         db.close()
+    # Honest, and leaks nothing about whether the account exists.
+    if not mailer.is_enabled():
+        return templates.TemplateResponse(
+            request, "forgot.html",
+            {"message": "站台尚未設定寄信服務，暫時無法用 email 重設密碼，請聯絡管理員。"},
+        )
     if user is not None:
         token = auth.make_email_token("reset", email)
         link = f"{str(request.base_url).rstrip('/')}/reset?token={token}"
@@ -297,6 +313,8 @@ def _settings_context(request: Request, user: User, **extra) -> dict:
         "user": user,
         "ft_enabled": crypto.is_enabled(),
         "ft_creds": creds_row,
+        "require_email_verification": _email_verification_required(),
+        "mail_enabled": mailer.is_enabled(),
         "error": None,
         "message": None,
         **extra,
@@ -315,6 +333,17 @@ def resend_verification(request: Request, background_tasks: BackgroundTasks):
     if user.email_verified:
         return templates.TemplateResponse(
             request, "settings.html", _settings_context(request, user, message="這個帳號已經驗證過了。")
+        )
+    if not _email_verification_required():
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, message="此站台目前未要求信箱驗證，不需要驗證。"),
+        )
+    if not mailer.is_enabled():
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="站台尚未設定寄信服務（SMTP），沒辦法寄驗證信，請聯絡管理員。"),
+            status_code=503,
         )
     if _rate_limited(f"resend-verify:{user.id}", limit=3, window_seconds=600):
         return templates.TemplateResponse(
@@ -375,7 +404,7 @@ def save_firstrade(
             request, "settings.html",
             _settings_context(request, user, error="此站台尚未啟用 Firstrade 連結功能"), status_code=400,
         )
-    if not user.email_verified:
+    if _email_verification_required() and not user.email_verified:
         return templates.TemplateResponse(
             request, "settings.html",
             _settings_context(request, user, error="此功能需要先完成信箱驗證"), status_code=403,
@@ -431,7 +460,7 @@ async def _read_upload(file: UploadFile) -> str:
 
 async def _handle_import(request: Request, file: UploadFile, kind: str):
     user = _current_user(request)
-    if not user.email_verified:
+    if _email_verification_required() and not user.email_verified:
         return templates.TemplateResponse(
             request, "settings.html",
             _settings_context(request, user, error="匯入功能需要先完成信箱驗證"), status_code=403,
