@@ -55,7 +55,7 @@
       <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>
       <a href="/api/export/transactions-csv" class="btn btn-ghost btn-sm">匯出交易紀錄</a>
       {% endif %}
-      {% if user and user.is_owner %}
+      {% if user and (user.is_owner or ft_connected) %}
       <form action="/api/refresh" method="post">
         <button type="submit" class="btn btn-square btn-ghost btn-sm" aria-label="重新抓取持股" title="重新抓取持股">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
@@ -65,7 +65,8 @@
       <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
         <span id="theme-icon"></span>
       </button>
-      {% if user %}<span class="text-xs opacity-60 hidden sm:inline">{{ user.email }}</span>{% endif %}
+      {% if user %}<span class="text-xs opacity-60 hidden sm:inline">{{ user.email }}</span>
+      <a href="/settings" class="btn btn-ghost btn-sm">設定</a>{% endif %}
       <form action="/logout" method="post">
         <button type="submit" class="btn btn-ghost btn-sm">登出</button>
       </form>
@@ -73,6 +74,22 @@
   </header>
 
   {% include "sections/_shared.html" %}
+
+  {% if not snapshots %}
+  <div class="hero bg-base-100 rounded-box shadow py-16">
+    <div class="hero-content text-center">
+      <div class="max-w-md">
+        <h2 class="text-xl font-bold mb-2">還沒有資料</h2>
+        {% if user and (user.is_owner or ft_connected) %}
+        <p class="opacity-70 mb-4">連結的 Firstrade 帳號還沒同步過，點選右上角「重新抓取持股」試試看。</p>
+        {% else %}
+        <p class="opacity-70 mb-4">到「設定」頁連結你的 Firstrade 帳號，就能開始追蹤持股。</p>
+        <a href="/settings" class="btn btn-primary btn-sm">前往設定</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   {% if snapshots %}
   <!-- Stat cards -->

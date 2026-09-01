@@ -22,6 +22,7 @@ from sqlalchemy import desc
 
 from app.infrastructure.db import (
     ExchangeRateSnapshot,
+    FirestradeCredential,
     FundamentalsCache,
     InvestmentGoal,
     PositionNote,
@@ -214,6 +215,67 @@ class Repositories:
         if existing:
             self._db.delete(existing)
             self._db.commit()
+
+    # --- firstrade credentials -------------------------------------------------
+
+    def firstrade_credential(self) -> FirestradeCredential | None:
+        return self._db.query(FirestradeCredential).filter(
+            FirestradeCredential.user_id == self._user_id
+        ).first()
+
+    def save_firstrade_credentials(
+        self, username_enc: str, password_enc: str, mfa_secret_enc: str
+    ) -> None:
+        existing = self.firstrade_credential()
+        if existing:
+            existing.username_enc = username_enc
+            existing.password_enc = password_enc
+            existing.mfa_secret_enc = mfa_secret_enc
+            existing.last_sync_error = None
+        else:
+            self._db.add(
+                FirestradeCredential(
+                    user_id=self._user_id,
+                    username_enc=username_enc,
+                    password_enc=password_enc,
+                    mfa_secret_enc=mfa_secret_enc,
+                )
+            )
+        self._db.commit()
+
+    def delete_firstrade_credentials(self) -> None:
+        self._db.query(FirestradeCredential).filter(
+            FirestradeCredential.user_id == self._user_id
+        ).delete()
+        self._db.commit()
+
+    def record_sync(self, *, ok: bool, error: str | None) -> None:
+        row = self.firstrade_credential()
+        if row is None:
+            return
+        row.last_sync_at = datetime.now(timezone.utc)
+        row.last_sync_error = None if ok else error
+        self._db.commit()
+
+    # --- account deletion --------------------------------------------------
+
+    def delete_account(self) -> None:
+        """Hard-delete every row this user owns, then the user itself.
+
+        Not reversible - the caller (a route behind the user's own confirmed
+        click, see /settings/delete-account) is responsible for that being
+        intentional.
+        """
+        for model in (
+            PositionSnapshot, Transaction, TargetAllocation,
+            PositionNote, TransactionNote, InvestmentGoal,
+        ):
+            self._mine(model).delete()
+        self._db.query(FirestradeCredential).filter(
+            FirestradeCredential.user_id == self._user_id
+        ).delete()
+        self._db.query(User).filter(User.id == self._user_id).delete()
+        self._db.commit()
 
     # --- global market data (NOT user-scoped) -----------------------------
 
