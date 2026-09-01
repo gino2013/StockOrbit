@@ -1,0 +1,60 @@
+  <h2 id="section-notes" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股筆記
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。</p>
+      <div class="flex flex-col gap-1">
+        {% for s in snapshots if s.symbol != 'CASH' %}
+        <details class="collapse collapse-arrow bg-base-200" {% if notes_by_symbol.get(s.symbol) %}open{% endif %}>
+          <summary class="collapse-title text-sm font-medium py-2 min-h-0">
+            {{ s.symbol }}
+            <span class="badge badge-xs badge-primary ml-2 note-badge" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">有筆記</span>
+          </summary>
+          <div class="collapse-content">
+            <div class="note-view" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">
+              <p class="text-sm whitespace-pre-wrap">{{ notes_by_symbol.get(s.symbol) }}</p>
+              <button type="button" onclick="toggleNoteEdit(this)" class="btn btn-ghost btn-xs mt-2">編輯</button>
+            </div>
+            <div class="note-edit flex flex-col gap-2" data-symbol="{{ s.symbol }}" style="display:{{ 'none' if notes_by_symbol.get(s.symbol) else 'flex' }}">
+              <textarea rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
+              <button type="button" onclick="saveNote(this)" class="btn btn-neutral btn-xs self-end">儲存</button>
+            </div>
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+<script>
+// Click a <th> to sort the table body by that column (click again to
+// reverse). Parses "$1,234", "12.3%", "1.38" etc. by stripping symbols;
+// falls back to alphabetical for non-numeric columns (代號, 產業, 建議動作...).
+// Rows whose cell isn't numeric always sort to the end regardless of column.
+function toggleNoteEdit(btn) {
+  const view = btn.closest('.note-view');
+  const editBox = view.nextElementSibling;
+  view.style.display = 'none';
+  editBox.style.display = 'flex';
+  editBox.querySelector('textarea').focus();
+}
+async function saveNote(btn) {
+  const editBox = btn.closest('.note-edit');
+  const textarea = editBox.querySelector('textarea');
+  const symbol = editBox.dataset.symbol;
+  btn.disabled = true;
+  const body = new FormData();
+  body.set('symbol', symbol);
+  body.set('note', textarea.value);
+  await fetch('/api/notes', { method: 'POST', body });
+  btn.disabled = false;
+
+  const details = editBox.closest('details');
+  details.querySelector('.note-badge').style.display = textarea.value ? '' : 'none';
+  const view = editBox.previousElementSibling;
+  view.querySelector('p').textContent = textarea.value;
+  editBox.style.display = 'none';
+  view.style.display = '';
+}
+</script>

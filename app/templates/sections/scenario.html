@@ -1,0 +1,72 @@
+  <h2 id="section-scenario" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>情境模擬：大盤下跌估計跌幅
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用既有貝塔資料（vs SPY）粗算「持股跌幅 ≈ 貝塔 × 大盤跌幅」的簡化線性估計，<b>純數學推估，不是預測會不會發生</b>。真實下跌不一定跟貝塔完全成比例，極端行情落差會更大，僅供參考。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="join">
+          <button type="button" onclick="loadScenario(-0.10)" class="btn btn-sm join-item">-10%</button>
+          <button type="button" onclick="loadScenario(-0.20)" class="btn btn-sm join-item">-20%</button>
+          <button type="button" onclick="loadScenario(-0.30)" class="btn btn-sm join-item">-30%</button>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">自訂大盤跌幅 (%)</label>
+          <input id="scenario-custom" type="number" placeholder="15" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="loadScenario()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="scenario-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="scenario-content" class="overflow-x-auto mt-3"></div>
+    </div>
+  </div>
+
+<script>
+// --- 情境模擬：大盤下跌估計跌幅 ---
+async function loadScenario(presetChange) {
+  const errorBox = document.getElementById('scenario-error');
+  const content = document.getElementById('scenario-content');
+  errorBox.classList.add('hidden');
+
+  let marketChange = presetChange;
+  if (marketChange === undefined) {
+    const custom = parseFloat(document.getElementById('scenario-custom').value);
+    if (isNaN(custom)) return;
+    marketChange = -Math.abs(custom) / 100;
+  }
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch(`/api/scenario?market_change=${marketChange}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = `<p class="text-sm mb-2">大盤跌 ${fmtPct(data.market_change)} 時，組合估計跌幅：` +
+    `<b class="text-error">${fmtPct(data.portfolio_change)}</b>` +
+    ` (約 ${data.portfolio_value_change.toLocaleString('en-US', { maximumFractionDigits: 0 })})</p>`;
+  if (data.uncovered_symbols && data.uncovered_symbols.length) {
+    html += `<p class="text-xs opacity-60 mb-2">${escapeHtml(data.uncovered_symbols.join('、'))} 缺乏足夠歷史資料算不出 Beta，估計中暫時視為不受影響（低估這幾檔的下跌幅度）。</p>`;
+  }
+  html += '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">Beta</th><th class="text-right">目前市值</th>' +
+    '<th class="text-right">估計跌幅</th><th class="text-right">估計金額變化</th></tr></thead><tbody>';
+  for (const r of data.items) {
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtNum(r.beta, 2)}</td>
+      <td class="text-right">${r.current_value.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+      <td class="text-right ${posNegClass(r.estimated_change)}">${r.estimated_change == null ? '-' : fmtPct(r.estimated_change)}</td>
+      <td class="text-right ${posNegClass(r.estimated_value_change)}">${r.estimated_value_change.toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
+}
+</script>

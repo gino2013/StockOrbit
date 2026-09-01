@@ -1,0 +1,54 @@
+  <h2 id="section-risk" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>風險與波動指標
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">歷史波動度／回撤／Beta，是回顧過去的風險數據，不是走勢預測，不構成投資建議。</p>
+        <button type="button" onclick="loadRisk()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="risk-error" class="alert alert-error text-sm hidden"></div>
+      <div id="risk-content" class="overflow-x-auto"></div>
+    </div>
+  </div>
+
+<script>
+async function loadRisk() {
+  const errorBox = document.getElementById('risk-error');
+  const content = document.getElementById('risk-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/risk');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">波動度(30日)</th><th class="text-right">波動度(90日)</th>' +
+    '<th class="text-right">近1年最大回撤</th><th class="text-right">Beta (vs SPY)</th><th>下次財報</th></tr></thead><tbody>';
+  for (const r of data.items) {
+    const cacheNote = r._cached_at
+      ? ` <span class="opacity-40 text-xs" title="即時查詢失敗，顯示上次快取資料">(快取 ${r._cached_at.slice(0, 10)})</span>`
+      : '';
+    const earningsLabel = r.next_earnings_date
+      ? `${r.next_earnings_date}${r.earnings_soon ? ' <span class="badge badge-warning badge-sm">近期有財報</span>' : ''}${cacheNote}`
+      : '';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtPctOrDash(r.volatility_30d)}</td>
+      <td class="text-right">${fmtPctOrDash(r.volatility_90d)}</td>
+      <td class="text-right text-error">${fmtPctOrDash(r.max_drawdown_1y)}</td>
+      <td class="text-right ${betaClass(r.beta)}">${fmtNum(r.beta, 2)}</td>
+      <td class="whitespace-nowrap">${earningsLabel}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
+}
+</script>

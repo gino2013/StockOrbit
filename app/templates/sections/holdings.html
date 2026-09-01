@@ -1,0 +1,439 @@
+  <h2 id="section-holdings" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股與配置
+  </h2>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <div class="lg:col-span-2 card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-base">目前持股</h2>
+        {% if snapshots %}
+        <div class="flex flex-col gap-4">
+          <div class="overflow-x-auto">
+            <table id="holdings-table" class="table table-sm">
+              <thead>
+                <tr>
+                  <th>代號</th>
+                  <th>股數</th>
+                  <th>買入均價</th>
+                  <th>現價</th>
+                  <th>漲跌幅</th>
+                  <th>市值</th>
+                  <th>目前佔比</th>
+                  <th>目標佔比</th>
+                  <th>差距</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in snapshots %}
+                {% set current = advice.allocation.get(s.symbol, 0) %}
+                {% set target = targets.get(s.symbol) %}
+                {% set avg_cost = (s.cost_basis / s.quantity) if s.quantity else 0 %}
+                <tr>
+                  <td class="font-medium">{{ s.symbol }}</td>
+                  <td>{{ s.quantity }}</td>
+                  <td>${{ "{:,.2f}".format(avg_cost) }}</td>
+                  <td class="{{ 'text-success' if s.price > avg_cost else 'text-error' if s.price < avg_cost else '' }}">${{ "{:,.2f}".format(s.price) }}</td>
+                  {% set price_change_pct = (s.price / avg_cost - 1) if avg_cost else 0 %}
+                  <td class="{{ 'text-success' if price_change_pct > 0 else 'text-error' if price_change_pct < 0 else '' }}">{{ "{:+.1%}".format(price_change_pct) }}</td>
+                  <td>${{ "{:,.2f}".format(s.market_value) }}</td>
+                  <td>{{ "{:.1%}".format(current) }}</td>
+                  <td>{{ "{:.0%}".format(target) if target is not none else '-' }}</td>
+                  <td>
+                    {% if target is not none %}
+                    {% set diff = current - target %}
+                    <span class="{{ 'text-success' if diff > 0 else 'text-error' if diff < 0 else 'opacity-60' }} {{ 'font-medium' if diff|abs > 0.05 else '' }}">
+                      {{ "{:+.1%}".format(diff) }}
+                    </span>
+                    {% else %}
+                    <span class="opacity-40">-</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="flex flex-col sm:flex-row gap-4">
+            <div class="flex-1">
+              <p class="text-xs text-center opacity-60 mb-1">個股配置</p>
+              <div class="w-full max-w-md h-80 mx-auto"><canvas id="allocationChart"></canvas></div>
+            </div>
+            {% if sector_allocation %}
+            <div class="flex-1">
+              <p class="text-xs text-center opacity-60 mb-1">產業配置</p>
+              <div class="w-full max-w-md h-80 mx-auto"><canvas id="sectorChart"></canvas></div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        {% if user and user.is_owner %}
+        <p class="text-sm opacity-60">還沒有資料，按右上角「重新抓取持股」開始。</p>
+        {% else %}
+        <p class="text-sm opacity-60">還沒有你的持股資料。連結 Firstrade 帳號的功能開發中，敬請期待。</p>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-6">
+      {% if advice %}
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-base">建議</h2>
+            <button type="button" onclick="loadAdvancedAdvice()" class="btn btn-ghost btn-xs">查詢進階建議</button>
+          </div>
+          <ul class="space-y-2 text-sm">
+            {% for note in advice.advice %}
+            <li class="flex gap-2">
+              <span class="text-primary">•</span>
+              <span>{{ note }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          <p class="text-xs opacity-50 mt-1">進階建議會查最近大漲大跌、即將公布的財報、近一年最大回撤，都是回顧過去的客觀數據，不是預測未來走勢或黑天鵝事件，不構成投資建議。</p>
+          <div id="advanced-advice-error" class="alert alert-error text-sm hidden mt-2"></div>
+          <ul id="advanced-advice-list" class="space-y-2 text-sm mt-2"></ul>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if snapshots %}
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <div class="flex items-center justify-between">
+            <h2 class="card-title text-base">近期市場動態</h2>
+            <button type="button" onclick="loadMarketMoves()" class="btn btn-ghost btn-xs">查詢</button>
+          </div>
+          <p class="text-xs opacity-60 -mt-2">規則判斷的大漲大跌提醒，加上各檔最新新聞標題原文列出，並用關鍵字簡易判斷利多（綠）／利空（紅），不是真的語意分析，僅供參考。</p>
+          <div id="market-moves-error" class="alert alert-error text-sm hidden"></div>
+          <div id="market-moves-content" class="text-sm space-y-3"></div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card bg-base-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="card-title text-base">目標配置</h2>
+          <p class="text-xs opacity-60 -mt-2">權重總和需為 100%。輸入已存在的代號會覆蓋原本的權重。</p>
+          <div id="targets-warning-1"></div>
+          <div id="targets-table-wrap">
+            {% if targets %}
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>代號</th>
+                  <th class="text-right">目前</th>
+                  <th class="text-right">目標</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="targets-tbody"></tbody>
+            </table>
+            {% endif %}
+          </div>
+          <form id="target-form" class="flex gap-2 mt-1">
+            <div class="relative">
+              <input id="target-symbol" name="symbol" placeholder="AAPL" required autocomplete="off"
+                class="input input-bordered input-sm w-24">
+              <ul id="target-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
+            <input id="target-weight" name="target_weight" type="number" step="0.01" min="0" max="1" placeholder="0.2" required
+              class="input input-bordered input-sm w-20">
+            <button type="submit" class="btn btn-neutral btn-sm">設定</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+function fillTargetForm(symbol, weight) {
+  document.getElementById('target-symbol').value = symbol;
+  document.getElementById('target-weight').value = weight;
+  document.getElementById('target-weight').focus();
+}
+makeSortable(document.getElementById('holdings-table'));
+attachTickerAutocomplete('target-symbol', 'target-symbol-suggestions');
+// Combines already-existing endpoints (market-moves' price swings, risk's
+// earnings-date/drawdown) with the allocation/targets already embedded in
+// this page, rather than adding new backend logic - cross-referencing a
+// swing against how far that symbol already is from its target turns "IONQ
+// is up 24%" into "...and it's now 1.3pp over target, maybe trim it".
+async function loadAdvancedAdvice() {
+  const errorBox = document.getElementById('advanced-advice-error');
+  const list = document.getElementById('advanced-advice-list');
+  errorBox.classList.add('hidden');
+  list.innerHTML = '<li class="opacity-60">查詢中…</li>';
+
+  const [movesRes, riskRes] = await Promise.all([
+    fetch('/api/market-moves'),
+    fetch('/api/risk'),
+  ]);
+  const moves = await movesRes.json();
+  const risk = await riskRes.json();
+  if (moves.error || risk.error) {
+    list.innerHTML = '';
+    errorBox.textContent = moves.error || risk.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const notes = [];
+  for (const s of moves.swings) {
+    const symbol = s.symbol;
+    const swingText = s.notes.join('，');
+    const current = allocation[symbol];
+    const target = targets[symbol];
+    if (target != null && current != null) {
+      const drift = current - target;
+      if (Math.abs(drift) > 0.02) {
+        const action = drift > 0 ? '減碼' : '加碼';
+        notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}，目前佔比 ${(current * 100).toFixed(1)}% 跟目標 ${(target * 100).toFixed(0)}% 偏離 ${(Math.abs(drift) * 100).toFixed(1)}%，可留意是否要${action}貼近目標。`);
+      } else {
+        notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}，目前佔比仍貼近目標，先觀察即可。`);
+      }
+    } else {
+      notes.push(`<b>${escapeHtml(symbol)}</b> ${escapeHtml(swingText)}（沒有設定目標配置，僅供留意）。`);
+    }
+  }
+
+  for (const r of risk.items) {
+    if (r.earnings_soon) {
+      notes.push(`<b>${escapeHtml(r.symbol)}</b> 即將公布財報（${escapeHtml(r.next_earnings_date)}），歷史上財報前後波動可能放大，留意持股部位。`);
+    }
+    if (r.max_drawdown_1y != null && r.max_drawdown_1y < -0.4) {
+      notes.push(`<b>${escapeHtml(r.symbol)}</b> 近一年最大回撤達 ${Math.abs(r.max_drawdown_1y * 100).toFixed(0)}%，波動風險偏高（歷史數據，不是預測）。`);
+    }
+  }
+
+  list.innerHTML = notes.length
+    ? notes.map((n) => `<li class="flex gap-2"><span class="text-warning">•</span><span>${n}</span></li>`).join('')
+    : '<li class="opacity-60">目前沒有明顯的大漲大跌、近期財報、或高波動提醒。</li>';
+}
+async function loadMarketMoves() {
+  const errorBox = document.getElementById('market-moves-error');
+  const content = document.getElementById('market-moves-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/market-moves');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '';
+  if (data.swings.length) {
+    html += '<div><p class="font-medium mb-1">大漲大跌</p><ul class="space-y-1">';
+    for (const s of data.swings) {
+      html += `<li>• <b>${escapeHtml(s.symbol)}</b>：${escapeHtml(s.notes.join('，'))}</li>`;
+    }
+    html += '</ul></div>';
+  } else {
+    html += '<p class="opacity-60">目前沒有明顯的大漲大跌（單日 5% / 5 日 10% 門檻）。</p>';
+  }
+
+  const newsSymbols = Object.keys(data.news);
+  if (newsSymbols.length) {
+    html += '<div class="mt-3"><p class="font-medium mb-1">近期新聞</p><ul class="space-y-1.5">';
+    for (const sym of newsSymbols) {
+      for (const n of data.news[sym]) {
+        const safeTitle = escapeHtml(n.title);
+        const sentClass = sentimentClass(n.sentiment);
+        const label = n.url && n.url.startsWith('http')
+          ? `<a href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer" class="link link-hover ${sentClass}">${safeTitle}</a>`
+          : `<span class="${sentClass}">${safeTitle}</span>`;
+        const publisher = n.publisher ? ` <span class="opacity-50">(${escapeHtml(n.publisher)})</span>` : '';
+        html += `<li>• <b>${escapeHtml(sym)}</b>：${label}${publisher}</li>`;
+      }
+    }
+    html += '</ul></div>';
+  }
+  content.innerHTML = html;
+}
+const allocation = {{ advice.allocation | default({}) | tojson }};
+let targets = {{ targets | default({}) | tojson }};
+const snapshotBySymbol = Object.fromEntries(
+  {{ snapshots | default([]) | tojson }}.map(s => [s.symbol, s])
+);
+const symbolSectorBuckets = {{ symbol_sector_buckets | default({}) | tojson }};
+const sectorAllocation = {{ sector_allocation | default({}) | tojson }};
+// Setting/editing/deleting a target used to be a native form POST that
+// 303-redirected back to `/`, which re-runs the whole dashboard() route -
+// including the 30-minute-stale auto-refresh check, which can mean a full
+// Firstrade login before the page even repaints. That made a one-field
+// edit feel like it hung. Now the table/warnings update from the in-memory
+// `targets` object immediately, and the actual save happens in the
+// background - the round-trip no longer blocks anything the user sees.
+function renderTargetsTable() {
+  const wrap = document.getElementById('targets-table-wrap');
+  const symbols = Object.keys(targets);
+  if (!symbols.length) {
+    wrap.innerHTML = '';
+    return;
+  }
+  if (!document.getElementById('targets-tbody')) {
+    wrap.innerHTML = '<table class="table table-sm"><thead><tr><th>代號</th><th class="text-right">目前</th><th class="text-right">目標</th><th></th></tr></thead><tbody id="targets-tbody"></tbody></table>';
+  }
+  document.getElementById('targets-tbody').innerHTML = symbols.map((symbol) => {
+    const current = allocation[symbol] || 0;
+    const weight = targets[symbol];
+    return `<tr>
+      <td class="font-medium">${escapeHtml(symbol)}</td>
+      <td class="text-right opacity-70">${(current * 100).toFixed(1)}%</td>
+      <td class="text-right">${(weight * 100).toFixed(0)}%</td>
+      <td class="text-right whitespace-nowrap">
+        <button type="button" onclick="fillTargetForm('${escapeHtml(symbol)}', ${weight})" class="btn btn-ghost btn-xs">編輯</button>
+        <button type="button" onclick="deleteTargetOptimistic('${escapeHtml(symbol)}')" class="btn btn-ghost btn-xs text-error">刪除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTargetsWarning() {
+  const sum = Object.values(targets).reduce((a, b) => a + b, 0);
+  // 0.001 (0.1 percentage point) is enough to absorb float rounding noise
+  // (e.g. summing 11 stored weights landing on 99.99% instead of exactly
+  // 100%) while still catching a real 1-point miss like 99% or 101% - the
+  // old 0.01 threshold excluded exactly those real misses at its boundary
+  // (|0.99 - 1| = 0.01 is not > 0.01), which read as "only checks >100%".
+  const off = Object.keys(targets).length > 0 && Math.abs(sum - 1) > 0.001;
+  const pct = (sum * 100).toFixed(1);
+  const w1 = document.getElementById('targets-warning-1');
+  const w2 = document.getElementById('targets-warning-2');
+  if (w1) {
+    w1.innerHTML = off
+      ? `<div class="alert alert-warning text-sm py-2">目前權重總和是 ${pct}%，不是 100%。「再平衡建議金額」的計算會照這個總和換算，買入/賣出總額不會剛好抵銷，等於隱含要另外存入或領出現金。建議調整到剛好 100%。</div>`
+      : '';
+  }
+  if (w2) {
+    w2.innerHTML = off
+      ? `<div class="alert alert-warning text-sm py-2">目標配置權重總和是 ${pct}%，不是 100%，以下買入/賣出金額不會剛好互相抵銷。</div>`
+      : '';
+  }
+}
+
+// /api/backtest reads target weights straight from the DB (not from
+// anything the frontend sends), so once a save/delete round-trip lands,
+// re-running it picks up the corrected weights automatically - no need to
+// pass the new targets through. Without this, the backtest card kept
+// showing whatever error/result came from the *previous* page load's
+// weights (e.g. a stale "權重總和需為 100%" error) until a full reload,
+// even after the user had already fixed the weight sum above it.
+function rerunBacktestIfPresent() {
+  const form = document.getElementById('backtest-form');
+  if (form) form.requestSubmit();
+}
+
+function saveTargetInBackground(symbol, weight) {
+  fetch('/api/targets', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ symbol, target_weight: weight }),
+  })
+    .then(rerunBacktestIfPresent)
+    .catch(() => alert(`儲存 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
+}
+
+function submitTargetForm(event) {
+  event.preventDefault();
+  const symbolInput = document.getElementById('target-symbol');
+  const weightInput = document.getElementById('target-weight');
+  const symbol = symbolInput.value.trim().toUpperCase();
+  const weight = parseFloat(weightInput.value);
+  if (!symbol || Number.isNaN(weight)) return false;
+
+  targets[symbol] = weight;
+  renderTargetsTable();
+  renderTargetsWarning();
+  symbolInput.value = '';
+  weightInput.value = '';
+  saveTargetInBackground(symbol, weight);
+  return false;
+}
+
+function deleteTargetOptimistic(symbol) {
+  delete targets[symbol];
+  renderTargetsTable();
+  renderTargetsWarning();
+  fetch('/api/targets/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ symbol }),
+  })
+    .then(rerunBacktestIfPresent)
+    .catch(() => alert(`刪除 ${symbol} 目標配置失敗，請重新整理頁面確認。`));
+}
+
+document.getElementById('target-form').addEventListener('submit', submitTargetForm);
+renderTargetsTable();
+renderTargetsWarning();
+// Individual stocks are colored by their sector (see symbolSectorBuckets),
+// not Chart.js's auto-palette per dataset index - so a stock's slice in
+// 個股配置 visually matches its sector's slice in 產業配置. Sector names are
+// sorted for a stable color assignment regardless of iteration order.
+const SECTOR_COLOR_PALETTE = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#06b6d4', '#eab308'];
+const sortedSectorNames = Object.keys(sectorAllocation).sort();
+function colorForSector(sector) {
+  const idx = sortedSectorNames.indexOf(sector);
+  return idx === -1 ? '#94a3b8' : SECTOR_COLOR_PALETTE[idx % SECTOR_COLOR_PALETTE.length];
+}
+
+if (Object.keys(allocation).length) {
+  const symbolLabels = Object.keys(allocation);
+  new Chart(document.getElementById('allocationChart'), {
+    type: 'doughnut',
+    data: {
+      labels: symbolLabels,
+      datasets: [{
+        data: Object.values(allocation).map(v => v * 100),
+        backgroundColor: symbolLabels.map(sym => colorForSector(symbolSectorBuckets[sym])),
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const s = snapshotBySymbol[ctx.label];
+              const mv = s ? ` ($${Math.round(s.market_value).toLocaleString()})` : '';
+              return ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%${mv}`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+if (sortedSectorNames.length) {
+  const sectorTotal = Object.values(sectorAllocation).reduce((a, b) => a + b, 0);
+  new Chart(document.getElementById('sectorChart'), {
+    type: 'doughnut',
+    data: {
+      labels: sortedSectorNames,
+      datasets: [{
+        data: sortedSectorNames.map(s => sectorAllocation[s] / sectorTotal * 100),
+        backgroundColor: sortedSectorNames.map(colorForSector),
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}% ($${Math.round(sectorAllocation[ctx.label]).toLocaleString()})`,
+          },
+        },
+      },
+    },
+  });
+}
+</script>

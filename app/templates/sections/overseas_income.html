@@ -1,0 +1,57 @@
+  <h2 id="section-overseas-income" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>海外所得試算
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs opacity-60">用已實現資本利得＋股利估算年度海外所得，不是正式稅務建議，實際申報門檻與規則請以財政部公告或會計師意見為準。</p>
+        <div class="flex items-center gap-2 shrink-0">
+          <input id="overseas-income-year" type="number" class="input input-bordered input-xs w-20" placeholder="年份">
+          <button type="button" onclick="loadOverseasIncome()" class="btn btn-ghost btn-xs">查詢</button>
+        </div>
+      </div>
+      <div id="overseas-income-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="overseas-income-content" class="mt-2"></div>
+    </div>
+  </div>
+
+<script>
+async function loadOverseasIncome() {
+  const errorBox = document.getElementById('overseas-income-error');
+  const content = document.getElementById('overseas-income-content');
+  const yearInput = document.getElementById('overseas-income-year');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const year = yearInput.value || new Date().getFullYear();
+  const res = await fetch(`/api/overseas-income?year=${encodeURIComponent(year)}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const rateLabel = data.usdtwd_rate != null ? data.usdtwd_rate.toFixed(4) : '-';
+  const twdLabel = data.total_twd != null ? `NT$ ${data.total_twd.toLocaleString('en-US', {maximumFractionDigits: 0})}` : '-';
+  let html = `<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200">
+    <div class="stat">
+      <div class="stat-title">${data.year} 資本利得</div>
+      <div class="stat-value text-lg ${data.capital_gains_usd >= 0 ? 'text-success' : 'text-error'}">$${data.capital_gains_usd.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">股利所得</div>
+      <div class="stat-value text-lg text-success">$${data.dividend_usd.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">合計（換算 NT$，平均匯率 ${rateLabel}）</div>
+      <div class="stat-value text-lg">${twdLabel}</div>
+    </div>
+  </div>`;
+  if (data.over_aggregation_threshold) {
+    html += `<div class="alert alert-warning text-sm py-2 mt-2">粗估已超過 NT$100 萬申報門檻，建議留意是否需要申報海外所得（實際規則請以財政部公告為準）。</div>`;
+  }
+  content.innerHTML = html;
+}
+</script>

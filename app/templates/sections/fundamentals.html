@@ -1,0 +1,76 @@
+  <h2 id="section-fundamentals" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股基本面分析
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">yfinance 提供的客觀基本面數據，僅供參考，不是買賣建議。</p>
+        <button type="button" onclick="loadFundamentals()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="fundamentals-error" class="alert alert-error text-sm hidden"></div>
+      <div id="fundamentals-content" class="overflow-x-auto"></div>
+    </div>
+  </div>
+
+<script>
+// Simple, objective color cues (positive/negative, high/low risk) - not a
+// buy/sell signal, just makes the table faster to scan at a glance.
+function pegClass(v) { return v == null ? '' : v < 1 ? 'text-success' : v > 2 ? 'text-error' : ''; }
+function debtEquityClass(v) { return v == null ? '' : v < 100 ? 'text-success' : v > 200 ? 'text-error' : 'text-warning'; }
+function recommendationClass(key) {
+  // Yahoo returns the literal string "none" when there's analyst coverage
+  // but no consensus rating - that's absence of data, not a real rating.
+  if (!key || key === 'none') return '';
+  if (['strong_buy', 'buy'].includes(key)) return 'text-success';
+  if (['sell', 'strong_sell', 'underperform'].includes(key)) return 'text-error';
+  return 'text-warning';
+}
+async function loadFundamentals() {
+  const errorBox = document.getElementById('fundamentals-error');
+  const content = document.getElementById('fundamentals-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/fundamentals');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th>產業</th><th class="text-right">本益比</th><th class="text-right">PEG</th>' +
+    '<th class="text-right">ROE</th><th class="text-right">毛利率</th><th class="text-right">營收成長</th>' +
+    '<th class="text-right">負債/權益</th><th class="text-right">Beta</th><th class="text-right">52週高低</th>' +
+    '<th class="text-right">分析師目標價</th><th class="text-right">分析師評等</th></tr></thead><tbody>';
+  for (const [symbol, f] of Object.entries(data.fundamentals)) {
+    const range = (f.fiftyTwoWeekLow != null && f.fiftyTwoWeekHigh != null)
+      ? `${fmtPrice(f.fiftyTwoWeekLow)} ~ ${fmtPrice(f.fiftyTwoWeekHigh)}` : '-';
+    // ETFs never have PE/PEG/ROE etc regardless of live vs cached, so the
+    // badge there would just read as "fetch failed" noise - only show it
+    // when there's an actual company (has a sector) behind the cached data.
+    const cacheNote = (f._cached_at && f.sector)
+      ? ` <span class="opacity-40 text-xs" title="即時查詢失敗，顯示上次快取資料">(快取 ${f._cached_at.slice(0, 10)})</span>`
+      : '';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(symbol)}${cacheNote}</td>
+      <td class="opacity-70">${escapeHtml(f.industry || f.sector || '-')}</td>
+      <td class="text-right">${fmtNum(f.trailingPE)}</td>
+      <td class="text-right ${pegClass(f.pegRatio)}">${fmtNum(f.pegRatio)}</td>
+      <td class="text-right ${posNegClass(f.returnOnEquity)}">${fmtPctOrDash(f.returnOnEquity)}</td>
+      <td class="text-right ${posNegClass(f.profitMargins)}">${fmtPctOrDash(f.profitMargins)}</td>
+      <td class="text-right ${posNegClass(f.revenueGrowth)}">${fmtPctOrDash(f.revenueGrowth)}</td>
+      <td class="text-right ${debtEquityClass(f.debtToEquity)}">${fmtNum(f.debtToEquity)}</td>
+      <td class="text-right ${betaClass(f.beta)}">${fmtNum(f.beta, 2)}</td>
+      <td class="text-right whitespace-nowrap">${range}</td>
+      <td class="text-right">${fmtPrice(f.targetMeanPrice)}</td>
+      <td class="text-right ${recommendationClass(f.recommendationKey)}">${escapeHtml(f.recommendationKey && f.recommendationKey !== 'none' ? f.recommendationKey : '-')}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
+}
+</script>

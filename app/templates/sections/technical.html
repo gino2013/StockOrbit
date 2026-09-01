@@ -1,0 +1,63 @@
+  <h2 id="section-technical" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>價格/技術指標
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">
+          50/200 日均線交叉狀態跟 RSI（14 日）。<b>均線狀態</b>：50 日均線（近期平均價）在 200 日均線（長期平均價）之上，代表近期價格動能偏強；「黃金交叉」是短均線剛穿越到長均線之上的當天（通常視為偏多訊號），「死亡交叉」相反（偏空訊號），沒有交叉發生的日子就只顯示目前是在上方還是下方。<b>RSI</b>：0~100 的動能指標，≥70 標示「超買」（近期漲勢可能過熱），≤30 標示「超賣」（近期跌勢可能過度）。客觀的歷史價格型態資訊，不是買賣訊號或預測。
+        </p>
+        <button type="button" onclick="loadTechnical()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="technical-error" class="alert alert-error text-sm hidden"></div>
+      <div id="technical-content" class="overflow-x-auto"></div>
+    </div>
+  </div>
+
+<script>
+const MA_CROSS_LABELS = {
+  golden_cross: '<span class="badge badge-success badge-sm" title="50 日均線今天剛穿越到 200 日均線之上，通常視為偏多訊號">黃金交叉</span>',
+  death_cross: '<span class="badge badge-error badge-sm" title="50 日均線今天剛跌破 200 日均線，通常視為偏空訊號">死亡交叉</span>',
+  above: '<span class="text-success" title="50 日均線（近期平均價）在 200 日均線（長期平均價）之上，近期動能偏強">50日 &gt; 200日</span>',
+  below: '<span class="text-error" title="50 日均線（近期平均價）在 200 日均線（長期平均價）之下，近期動能偏弱">50日 &lt; 200日</span>',
+};
+async function loadTechnical() {
+  const errorBox = document.getElementById('technical-error');
+  const content = document.getElementById('technical-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/technical-indicators');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<table class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">現價</th><th class="text-right">50日均線</th><th class="text-right">200日均線</th>' +
+    '<th class="text-right">均線狀態</th><th class="text-right">RSI (14日)</th><th class="text-right">RSI 狀態</th></tr></thead><tbody>';
+  for (const r of data.items) {
+    if (r.insufficient_history) {
+      html += `<tr><td class="font-medium">${escapeHtml(r.symbol)}</td><td colspan="6" class="opacity-50">歷史資料不足（需至少 200 個交易日）</td></tr>`;
+      continue;
+    }
+    const rsiLabel = r.rsi_overbought ? '<span class="badge badge-error badge-sm">超買</span>'
+      : r.rsi_oversold ? '<span class="badge badge-success badge-sm">超賣</span>' : '-';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right">${fmtPrice(r.current_price)}</td>
+      <td class="text-right">${fmtPrice(r.ma_short)}</td>
+      <td class="text-right">${fmtPrice(r.ma_long)}</td>
+      <td class="text-right">${MA_CROSS_LABELS[r.ma_cross_state] || '-'}</td>
+      <td class="text-right">${fmtNum(r.rsi, 1)}</td>
+      <td class="text-right">${rsiLabel}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(content.querySelector('table'));
+}
+</script>

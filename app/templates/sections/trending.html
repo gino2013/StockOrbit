@@ -1,0 +1,67 @@
+  <h2 id="section-trending" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>目前熱門標的
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs opacity-60">全市場（美股）熱門標的，附最新新聞標題原文列出，並用關鍵字簡易判斷利多（綠）／利空（紅），僅供參考，不是投資建議。</p>
+        <div class="flex items-center gap-2 shrink-0">
+          <select id="trending-screener" class="select select-bordered select-xs">
+            <option value="day_gainers">漲幅最大</option>
+            <option value="day_losers">跌幅最大</option>
+            <option value="most_actives">成交量最大</option>
+          </select>
+          <button type="button" onclick="loadTrending()" class="btn btn-ghost btn-xs">查詢</button>
+        </div>
+      </div>
+      <div id="trending-error" class="alert alert-error text-sm hidden"></div>
+      <div id="trending-content" class="text-sm space-y-3"></div>
+    </div>
+  </div>
+
+<script>
+async function loadTrending() {
+  const errorBox = document.getElementById('trending-error');
+  const content = document.getElementById('trending-content');
+  const screener = document.getElementById('trending-screener').value;
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch(`/api/trending?screener=${encodeURIComponent(screener)}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = '<ul class="space-y-2">';
+  for (const item of data.items) {
+    const pct = item.change_pct;
+    const pctClass = pct > 0 ? 'text-success' : pct < 0 ? 'text-error' : '';
+    const pctLabel = pct === null || pct === undefined ? '-' : `${pct > 0 ? '+' : ''}${pct.toFixed(2)}%`;
+    html += `<li class="border-b border-base-200 pb-2">
+      <div class="flex items-center justify-between">
+        <span><b>${escapeHtml(item.symbol)}</b> <span class="opacity-60">${escapeHtml(item.name || '')}</span></span>
+        <span class="font-medium ${pctClass}">${pctLabel}</span>
+      </div>`;
+    if (item.news.length) {
+      html += '<ul class="mt-1 space-y-0.5">';
+      for (const n of item.news) {
+        const safeTitle = escapeHtml(n.title);
+        const sentClass = sentimentClass(n.sentiment);
+        const label = n.url && n.url.startsWith('http')
+          ? `<a href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer" class="link link-hover ${sentClass}">${safeTitle}</a>`
+          : `<span class="${sentClass}">${safeTitle}</span>`;
+        const publisher = n.publisher ? ` <span class="opacity-50">(${escapeHtml(n.publisher)})</span>` : '';
+        html += `<li class="text-xs opacity-80">• ${label}${publisher}</li>`;
+      }
+      html += '</ul>';
+    }
+    html += '</li>';
+  }
+  html += '</ul>';
+  content.innerHTML = html || '<p class="opacity-60">目前沒有資料。</p>';
+}
+</script>
