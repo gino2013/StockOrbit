@@ -22,7 +22,12 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./stockorbit.db")
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=_connect_args)
+# pool_pre_ping: Neon suspends its compute after a period of inactivity and
+# drops idle connections - without this, the first request after a quiet
+# spell hands out a dead pooled connection and dies with a raw, uncaught
+# 500 ("Internal Server Error"). This pings each connection with a cheap
+# SELECT 1 before use and transparently reconnects if it's stale.
+engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
