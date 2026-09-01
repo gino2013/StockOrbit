@@ -6,6 +6,7 @@
 
 ## 2026-09-01
 
+- `805ef74` **修正真實帳戶資料外洩到公開截圖的問題**（issue #195）：`scripts/seed_demo_data.py` 的 `TODAY` 常數是寫死的日期，過期後種出來的「拋棄式」demo DB 一開機就會被判定持股快照過舊，靜默觸發 dashboard 的自動 Firstrade 刷新；因為本機測試帳號沒有個人 Firstrade 憑證，會 fallback 到 `.env` 裡的真實帳密，實際登入真實帳戶並把真實資料寫進「拋棄式」的本機測試 DB。確認 `docs/screenshot-pace-projection.png`（PR #145）曾經含有真實帳戶數字且已 push 到公開 repo；已重新產生純假資料版本覆蓋掉。`TODAY` 改成 `date.today()` 修掉根因，並在腳本加上明確警告
 - 多使用者化補強：新增 `REQUIRE_EMAIL_VERIFICATION` 環境變數（預設 `true`）。設成 `false` 時，Firstrade 連結表單跟 CSV 匯入不再檢查 `email_verified`——給沒有要接 SMTP、又想讓其他人直接能用的部署（代價是少了開放註冊的濫用防線）。同時修掉一個誤導訊息：`SMTP_HOST` 沒設時，「重寄驗證信」不再假裝「已寄出」，改回 503 + 「站台尚未設定寄信服務」；`/forgot` 也改成老實說無法用 email 重設（不洩漏帳號是否存在）。`REQUIRE_EMAIL_VERIFICATION=false` 時「重寄驗證信」按鈕與「尚未驗證信箱」提示都收起來。新增 `tests/test_email_verification_toggle.py`
 - `38d8f7c` 登入／註冊頁密碼欄位加上顯示/隱藏切換按鈕（issue #185）：眼睛 icon 點擊切換 type=password ↔ type=text，icon 跟著切換張開/劃掉樣式
 - `bc25a87` 把 `dashboard.html`（3134 行單一檔案，27 個功能區塊塞在同一個近 2000 行的 `<script>` 標籤）拆成模組化的 Jinja partials（issue #182）：每個區塊自己的檔案（HTML + 對應的 JS 放一起），跨區塊共用的工具函式（escapeHtml、fmtPct 系列、makeSortable、attachTickerAutocomplete 等）集中在 `sections/_shared.html` 最先載入；純搬移不改邏輯，維持零建置流程。過程中抓到並修掉拆分本身引入的一個 regression：日期欄位預設值腳本被排到所有區塊最後面，但持股歷史走勢／再平衡策略回測各自的自動查詢在載入時就先觸發，required 日期欄位還沒填值就送出表單，被瀏覽器原生驗證靜默擋下（不會噴錯誤，兩個區塊進站直接是空的）；改成兩者的自動查詢都延後到 `DOMContentLoaded` 才觸發解決
