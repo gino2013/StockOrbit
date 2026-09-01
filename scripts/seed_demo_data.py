@@ -9,6 +9,23 @@ All holdings / transactions / notes / goal below are invented - not a real
 account. Public-market data the dashboard shows (fundamentals, technical
 indicators) is fetched live from yfinance for real well-known symbols, which
 is not personal financial data.
+
+IMPORTANT - the disposable DB above is not enough on its own. The dashboard
+route auto-refreshes from Firstrade whenever the owner's latest snapshot is
+more than 30 minutes old (AUTO_REFRESH_STALE_AFTER in app/interface/http.py).
+The local dev owner this script creates has no per-user Firstrade
+credentials, so that refresh falls back to whatever FT_USERNAME/FT_PASSWORD/
+FT_MFA_SECRET happen to be in the environment - typically the real ones from
+.env, since load_dotenv() runs unconditionally at import time. If a server
+against this "throwaway" DB sits open past that window (or TODAY above were
+ever hardcoded again instead of tracking date.today()), it will silently log
+into the real Firstrade account and overwrite this fake data with the real
+portfolio. When booting a server purely to screenshot/verify UI, clear the
+FT_* vars so that refresh has nothing to fall back to and fails safely
+instead of succeeding for real:
+
+    DATABASE_URL=sqlite:///./demo.db FT_USERNAME= FT_PASSWORD= FT_MFA_SECRET= \\
+        .venv/bin/uvicorn app.main:app --port 8000
 """
 
 import os
@@ -32,7 +49,13 @@ from app.infrastructure.db import (  # noqa: E402
 from app.interface.auth import ensure_owner  # noqa: E402
 
 ACCOUNT = "DEMO-00000000"
-TODAY = date(2026, 8, 29)
+# Must track the real clock, not a fixed date: the dashboard auto-refreshes
+# from Firstrade whenever the latest snapshot is more than 30 minutes old
+# (AUTO_REFRESH_STALE_AFTER). A hardcoded date here goes stale the moment
+# real time passes it, which silently triggers a live refresh using the
+# real FT_* credentials in .env - overwriting this "disposable" seeded data
+# with the real account's, on what's supposed to be a throwaway local DB.
+TODAY = date.today()
 
 # symbol -> (shares, avg cost, current price). market_value / gains derived.
 HOLDINGS = {
