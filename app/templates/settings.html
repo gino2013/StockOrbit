@@ -71,7 +71,7 @@
         {% else %}
 
           {% if ft_creds %}
-          <p class="text-sm">已連結・最後同步：{{ ft_creds.last_sync_at.strftime("%Y-%m-%d %H:%M") if ft_creds.last_sync_at else "尚未同步" }}</p>
+          <p class="text-sm">已連結・最後同步：{{ (ft_creds.last_sync_at | to_taipei).strftime("%Y-%m-%d %H:%M") if ft_creds.last_sync_at else "尚未同步" }}</p>
           {% if ft_creds.last_sync_error %}
           <p class="text-xs text-error">上次同步失敗：{{ ft_creds.last_sync_error }}</p>
           {% endif %}
