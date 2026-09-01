@@ -158,7 +158,9 @@ class Transaction(Base):
 
 class PositionNote(Base):
     """Freeform note per symbol - why you bought it, target price, whatever
-    you want to remember later. Upserted by symbol, no history kept."""
+    you want to remember later. Upserted by symbol - always holds only the
+    current text. Every save also appends a PositionNoteHistory row, which
+    keeps the past versions this table itself doesn't."""
 
     __tablename__ = "position_notes"
 
@@ -166,6 +168,20 @@ class PositionNote(Base):
     symbol = Column(String, primary_key=True)
     note = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class PositionNoteHistory(Base):
+    """Append-only log of every PositionNote save, so past versions ("what
+    did I think about this symbol back in March?") stay visible instead of
+    being silently overwritten by the next edit."""
+
+    __tablename__ = "position_note_history"
+
+    id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    user_id = _user_id_col()
+    symbol = Column(String, nullable=False, index=True)
+    note = Column(Text, nullable=False, default="")
+    saved_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
 
 class TransactionNote(Base):
@@ -263,7 +279,9 @@ def _infer_untracked_revision() -> str | None:
     goal_cols = {c["name"] for c in inspector.get_columns("investment_goals")}
     if "id" in goal_cols:
         return "0003_tenancy_cols"
-    return "0004_tenancy_pks"  # structure already matches head
+    if not inspector.has_table("position_note_history"):
+        return "0004_tenancy_pks"
+    return "0005_note_history"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

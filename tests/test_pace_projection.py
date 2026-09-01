@@ -17,9 +17,11 @@ def demo():
     assert abs(one_year["projected_value"] - 12000.0) < 1e-6
     assert abs(one_year["change"] - 2000.0) < 1e-6
     assert abs(one_year["change_pct"] - 0.20) < 1e-9
+    assert one_year["extreme"] is False  # +20% is unremarkable
 
     twenty_year = results[-1]
     assert abs(twenty_year["projected_value"] - 10000.0 * 1.2**20) < 1e-6
+    assert twenty_year["extreme"] is True  # (1.2)^20 - 1 ≈ +3734%, past the +1000% threshold
 
     # each checkpoint should compound to strictly more than the last for a
     # positive rate.

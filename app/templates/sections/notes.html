@@ -20,6 +20,18 @@
               <textarea rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
               <button type="button" onclick="saveNote(this)" class="btn btn-neutral btn-xs self-end">儲存</button>
             </div>
+            {% set history = note_history_by_symbol.get(s.symbol, []) %}
+            <details class="mt-2 note-history" style="display:{{ '' if history else 'none' }}">
+              <summary class="text-xs opacity-60 cursor-pointer">歷史版本（<span class="note-history-count">{{ history|length }}</span>）</summary>
+              <ul class="note-history-list mt-1 space-y-2">
+                {% for h in history %}
+                <li class="text-xs border-l-2 border-base-300 pl-2">
+                  <div class="opacity-50">{{ h.saved_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                  <div class="whitespace-pre-wrap">{{ h.note }}</div>
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
           </div>
         </details>
         {% endfor %}
@@ -56,5 +68,22 @@ async function saveNote(btn) {
   view.querySelector('p').textContent = textarea.value;
   editBox.style.display = 'none';
   view.style.display = '';
+
+  // Every save appends a history entry server-side (see upsert_note) -
+  // mirror that here so the newly-saved version shows up immediately
+  // without a full page reload.
+  const historyBox = details.querySelector('.note-history');
+  const list = historyBox.querySelector('.note-history-list');
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const li = document.createElement('li');
+  li.className = 'text-xs border-l-2 border-base-300 pl-2';
+  li.innerHTML = `<div class="opacity-50"></div><div class="whitespace-pre-wrap"></div>`;
+  li.children[0].textContent = stamp;
+  li.children[1].textContent = textarea.value;
+  list.prepend(li);
+  historyBox.style.display = '';
+  historyBox.querySelector('.note-history-count').textContent = list.children.length;
 }
 </script>

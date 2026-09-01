@@ -39,6 +39,7 @@ from app.infrastructure.db import (  # noqa: E402
     ExchangeRateSnapshot,
     InvestmentGoal,
     PositionNote,
+    PositionNoteHistory,
     PositionSnapshot,
     SessionLocal,
     TargetAllocation,
@@ -130,7 +131,7 @@ def _qty_at(symbol: str, months_ago: int) -> float:
 def _wipe(db):
     for model in (
         PositionSnapshot, TargetAllocation, ExchangeRateSnapshot,
-        Transaction, PositionNote, InvestmentGoal, User,
+        Transaction, PositionNote, PositionNoteHistory, InvestmentGoal, User,
     ):
         db.query(model).delete()
 
@@ -181,6 +182,24 @@ def seed():
         for symbol, note in NOTES.items():
             db.add(PositionNote(user_id=uid, symbol=symbol, note=note))
 
+        # A couple of symbols get a fabricated edit history, so the
+        # "歷史版本" view has more than one dated entry to show.
+        NOTE_HISTORY = {
+            "AAPL": [
+                (300, "剛建倉，先小部位試單，觀察服務業務營收占比變化。"),
+                (150, "加碼到目前部位，財報顯示服務毛利持續提升，信心提高。"),
+                (0, NOTES["AAPL"]),
+            ],
+            "MSFT": [
+                (200, "Azure 成長速度優於預期，開始建倉。"),
+                (0, NOTES["MSFT"]),
+            ],
+        }
+        for symbol, versions in NOTE_HISTORY.items():
+            for days_ago, note in versions:
+                saved_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
+                db.add(PositionNoteHistory(user_id=uid, symbol=symbol, note=note, saved_at=saved_at))
+
         db.add(InvestmentGoal(user_id=uid, target_amount=100000.0, target_date=date(2032, 1, 1)))
 
         db.commit()
@@ -199,6 +218,7 @@ def _check():
         assert abs(total_mv - 18628.0) < 1.0, total_mv
         assert abs((total_mv - total_cost) / total_cost - 0.1356) < 0.01
         assert db.query(PositionNote).count() == 5
+        assert db.query(PositionNoteHistory).filter(PositionNoteHistory.symbol == "AAPL").count() == 3
         assert db.query(Transaction).filter(Transaction.trans_type == "SOLD").count() == 2
         assert abs(sum(w for w in TARGETS.values()) - 1.0) < 1e-9
         nvda = next(r for r in rows if r.symbol == "NVDA")
