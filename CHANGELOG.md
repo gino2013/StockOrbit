@@ -6,6 +6,7 @@
 
 ## 2026-09-01
 
+- `f7db032` 「重新抓取持股」reload icon 拿掉深黑色按鈕外框（issue #179），改成跟旁邊深色模式切換按鈕一樣的 ghost 風格
 - `abacde3` 修正閒置一段時間後回到網站偶爾顯示 Internal Server Error 的問題（issue #176）：正式環境用的 Neon Postgres 會在閒置後把連線關掉，SQLAlchemy engine 沒設 `pool_pre_ping=True` 的情況下，連線池會把已失效的連線借給下一個請求、第一個查詢就直接丟未捕捉例外變成 500；加上 `pool_pre_ping=True` 後每次借出連線前會先用輕量 SELECT 1 測試，失效就自動重連
 - `1662b81` 持股筆記儲存改成 AJAX（issue #173）：原本是傳統 form POST，存檔後整頁重新整理會重新觸發首頁所有區塊（含多個 yfinance 即時請求），改一筆筆記等很久；改成跟交易紀錄筆記一樣的 `fetch()` 局部更新，儲存變瞬間完成
 - `8df5684` 頁首「重新抓取持股」按鈕改成黑白 reload icon（issue #171）
