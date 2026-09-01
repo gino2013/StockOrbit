@@ -649,6 +649,7 @@ def dashboard(request: Request):
             fundamentals_meta=repo.fundamentals_meta(),
             snapshot_points=repo.all_snapshot_points(),
             notes=repo.notes(),
+            note_history=repo.note_history(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
             flex_mode=request.cookies.get(FLEX_MODE_COOKIE) == "1",
             as_of=datetime.now().date(),

@@ -75,6 +75,12 @@ from app.infrastructure.db import Base, engine
 from sqlalchemy import text
 Base.metadata.create_all(engine)
 with engine.begin() as conn:
+    # position_note_history is introduced together with migration 0005,
+    # so no real pre-Alembic deploy could ever have created it - drop the
+    # copy create_all() just made so this simulated legacy DB accurately
+    # reflects pre-0005 structure, and 0005's own CREATE TABLE runs for
+    # real below instead of colliding with an already-present table.
+    conn.execute(text("DROP TABLE position_note_history"))
     # position_snapshots/transactions/target_allocations/position_notes/
     # transaction_notes only differ (current models vs this historical
     # shape) in their PK *constraint*, not their columns, so stripping

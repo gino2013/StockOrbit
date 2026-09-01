@@ -26,6 +26,7 @@ from app.infrastructure.db import (
     FundamentalsCache,
     InvestmentGoal,
     PositionNote,
+    PositionNoteHistory,
     PositionSnapshot,
     SessionLocal,
     TargetAllocation,
@@ -161,7 +162,20 @@ class Repositories:
             existing.updated_at = datetime.now(timezone.utc)
         else:
             self._db.add(PositionNote(symbol=symbol, note=note, user_id=self._user_id))
+        # Every save is also logged here so past versions stay visible
+        # instead of being overwritten - even a save to "" (cleared note)
+        # is logged, so the history shows exactly when a note was removed.
+        self._db.add(PositionNoteHistory(symbol=symbol, note=note, user_id=self._user_id))
         self._db.commit()
+
+    def note_history(self) -> dict[str, list[dict]]:
+        """Every past version of every symbol's note, newest first,
+        grouped by symbol - for the "歷史版本" view under each note."""
+        rows = self._mine(PositionNoteHistory).order_by(desc(PositionNoteHistory.saved_at)).all()
+        by_symbol: dict[str, list[dict]] = {}
+        for r in rows:
+            by_symbol.setdefault(r.symbol, []).append({"note": r.note, "saved_at": r.saved_at})
+        return by_symbol
 
     def transaction_notes(self, transaction_ids: list[str]) -> dict[str, str]:
         return {

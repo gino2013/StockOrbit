@@ -16,6 +16,14 @@ _CHECKPOINTS = [
     ("20 年後", 20.0, True),
 ]
 
+# Above this cumulative change, compounding a short-window annualized rate
+# this far out produces a number too extreme to take at face value (e.g.
+# a portfolio tracked for only a few months naturally has a noisy, inflated
+# XIRR - annualizing it and then compounding for years amplifies that noise
+# rather than cancelling it out). Flagged, not hidden - still the honest
+# answer to "if this pace holds," just one worth a second look.
+EXTREME_CHANGE_PCT = 10.0  # +1000%
+
 
 def project_at_pace(current_value: float, annual_return: float) -> list[dict]:
     if current_value <= 0:
@@ -23,13 +31,15 @@ def project_at_pace(current_value: float, annual_return: float) -> list[dict]:
     results = []
     for label, years, long_term in _CHECKPOINTS:
         projected_value = current_value * (1 + annual_return) ** years
+        change_pct = (projected_value / current_value) - 1
         results.append(
             {
                 "label": label,
                 "long_term": long_term,
                 "projected_value": projected_value,
                 "change": projected_value - current_value,
-                "change_pct": (projected_value / current_value) - 1,
+                "change_pct": change_pct,
+                "extreme": abs(change_pct) >= EXTREME_CHANGE_PCT,
             }
         )
     return results

@@ -41,6 +41,7 @@ def build_dashboard_context(
     fundamentals_meta: dict[str, dict],
     snapshot_points: list[dict],
     notes: dict[str, str],
+    note_history: dict[str, list[dict]],
     usd_twd_rate: float | None,
     flex_mode: bool,
     as_of: date,
@@ -113,6 +114,7 @@ def build_dashboard_context(
         "allocation_chart_data": allocation_chart_data,
         "concentration_chart_data": concentration_chart_data,
         "notes_by_symbol": notes,
+        "note_history_by_symbol": note_history,
         "current_year": as_of.year,
         "total_ttm_dividends": sum(r["ttm_dividends"] for r in dividend_rows),
     }
