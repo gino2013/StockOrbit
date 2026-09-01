@@ -31,6 +31,14 @@
         <h2 class="card-title text-base">帳號資訊</h2>
         <p class="text-sm">Email：{{ user.email }}</p>
         <p class="text-sm opacity-70">帳號類型：{{ "站台擁有者" if user.is_owner else "一般使用者" }}</p>
+        {% if user.email_verified %}
+        <p class="text-sm text-success">✓ 信箱已驗證</p>
+        {% else %}
+        <p class="text-sm text-warning">尚未驗證信箱</p>
+        <form method="post" action="/settings/resend-verification">
+          <button type="submit" class="btn btn-outline btn-xs">重寄驗證信</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 
@@ -59,7 +67,7 @@
         {% if not ft_enabled %}
         <p class="text-sm opacity-70">此站台尚未啟用 Firstrade 連結功能。</p>
         {% elif not user.email_verified %}
-        <p class="text-sm opacity-70">此功能需要先完成信箱驗證（信箱驗證功能開發中，目前僅站台擁有者可使用）。</p>
+        <p class="text-sm opacity-70">此功能需要先完成信箱驗證，請見上方「重寄驗證信」。</p>
         {% else %}
 
           {% if ft_creds %}

@@ -1,8 +1,10 @@
+import time
+from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -22,7 +24,7 @@ from app.infrastructure.db import (
 )
 from app.interface import auth
 from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
-from app.infrastructure import crypto
+from app.infrastructure import crypto, mailer
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
@@ -69,7 +71,34 @@ check_schema_matches_models()  # belt-and-suspenders: verify the migration actua
 ensure_owner()
 
 # Paths reachable without a session. Everything else requires one.
-_PUBLIC_PREFIXES = ("/login", "/register", "/logout", "/static", "/docs", "/redoc", "/openapi.json", "/favicon")
+_PUBLIC_PREFIXES = (
+    "/login", "/register", "/logout", "/verify", "/forgot", "/reset",
+    "/terms", "/privacy", "/static", "/docs", "/redoc", "/openapi.json", "/favicon",
+)
+
+
+# ponytail: in-process, per-instance counters - resets on redeploy, doesn't
+# sync across instances. Fine for open registration abuse on Render's single
+# free-tier instance; swap for a shared store (e.g. Redis) if this ever runs
+# on more than one instance at once.
+_rate_buckets: dict[str, deque] = defaultdict(deque)
+
+
+def _rate_limited(key: str, limit: int, window_seconds: float) -> bool:
+    """True (and records nothing) once `key` has hit `limit` calls within
+    the trailing `window_seconds` - a plain sliding-window counter."""
+    now = time.monotonic()
+    bucket = _rate_buckets[key]
+    while bucket and now - bucket[0] > window_seconds:
+        bucket.popleft()
+    if len(bucket) >= limit:
+        return True
+    bucket.append(now)
+    return False
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
 @app.middleware("http")
@@ -89,6 +118,15 @@ def _current_user(request: Request) -> User:
     return request.state.user  # guaranteed by _require_login for non-public paths
 
 
+def _send_verification_email(request: Request, background_tasks: BackgroundTasks, email: str) -> None:
+    token = auth.make_email_token("verify", email)
+    link = f"{str(request.base_url).rstrip('/')}/verify?token={token}"
+    background_tasks.add_task(
+        mailer.send, email, "StockOrbit 信箱驗證",
+        f"請點以下連結完成信箱驗證（15 分鐘內有效）：\n{link}\n\n如果不是你本人操作，請忽略這封信。",
+    )
+
+
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/"):
     return templates.TemplateResponse(request, "login.html", {"error": None, "next": next})
@@ -96,6 +134,10 @@ def login_page(request: Request, next: str = "/"):
 
 @app.post("/login")
 def login(request: Request, email: str = Form(...), password: str = Form(...), next: str = Form("/")):
+    if _rate_limited(f"login:{_client_ip(request)}", limit=20, window_seconds=600):
+        return templates.TemplateResponse(
+            request, "login.html", {"error": "嘗試次數過多，請稍後再試。", "next": next}, status_code=429
+        )
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == email.strip().lower()).first()
@@ -118,7 +160,11 @@ def register_page(request: Request):
 
 
 @app.post("/register")
-def register(request: Request, email: str = Form(...), password: str = Form(...)):
+def register(request: Request, background_tasks: BackgroundTasks, email: str = Form(...), password: str = Form(...)):
+    if _rate_limited(f"register:{_client_ip(request)}", limit=10, window_seconds=3600):
+        return templates.TemplateResponse(
+            request, "register.html", {"error": "嘗試次數過多，請稍後再試。"}, status_code=429
+        )
     email = email.strip().lower()
     err = None
     if "@" not in email or len(email) > 254:
@@ -139,9 +185,29 @@ def register(request: Request, email: str = Form(...), password: str = Form(...)
             db.close()
     if err is not None:
         return templates.TemplateResponse(request, "register.html", {"error": err}, status_code=400)
+    _send_verification_email(request, background_tasks, email)
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
     return resp
+
+
+@app.get("/verify", response_class=HTMLResponse)
+def verify_email(request: Request, token: str):
+    email = auth.read_email_token("verify", token)
+    if email is None:
+        return HTMLResponse(
+            "<p>驗證連結無效或已過期，請登入後在「設定」頁重寄驗證信。</p><p><a href='/login'>回登入</a></p>",
+            status_code=400,
+        )
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is not None:
+            user.email_verified = True
+            db.commit()
+    finally:
+        db.close()
+    return RedirectResponse("/settings", status_code=303)
 
 
 @app.post("/logout")
@@ -149,6 +215,78 @@ def logout():
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(COOKIE_NAME)
     return resp
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+def forgot_page(request: Request):
+    return templates.TemplateResponse(request, "forgot.html", {"message": None})
+
+
+@app.post("/forgot")
+def forgot(request: Request, background_tasks: BackgroundTasks, email: str = Form(...)):
+    if _rate_limited(f"forgot:{_client_ip(request)}", limit=5, window_seconds=600):
+        return templates.TemplateResponse(
+            request, "forgot.html", {"message": "嘗試次數過多，請稍後再試。"}, status_code=429
+        )
+    email = email.strip().lower()
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+    finally:
+        db.close()
+    if user is not None:
+        token = auth.make_email_token("reset", email)
+        link = f"{str(request.base_url).rstrip('/')}/reset?token={token}"
+        background_tasks.add_task(
+            mailer.send, email, "StockOrbit 重設密碼",
+            f"請點以下連結重設密碼（15 分鐘內有效）：\n{link}\n\n如果不是你本人操作，請忽略這封信。",
+        )
+    # Same response either way - don't leak whether the email is registered.
+    return templates.TemplateResponse(request, "forgot.html", {"message": "如果這個信箱有註冊，重設密碼信已經寄出。"})
+
+
+@app.get("/reset", response_class=HTMLResponse)
+def reset_page(request: Request, token: str):
+    return templates.TemplateResponse(request, "reset.html", {"token": token, "error": None})
+
+
+@app.post("/reset")
+def reset_password(request: Request, token: str = Form(...), new_password: str = Form(...)):
+    email = auth.read_email_token("reset", token)
+    if email is None:
+        return templates.TemplateResponse(
+            request, "reset.html", {"token": token, "error": "連結無效或已過期，請重新申請。"}, status_code=400
+        )
+    if len(new_password) < 8:
+        return templates.TemplateResponse(
+            request, "reset.html", {"token": token, "error": "密碼至少 8 個字元"}, status_code=400
+        )
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            return templates.TemplateResponse(
+                request, "reset.html", {"token": token, "error": "找不到帳號"}, status_code=400
+            )
+        user.password_hash = auth.hash_password(new_password)
+        user.session_version += 1  # a reset should log out every session, including a stolen one
+        db.commit()
+        cookie = auth.make_session_cookie(user)
+    finally:
+        db.close()
+    resp = RedirectResponse("/", status_code=303)
+    resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
+    return resp
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page(request: Request):
+    return templates.TemplateResponse(request, "terms.html", {})
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request):
+    return templates.TemplateResponse(request, "privacy.html", {})
 
 
 def _settings_context(request: Request, user: User, **extra) -> dict:
@@ -168,6 +306,24 @@ def _settings_context(request: Request, user: User, **extra) -> dict:
 def settings_page(request: Request):
     user = _current_user(request)
     return templates.TemplateResponse(request, "settings.html", _settings_context(request, user))
+
+
+@app.post("/settings/resend-verification")
+def resend_verification(request: Request, background_tasks: BackgroundTasks):
+    user = _current_user(request)
+    if user.email_verified:
+        return templates.TemplateResponse(
+            request, "settings.html", _settings_context(request, user, message="這個帳號已經驗證過了。")
+        )
+    if _rate_limited(f"resend-verify:{user.id}", limit=3, window_seconds=600):
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="剛寄過驗證信，請稍後再試。"), status_code=429,
+        )
+    _send_verification_email(request, background_tasks, user.email)
+    return templates.TemplateResponse(
+        request, "settings.html", _settings_context(request, user, message="驗證信已寄出，請檢查信箱。")
+    )
 
 
 @app.post("/settings/change-password")

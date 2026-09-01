@@ -95,15 +95,17 @@ a header email + logout link.
 
 ## Rollout (one PR each)
 
-1. Alembic + `users`/`firstrade_credentials` models + `crypto.py` +
-   `auth.py` + tests. **(this PR)**
-2. Nullable `user_id` migration + owner bootstrap/backfill +
+1. ✅ Alembic + `users`/`firstrade_credentials` models + `crypto.py` +
+   `auth.py` + tests.
+2. ✅ Nullable `user_id` migration + owner bootstrap/backfill +
    `Repositories(user_id)` scoping + tenancy tests. No auth gate yet.
-3. Auth routes + templates; `/` and `/api/*` behind `current_user`;
+3. ✅ Auth routes + templates; `/` and `/api/*` behind `current_user`;
    dashboard empty state.
-4. Tighten migration: `user_id` NOT NULL, composite PKs, FKs.
-5. `/settings` + Firstrade credential storage + per-user sync + account
+4. ✅ Tighten migration: `user_id` NOT NULL, composite PKs, FKs.
+5. ✅ `/settings` + Firstrade credential storage + per-user sync + account
    deletion.
-6. Open-registration hardening: email verification, rate limiting,
-   `/terms` + `/privacy`, README security section.
+6. ✅ Open-registration hardening: email verification (`mailer.py`, smtplib,
+   logs when SMTP unset), `/verify` + resend, `/forgot` + `/reset`,
+   per-IP rate limiting on `/login` `/register` `/forgot`, `/terms` +
+   `/privacy`, README security section.
 7. *(optional)* CSV import as a no-credential path.

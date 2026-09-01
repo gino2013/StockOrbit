@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>使用條款 · StockOrbit</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
+<style>body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }</style>
+</head>
+<body class="bg-base-200 min-h-screen p-4">
+  <div class="max-w-2xl mx-auto py-6">
+    <div class="card bg-base-100 shadow">
+      <div class="card-body gap-3 text-sm leading-relaxed">
+        <h1 class="text-xl font-bold">使用條款</h1>
+        <p class="opacity-70">StockOrbit 是個人開發的開源小工具，不是公司產品，沒有服務等級承諾（SLA）。以下條款用白話寫，不是正式法律文件。</p>
+
+        <h2 class="font-semibold mt-2">1. 這是什麼</h2>
+        <p>StockOrbit 是 Firstrade 持股追蹤與投資組合分析工具。程式碼公開在
+          <a href="https://github.com/gino2013/StockOrbit" class="link" target="_blank" rel="noopener">GitHub</a>。</p>
+
+        <h2 class="font-semibold mt-2">2. 「照現況」提供，不負保固責任</h2>
+        <p>本服務依「現況」提供，不保證正確、即時或不中斷。持股、報酬率、建議等所有分析結果僅供參考，
+          <b>不構成投資建議</b>，投資決策及其後果由使用者自行負責。</p>
+
+        <h2 class="font-semibold mt-2">3. 連結 Firstrade 帳號的風險</h2>
+        <p>「設定」頁可選擇性地連結你的 Firstrade 帳號密碼，用來自動抓取持股與交易紀錄。這是透過非官方的
+          <code>firstrade</code> 套件模擬登入，不是 Firstrade 官方授權的 API：</p>
+        <ul class="list-disc list-inside opacity-80">
+          <li>密碼會加密儲存在資料庫，但資料庫外洩加上加密金鑰外洩，等同帳號被盜用的風險依然存在</li>
+          <li>Firstrade 可能因為偵測到非官方登入方式而暫停或限制帳號，風險由使用者自行評估承擔</li>
+          <li>強烈建議使用 Firstrade 的獨立密碼，而不是你其他服務也在用的密碼</li>
+          <li>你可以隨時在「設定」頁移除連結，或直接不提供 Firstrade 帳密（此功能為選用）</li>
+        </ul>
+
+        <h2 class="font-semibold mt-2">4. 帳號與資料</h2>
+        <p>開放註冊，任何人都可以建立帳號。你可以隨時在「設定」頁刪除帳號，會立即、永久刪除你的所有資料（見
+          <a href="/privacy" class="link">隱私權政策</a>）。若帳號被濫用（例如自動化攻擊、大量濫發請求），
+          擁有者保留移除帳號的權利。</p>
+
+        <h2 class="font-semibold mt-2">5. 聯絡方式</h2>
+        <p>沒有客服團隊，問題或錯誤回報請到
+          <a href="https://github.com/gino2013/StockOrbit/issues" class="link" target="_blank" rel="noopener">GitHub Issues</a>。</p>
+
+        <p class="opacity-60 mt-2"><a href="/register" class="link">回註冊</a> ・ <a href="/privacy" class="link">隱私權政策</a></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
