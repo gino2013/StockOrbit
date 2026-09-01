@@ -566,7 +566,7 @@ def cash_deployment(amount: float):
 def set_note(symbol: str = Form(...), note: str = Form("")):
     with Repositories() as repo:
         repo.upsert_note(symbol, note)
-    return RedirectResponse("/#section-notes", status_code=303)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/api/targets")
