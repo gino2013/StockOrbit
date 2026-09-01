@@ -582,26 +582,17 @@
         <details class="collapse collapse-arrow bg-base-200" {% if notes_by_symbol.get(s.symbol) %}open{% endif %}>
           <summary class="collapse-title text-sm font-medium py-2 min-h-0">
             {{ s.symbol }}
-            {% if notes_by_symbol.get(s.symbol) %}<span class="badge badge-xs badge-primary ml-2">有筆記</span>{% endif %}
+            <span class="badge badge-xs badge-primary ml-2 note-badge" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">有筆記</span>
           </summary>
           <div class="collapse-content">
-            {% if notes_by_symbol.get(s.symbol) %}
-            <div class="note-view">
+            <div class="note-view" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">
               <p class="text-sm whitespace-pre-wrap">{{ notes_by_symbol.get(s.symbol) }}</p>
               <button type="button" onclick="toggleNoteEdit(this)" class="btn btn-ghost btn-xs mt-2">編輯</button>
             </div>
-            <form action="/api/notes" method="post" class="flex-col gap-2" style="display:none">
-              <input type="hidden" name="symbol" value="{{ s.symbol }}">
-              <textarea name="note" rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
-              <button type="submit" class="btn btn-neutral btn-xs self-end">儲存</button>
-            </form>
-            {% else %}
-            <form action="/api/notes" method="post" class="flex flex-col gap-2">
-              <input type="hidden" name="symbol" value="{{ s.symbol }}">
-              <textarea name="note" rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼"></textarea>
-              <button type="submit" class="btn btn-neutral btn-xs self-end">儲存</button>
-            </form>
-            {% endif %}
+            <div class="note-edit flex flex-col gap-2" data-symbol="{{ s.symbol }}" style="display:{{ 'none' if notes_by_symbol.get(s.symbol) else 'flex' }}">
+              <textarea rows="3" class="textarea textarea-bordered text-sm w-full" placeholder="例如：AI 趨勢長期看好，目標價 $250 分批加碼">{{ notes_by_symbol.get(s.symbol, '') }}</textarea>
+              <button type="button" onclick="saveNote(this)" class="btn btn-neutral btn-xs self-end">儲存</button>
+            </div>
           </div>
         </details>
         {% endfor %}
@@ -1211,10 +1202,29 @@ function escapeHtml(str) {
 // Rows whose cell isn't numeric always sort to the end regardless of column.
 function toggleNoteEdit(btn) {
   const view = btn.closest('.note-view');
-  const form = view.nextElementSibling;
+  const editBox = view.nextElementSibling;
   view.style.display = 'none';
-  form.style.display = 'flex';
-  form.querySelector('textarea').focus();
+  editBox.style.display = 'flex';
+  editBox.querySelector('textarea').focus();
+}
+
+async function saveNote(btn) {
+  const editBox = btn.closest('.note-edit');
+  const textarea = editBox.querySelector('textarea');
+  const symbol = editBox.dataset.symbol;
+  btn.disabled = true;
+  const body = new FormData();
+  body.set('symbol', symbol);
+  body.set('note', textarea.value);
+  await fetch('/api/notes', { method: 'POST', body });
+  btn.disabled = false;
+
+  const details = editBox.closest('details');
+  details.querySelector('.note-badge').style.display = textarea.value ? '' : 'none';
+  const view = editBox.previousElementSibling;
+  view.querySelector('p').textContent = textarea.value;
+  editBox.style.display = 'none';
+  view.style.display = '';
 }
 
 function toggleTransactionNoteEdit(btn) {
