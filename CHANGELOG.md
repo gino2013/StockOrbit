@@ -6,6 +6,7 @@
 
 ## 2026-09-01
 
+- `bc25a87` 把 `dashboard.html`（3134 行單一檔案，27 個功能區塊塞在同一個近 2000 行的 `<script>` 標籤）拆成模組化的 Jinja partials（issue #182）：每個區塊自己的檔案（HTML + 對應的 JS 放一起），跨區塊共用的工具函式（escapeHtml、fmtPct 系列、makeSortable、attachTickerAutocomplete 等）集中在 `sections/_shared.html` 最先載入；純搬移不改邏輯，維持零建置流程。過程中抓到並修掉拆分本身引入的一個 regression：日期欄位預設值腳本被排到所有區塊最後面，但持股歷史走勢／再平衡策略回測各自的自動查詢在載入時就先觸發，required 日期欄位還沒填值就送出表單，被瀏覽器原生驗證靜默擋下（不會噴錯誤，兩個區塊進站直接是空的）；改成兩者的自動查詢都延後到 `DOMContentLoaded` 才觸發解決
 - `f7db032` 「重新抓取持股」reload icon 拿掉深黑色按鈕外框（issue #179），改成跟旁邊深色模式切換按鈕一樣的 ghost 風格
 - `abacde3` 修正閒置一段時間後回到網站偶爾顯示 Internal Server Error 的問題（issue #176）：正式環境用的 Neon Postgres 會在閒置後把連線關掉，SQLAlchemy engine 沒設 `pool_pre_ping=True` 的情況下，連線池會把已失效的連線借給下一個請求、第一個查詢就直接丟未捕捉例外變成 500；加上 `pool_pre_ping=True` 後每次借出連線前會先用輕量 SELECT 1 測試，失效就自動重連
 - `1662b81` 持股筆記儲存改成 AJAX（issue #173）：原本是傳統 form POST，存檔後整頁重新整理會重新觸發首頁所有區塊（含多個 yfinance 即時請求），改一筆筆記等很久；改成跟交易紀錄筆記一樣的 `fetch()` 局部更新，儲存變瞬間完成
