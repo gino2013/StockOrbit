@@ -6,6 +6,7 @@
 
 ## 2026-09-01
 
+- `84a6156` 持股筆記新增歷史版本（issue #201）：每次儲存除了更新目前顯示的筆記，也額外記一筆帶時間戳記的版本（新表 `position_note_history`），筆記下方新增「歷史版本」摺疊列表由新到舊列出；同時「接下來預測」長期欄位數字過於誇張時（累積變動超過 +1000%）加上 ⚠️ 警告標示跟說明文字（issue #202）——數學沒有錯，但短窗口 XIRR 複利拉遠本來就容易失真，這只是提醒
 - `805ef74` **修正真實帳戶資料外洩到公開截圖的問題**（issue #195）：`scripts/seed_demo_data.py` 的 `TODAY` 常數是寫死的日期，過期後種出來的「拋棄式」demo DB 一開機就會被判定持股快照過舊，靜默觸發 dashboard 的自動 Firstrade 刷新；因為本機測試帳號沒有個人 Firstrade 憑證，會 fallback 到 `.env` 裡的真實帳密，實際登入真實帳戶並把真實資料寫進「拋棄式」的本機測試 DB。確認 `docs/screenshot-pace-projection.png`（PR #145）曾經含有真實帳戶數字且已 push 到公開 repo；已重新產生純假資料版本覆蓋掉。`TODAY` 改成 `date.today()` 修掉根因，並在腳本加上明確警告
 - 多使用者化補強：新增 `REQUIRE_EMAIL_VERIFICATION` 環境變數（預設 `true`）。設成 `false` 時，Firstrade 連結表單跟 CSV 匯入不再檢查 `email_verified`——給沒有要接 SMTP、又想讓其他人直接能用的部署（代價是少了開放註冊的濫用防線）。同時修掉一個誤導訊息：`SMTP_HOST` 沒設時，「重寄驗證信」不再假裝「已寄出」，改回 503 + 「站台尚未設定寄信服務」；`/forgot` 也改成老實說無法用 email 重設（不洩漏帳號是否存在）。`REQUIRE_EMAIL_VERIFICATION=false` 時「重寄驗證信」按鈕與「尚未驗證信箱」提示都收起來。新增 `tests/test_email_verification_toggle.py`
 - `38d8f7c` 登入／註冊頁密碼欄位加上顯示/隱藏切換按鈕（issue #185）：眼睛 icon 點擊切換 type=password ↔ type=text，icon 跟著切換張開/劃掉樣式
