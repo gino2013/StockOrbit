@@ -346,7 +346,8 @@ cp .env.example .env   # 填入下面的環境變數
 | `FT_USERNAME` / `FT_PASSWORD` | 站台擁有者的 Firstrade 登入帳密 |
 | `FT_MFA_SECRET` | 2FA 的 TOTP 密鑰（**不是**簡訊/email 收到的驗證碼，也不是備用代碼）。在 Firstrade 網站設定「驗證應用程式」2FA 時，QR code 旁邊「無法掃描/手動輸入」連結會顯示這組字串。留空的話，帳號若開了 2FA，自動抓取會直接失敗 |
 | `FT_CREDENTIAL_KEY` | Fernet 金鑰，用來加密其他使用者存進來的 Firstrade 憑證（`python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`）。不設的話「連結 Firstrade」功能停用。**跟 `APP_SECRET_KEY` 分開，只放環境變數** |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS）。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結）。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS）。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結）。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER`。Gmail：`SMTP_HOST=smtp.gmail.com`、`SMTP_PORT=587`、`SMTP_USER` 是 Gmail 位址、`SMTP_PASSWORD` 用 [應用程式密碼](https://myaccount.google.com/apppasswords)（需先開兩步驟驗證），不是帳號密碼 |
+| `REQUIRE_EMAIL_VERIFICATION` | 預設 `true`：Firstrade 連結表單跟 CSV 匯入都要先驗證信箱。沒有要接 SMTP 的話設成 `false` 拿掉這道 gate，任何註冊的人直接能用——代價是少了開放註冊的濫用防線（見下方安全性段落） |
 | `DATABASE_URL` | 資料庫連線字串，本機預設 `sqlite:///./stockorbit.db`，正式環境填 Postgres 連線字串 |
 
 `.env` 已加進 `.gitignore`，不會被提交。
@@ -357,12 +358,12 @@ cp .env.example .env   # 填入下面的環境變數
 
 - **儲存第三方券商帳密**：Firstrade 帳號、密碼、TOTP 密鑰以 `FT_CREDENTIAL_KEY` 加密後存進 `firstrade_credentials` 表。即便加密，**資料庫外洩加上 `FT_CREDENTIAL_KEY` 一起外洩，就等於每一個使用者的券商帳號被盜用**。金鑰只放環境變數、`render.yaml` 標 `sync: false`、不寫進資料庫或版控、不記進 log；但殘餘風險是真實的，隨使用者數量放大。
 - **非官方 scraper**：`firstrade==0.0.39` 是非官方套件，同一個 Render IP 大量登入可能被 Firstrade 判定為異常而鎖帳號。每個使用者的自動同步限流成 10 分鐘一次就是唯一的緩衝。
-- **緩解措施**：Firstrade 連結功能擋在 `email_verified` 後面；每人自動同步限流；帳號可在「設定」頁輸入自己的 email 確認後硬刪除全部資料（8 張表）；登入／註冊／忘記密碼有每 IP 的簡易限流（in-process，重啟會重置）。
+- **緩解措施**：Firstrade 連結功能跟 CSV 匯入預設擋在 `email_verified` 後面（`REQUIRE_EMAIL_VERIFICATION=false` 可拿掉這道 gate，但濫用面就變大）；每人自動同步限流；帳號可在「設定」頁輸入自己的 email 確認後硬刪除全部資料（8 張表）；登入／註冊／忘記密碼有每 IP 的簡易限流（in-process，重啟會重置）。
 - **建議**：如果不想承擔上述風險，可以不設 `FT_CREDENTIAL_KEY`（連結功能整個停用），只用擁有者自己的 `FT_*` env 帳號跑單人模式。
 
 ### CSV 匯入（不需要帳密的替代路徑）
 
-不想連結 Firstrade 帳號的使用者，可以在「設定」頁上傳 CSV（需先完成信箱驗證）。第一列是欄位名稱、之後每列一筆，欄名大小寫與前後空白不拘：
+不想連結 Firstrade 帳號的使用者，可以在「設定」頁上傳 CSV（預設需先完成信箱驗證，`REQUIRE_EMAIL_VERIFICATION=false` 可拿掉）。第一列是欄位名稱、之後每列一筆，欄名大小寫與前後空白不拘：
 
 - **持股**：`symbol`、`quantity` 必填；`avg_cost`（每股均價）或 `cost_basis`（總成本）、`price`、`market_value`、`account_number` 選填。`market_value` 留空時用 `price × quantity` 推算。
 - **交易紀錄**：`date`（`YYYY-MM-DD` 或 `MM/DD/YYYY`）、`type` 必填；`symbol`、`quantity`、`price`、`amount`、`description`、`account_number` 選填。`type` 接受 `buy`/`sell`/`dividend`/`interest`/`deposit`（其他值原樣轉大寫）。`amount` 留空時，買賣會用 `quantity × price` 帶正負號推算。

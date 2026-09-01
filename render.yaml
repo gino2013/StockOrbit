@@ -40,6 +40,11 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      # REQUIRE_EMAIL_VERIFICATION: default true. Set to "false" to let
+      # unverified users use the Firstrade form / CSV import when no SMTP
+      # sender is configured (widens the open-registration abuse surface).
+      - key: REQUIRE_EMAIL_VERIFICATION
+        sync: false
     # DB migrations are run by hand for now (free tier). On the existing prod DB, once:
     #   alembic stamp 0001_baseline && alembic upgrade head
     # then re-run `alembic upgrade head` after each future schema change.

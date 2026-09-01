@@ -66,6 +66,14 @@ def demo():
     http.resend_verification(req, bt)
     assert len(bt.tasks) == 0
 
+    # --- /forgot: SMTP not configured -> honest message, nothing queued ---
+    os.environ.pop("SMTP_HOST", None)
+    bt = BackgroundTasks()
+    resp = http.forgot(_req(), bt, email="alice@test.co")
+    assert resp.status_code == 200 and len(bt.tasks) == 0
+
+    os.environ["SMTP_HOST"] = "smtp.example.test"  # mailer.is_enabled() -> True
+
     # --- /forgot: unknown email -> same generic response, no email, no crash ---
     bt = BackgroundTasks()
     resp = http.forgot(_req(), bt, email="nobody@test.co")
