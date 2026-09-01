@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, Form, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -25,6 +25,7 @@ from app.infrastructure.db import (
 from app.interface import auth
 from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
 from app.infrastructure import crypto, mailer
+from app.infrastructure.csv_import import CsvImportError, parse_positions, parse_transactions
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
@@ -413,6 +414,58 @@ def delete_account(request: Request, confirm_email: str = Form(...)):
     resp = RedirectResponse("/login", status_code=303)
     resp.delete_cookie(COOKIE_NAME)
     return resp
+
+
+_IMPORT_MAX_BYTES = 2_000_000
+
+
+async def _read_upload(file: UploadFile) -> str:
+    raw = await file.read()
+    if len(raw) > _IMPORT_MAX_BYTES:
+        raise CsvImportError("檔案太大（上限 2MB）")
+    try:
+        return raw.decode("utf-8-sig")  # tolerate an Excel BOM
+    except UnicodeDecodeError:
+        raise CsvImportError("檔案不是 UTF-8 編碼")
+
+
+async def _handle_import(request: Request, file: UploadFile, kind: str):
+    user = _current_user(request)
+    if not user.email_verified:
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error="匯入功能需要先完成信箱驗證"), status_code=403,
+        )
+    try:
+        text = await _read_upload(file)
+        if kind == "positions":
+            rows = parse_positions(text)
+            with Repositories(user.id) as repo:
+                repo.save_refresh(rows, [], None)
+            msg = f"已匯入 {len(rows)} 筆持股。"
+        else:
+            rows = parse_transactions(text)
+            with Repositories(user.id) as repo:
+                repo.save_refresh([], rows, None)
+            msg = f"已匯入 {len(rows)} 筆交易紀錄。"
+    except CsvImportError as e:
+        return templates.TemplateResponse(
+            request, "settings.html",
+            _settings_context(request, user, error=f"匯入失敗：{e}"), status_code=400,
+        )
+    return templates.TemplateResponse(
+        request, "settings.html", _settings_context(request, user, message=msg)
+    )
+
+
+@app.post("/settings/import/positions")
+async def import_positions(request: Request, file: UploadFile = File(...)):
+    return await _handle_import(request, file, "positions")
+
+
+@app.post("/settings/import/transactions")
+async def import_transactions(request: Request, file: UploadFile = File(...)):
+    return await _handle_import(request, file, "transactions")
 
 
 def _parse_weighted_basket(raw: str) -> tuple[dict[str, float] | None, str | None]:

@@ -103,6 +103,34 @@
       </div>
     </div>
 
+    <!-- CSV import -->
+    <div class="card bg-base-100 shadow">
+      <div class="card-body gap-2">
+        <h2 class="card-title text-base">CSV 匯入</h2>
+        {% if not user.email_verified %}
+        <p class="text-sm opacity-70">此功能需要先完成信箱驗證，請見上方「重寄驗證信」。</p>
+        {% else %}
+        <p class="text-xs opacity-70">不想連結 Firstrade 帳號的話，可以直接上傳 CSV。第一列是欄位名稱，之後每列一筆資料。</p>
+
+        <form method="post" action="/settings/import/positions" enctype="multipart/form-data" class="flex flex-col gap-2">
+          <p class="text-sm font-semibold">持股</p>
+          <p class="text-xs opacity-60">欄位：<code>symbol, quantity</code>（必填）、<code>avg_cost</code> 或 <code>cost_basis</code>、<code>price</code>、<code>market_value</code>、<code>account_number</code>（選填）</p>
+          <input type="file" name="file" accept=".csv,text/csv" required class="file-input file-input-bordered file-input-sm w-full">
+          <button type="submit" class="btn btn-primary btn-sm self-start">匯入持股</button>
+        </form>
+
+        <div class="divider my-1"></div>
+
+        <form method="post" action="/settings/import/transactions" enctype="multipart/form-data" class="flex flex-col gap-2">
+          <p class="text-sm font-semibold">交易紀錄</p>
+          <p class="text-xs opacity-60">欄位：<code>date, type</code>（必填）、<code>symbol</code>、<code>quantity</code>、<code>price</code>、<code>amount</code>、<code>description</code>、<code>account_number</code>（選填）。<code>type</code> 可用 buy/sell/dividend/interest/deposit；<code>amount</code> 留空時買賣會自動用 <code>quantity × price</code> 推算</p>
+          <input type="file" name="file" accept=".csv,text/csv" required class="file-input file-input-bordered file-input-sm w-full">
+          <button type="submit" class="btn btn-primary btn-sm self-start">匯入交易紀錄</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
     <!-- Danger zone -->
     <div class="card bg-base-100 shadow border border-error">
       <div class="card-body gap-2">
