@@ -26,7 +26,7 @@
               <ul class="note-history-list mt-1 space-y-2">
                 {% for h in history %}
                 <li class="text-xs border-l-2 border-base-300 pl-2">
-                  <div class="opacity-50">{{ h.saved_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                  <div class="opacity-50">{{ (h.saved_at | to_taipei).strftime('%Y-%m-%d %H:%M') }}</div>
                   <div class="whitespace-pre-wrap">{{ h.note }}</div>
                 </li>
                 {% endfor %}

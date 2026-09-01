@@ -2,6 +2,7 @@ import os
 import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -65,6 +66,23 @@ async def _bind_request_user(request: Request) -> None:
 
 app = FastAPI(title="StockOrbit", dependencies=[Depends(_bind_request_user)])
 templates = Jinja2Templates(directory="app/templates")
+
+_TAIPEI = ZoneInfo("Asia/Taipei")
+
+
+def _to_taipei(dt: datetime | None) -> datetime | None:
+    """DB timestamps are stored as UTC but come back tz-naive (SQLite and
+    Postgres both drop tzinfo on a plain DateTime column) - template code
+    that renders one to a human needs it converted to the user's actual
+    timezone, not shown as if the UTC wall-clock time were local."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_TAIPEI)
+
+
+templates.env.filters["to_taipei"] = _to_taipei
 # Fail fast and legibly at startup, in the deploy log - not a raw 500 on the
 # first login/request. See docs/multi-user-architecture.md.
 check_app_secret_key()
