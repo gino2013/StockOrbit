@@ -1,0 +1,45 @@
+  <h2 id="section-concentration-history" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股集中度歷史走勢
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        藍線 HHI：數字越低代表持股越分散、越高代表越集中在少數幾檔（數字範圍 0~1；例如平均分散在 5 檔約 0.2，10 檔約 0.1）。橘線是最大單一持股佔比（%），更直覺，就是你最大一檔持股佔整體的比例。兩者隨時間怎麼變化，看分散程度是變好還是變壞。客觀數據呈現，不下「應該減碼」的結論。
+      </p>
+      <div class="h-64"><canvas id="concentrationHistoryChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+const concentrationChartData = {{ concentration_chart_data | default(none) | tojson }};
+if (concentrationChartData && concentrationChartData.labels.length) {
+  const concentrationLabels = concentrationChartData.labels.map((l) => l.slice(0, 10));
+  new Chart(document.getElementById('concentrationHistoryChart'), {
+    type: 'line',
+    data: {
+      labels: concentrationLabels,
+      datasets: [
+        { label: 'HHI', data: concentrationChartData.hhi, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5', yAxisID: 'y' },
+        { label: '最大單一持股佔比', data: concentrationChartData.max_weight.map(v => v * 100), borderWidth: 1.5, pointRadius: 0, borderColor: '#f59e0b', yAxisID: 'y1' },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ctx.dataset.label === 'HHI'
+              ? ` HHI: ${ctx.parsed.y.toFixed(3)}`
+              : ` 最大單一持股佔比: ${ctx.parsed.y.toFixed(1)}%`,
+          },
+        },
+      },
+      scales: {
+        y: { position: 'left', min: 0, max: 1, title: { display: true, text: 'HHI' } },
+        y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: (v) => `${v}%` }, title: { display: true, text: '最大單一持股佔比' } },
+      },
+    },
+  });
+}
+</script>

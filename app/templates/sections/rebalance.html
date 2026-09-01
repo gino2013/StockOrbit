@@ -1,0 +1,109 @@
+  <h2 id="section-rebalance" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>再平衡建議金額
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        依目前總市值跟目標配置反推，每檔要加碼／減碼多少錢才能貼齊目標。持股裡沒有設定目標的（現金除外）視為目標 0%，建議全數賣出。不含手續費/稅金，僅供參考，不是投資建議。
+      </p>
+      <div id="targets-warning-2"></div>
+      <div class="overflow-x-auto">
+        <table id="rebalance-table" class="table table-sm">
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th class="text-right">目前市值</th>
+              <th class="text-right">目前佔比</th>
+              <th class="text-right">目標佔比</th>
+              <th class="text-right">目標市值</th>
+              <th class="text-right">建議動作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in rebalance_plan %}
+            <tr>
+              <td class="font-medium">{{ p.symbol }}</td>
+              <td class="text-right">${{ "{:,.0f}".format(p.current_value) }}</td>
+              <td class="text-right opacity-70">{{ "{:.1f}%".format(p.current_weight * 100) }}</td>
+              <td class="text-right opacity-70">{{ "{:.0f}%".format(p.target_weight * 100) }}</td>
+              <td class="text-right opacity-70">${{ "{:,.0f}".format(p.target_value) }}</td>
+              <td class="text-right whitespace-nowrap">
+                {% if p.diff|abs < 1 %}
+                <span class="opacity-40">已達標</span>
+                {% elif p.diff > 0 %}
+                <span class="text-success font-medium">+${{ "{:,.0f}".format(p.diff) }} 買入</span>
+                {% else %}
+                <span class="text-error font-medium">-${{ "{:,.0f}".format(-p.diff) }} 賣出</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="divider text-xs opacity-50">或者：只有一筆閒置現金，不想賣出任何持股</div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm opacity-70">我有</span>
+        <input id="cash-deployment-amount" type="number" min="0" step="100" placeholder="10000" class="input input-bordered input-sm w-32">
+        <span class="text-sm opacity-70">元現金，該加碼哪些？</span>
+        <button type="button" onclick="loadCashDeployment()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="cash-deployment-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="cash-deployment-content" class="mt-2"></div>
+    </div>
+  </div>
+
+<script>
+makeSortable(document.getElementById('rebalance-table'));
+async function loadCashDeployment() {
+  const errorBox = document.getElementById('cash-deployment-error');
+  const content = document.getElementById('cash-deployment-content');
+  const amountInput = document.getElementById('cash-deployment-amount');
+  errorBox.classList.add('hidden');
+
+  const amount = parseFloat(amountInput.value);
+  if (!amount || amount <= 0) {
+    content.innerHTML = '';
+    errorBox.textContent = '請輸入大於 0 的金額';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch(`/api/cash-deployment?amount=${encodeURIComponent(amount)}`);
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (!data.plan.length) {
+    content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
+    return;
+  }
+  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標-現金不夠補滿全部落差時，只會盡量按落差比例分配。</p>';
+  html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">建議買入</th><th class="text-right">目前佔比</th>' +
+    '<th class="text-right">加碼後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
+  for (const p of data.plan) {
+    const buyLabel = p.buy_amount > 0.5
+      ? `<span class="text-success font-medium">+$${p.buy_amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`
+      : '<span class="opacity-40">-</span>';
+    const hitTarget = Math.abs(p.new_weight - p.target_weight) < 0.001;
+    const newWeightClass = hitTarget ? 'text-success' : '';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(p.symbol)}</td>
+      <td class="text-right">${buyLabel}</td>
+      <td class="text-right opacity-70">${(p.current_weight * 100).toFixed(1)}%</td>
+      <td class="text-right ${newWeightClass}">${(p.new_weight * 100).toFixed(1)}%</td>
+      <td class="text-right opacity-70">${(p.target_weight * 100).toFixed(1)}%</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(document.getElementById('cash-deployment-table'));
+}
+</script>

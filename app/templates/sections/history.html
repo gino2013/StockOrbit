@@ -1,0 +1,176 @@
+  <h2 id="section-history" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股歷史走勢
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用「目前」的持股股數回推過去的市值（假設股數在期間內沒變）。填「比較標的」可以看你的組合跟一個或多個標的的報酬率比較，用分號分隔多條線，例如 <code>QQQ; VOO; QQQ:0.6,VOO:0.4</code>。
+      </p>
+      <div class="bg-base-200 rounded-box p-4 mt-2">
+        <form id="history-form" class="flex flex-wrap gap-3 items-end">
+          <label class="text-sm">開始<br>
+            <input name="start" type="date" required class="input input-bordered input-sm mt-1 w-40">
+          </label>
+          <label class="text-sm">結束<br>
+            <input name="end" type="date" required class="input input-bordered input-sm mt-1 w-40">
+          </label>
+          <label class="text-sm">顯示粒度<br>
+            <select name="granularity" class="select select-bordered select-sm mt-1">
+              <option value="D" selected>每日</option>
+              <option value="M">每月</option>
+              <option value="Q">每季</option>
+              <option value="A">每年</option>
+            </select>
+          </label>
+          <label class="text-sm">比較標的（選填）<br>
+            <div class="relative">
+              <input id="history-compare" name="compare" placeholder="QQQ; VOO; QQQ:0.6,VOO:0.4" autocomplete="off"
+                class="input input-bordered input-sm mt-1 w-64">
+              <ul id="history-compare-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+            </div>
+          </label>
+          <button type="submit" class="btn btn-neutral">查詢</button>
+          <label class="label cursor-pointer gap-2 text-sm ml-auto self-end pb-2">
+            <input type="checkbox" name="exclude_portfolio" value="true" class="checkbox checkbox-sm">
+            移除我的持股組合
+          </label>
+        </form>
+      </div>
+      <p id="history-exclude-hint" class="text-xs opacity-50 mt-2 hidden">已移除你的持股組合。這樣比較線就不會被你某檔較晚上市的持股限制住最早的起始日期。</p>
+      <div id="history-error" class="alert alert-error text-sm mt-3 hidden"></div>
+      <div id="history-stats" class="flex flex-wrap gap-3 mt-3 mb-1"></div>
+      <div id="history-analysis" class="text-sm opacity-80 mb-2"></div>
+      <div class="h-64 mt-2"><canvas id="historyChart"></canvas></div>
+      <div id="history-moves" class="text-xs mt-3"></div>
+    </div>
+  </div>
+
+<script>
+attachTickerAutocomplete('history-compare', 'history-compare-suggestions', { multi: true });
+// --- 持股歷史走勢 ---
+let historyChart = null;
+document.getElementById('history-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('history-error');
+  errorBox.classList.add('hidden');
+  const body = new FormData(e.target);
+  const res = await fetch('/api/holdings-history', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('history-exclude-hint').classList.toggle('hidden', !data.portfolio_excluded);
+
+  const analysisBox = document.getElementById('history-analysis');
+  let datasets;
+  if (data.mode === 'compare' && data.portfolio_excluded) {
+    const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
+    const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+
+    let statsHtml = '';
+    let analysisHtml = '';
+    data.compare_stats.forEach((c) => {
+      statsHtml += `<span class="text-sm">${escapeHtml(c.label)}: <b class="${c.return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(c.return)}</b></span>`;
+      analysisHtml += `<p>${escapeHtml(c.label)} 最大回撤：${ddNum(c.max_drawdown)}`;
+      if (c.volatility != null) analysisHtml += `，年化波動度：${volNum(c.volatility)}`;
+      analysisHtml += `。</p>`;
+    });
+    document.getElementById('history-stats').innerHTML = statsHtml;
+    analysisBox.innerHTML = analysisHtml;
+
+    datasets = Object.keys(data.compare_series).map((label, i) => ({
+      label: `${label} (報酬 %)`, data: data.compare_series[label], borderWidth: 1.5, pointRadius: 0,
+      borderColor: compareColors[i % compareColors.length],
+    }));
+  } else if (data.mode === 'compare') {
+    const ddNum = v => `<b class="text-error">${fmtPct(v)}</b>`;
+    const volNum = v => `<b class="text-warning">${(v * 100).toFixed(1)}%</b>`;
+
+    let statsHtml = `<span class="text-sm">你的組合: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
+    let analysisHtml = '';
+    data.compare_stats.forEach((c) => {
+      statsHtml += `<span class="text-sm">${escapeHtml(c.label)}: <b class="${c.return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(c.return)}</b></span>`;
+      const ddCompare = data.portfolio_max_drawdown <= c.max_drawdown ? '較深' : '較淺';
+      analysisHtml += `<p>最大回撤：你的組合 ${ddNum(data.portfolio_max_drawdown)} vs ${escapeHtml(c.label)} ${ddNum(c.max_drawdown)}（你的組合下跌${ddCompare}）。</p>`;
+      if (data.portfolio_volatility != null && c.volatility != null) {
+        const volCompare = data.portfolio_volatility <= c.volatility ? '較低' : '較高';
+        analysisHtml += `<p>年化波動度：你的組合 ${volNum(data.portfolio_volatility)} vs ${escapeHtml(c.label)} ${volNum(c.volatility)}（${volCompare}）。</p>`;
+      }
+    });
+    document.getElementById('history-stats').innerHTML = statsHtml;
+    analysisBox.innerHTML = analysisHtml;
+
+    datasets = [
+      { label: '你的組合 (報酬 %)', data: data.portfolio_pct, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
+    ];
+    Object.keys(data.compare_series).forEach((label, i) => {
+      datasets.push({
+        label: `${label} (報酬 %)`, data: data.compare_series[label], borderWidth: 1.5, pointRadius: 0,
+        borderColor: compareColors[i % compareColors.length],
+      });
+    });
+  } else {
+    document.getElementById('history-stats').innerHTML =
+      `<span class="text-sm">期間報酬: <b class="${data.portfolio_return >= 0 ? 'text-success' : 'text-error'}">${fmtPct(data.portfolio_return)}</b></span>`;
+    datasets = [
+      { label: '持股市值 ($)', data: data.portfolio_value, borderWidth: 1.5, pointRadius: 0, borderColor: '#4f46e5' },
+    ];
+    analysisBox.innerHTML = '';
+  }
+
+  const movesBox = document.getElementById('history-moves');
+  const annotations = {};
+  const movesByDate = {};
+  if (data.notable_moves && data.notable_moves.length) {
+    data.notable_moves.forEach((m, i) => {
+      movesByDate[m.date] = m.change;
+      annotations[`move${i}`] = {
+        type: 'line', xMin: m.date, xMax: m.date,
+        borderColor: m.change >= 0 ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)', borderWidth: 1.5,
+      };
+    });
+    const items = data.notable_moves
+      .map(m => `<li>• ${m.date}：${m.change >= 0 ? '大漲' : '大跌'} ${Math.abs(m.change * 100).toFixed(1)}%</li>`)
+      .join('');
+    movesBox.innerHTML =
+      `<p class="font-medium mb-1">重大波動日（單日 ±3% 以上）</p><ul class="space-y-0.5 opacity-80">${items}</ul>` +
+      `<p class="opacity-50 mt-1">只標出「哪幾天波動大」，無法自動回溯當天的新聞原因（新聞來源只保留最新報導）。想知道原因可以自己查那天的日期。</p>`;
+  } else {
+    movesBox.innerHTML = '';
+  }
+
+  if (historyChart) historyChart.destroy();
+  historyChart = new Chart(document.getElementById('historyChart'), {
+    type: 'line',
+    data: { labels: data.dates, datasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: { x: { ticks: { maxTicksLimit: 10 } } },
+      plugins: {
+        annotation: { annotations },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => {
+              const change = movesByDate[ctx.label];
+              if (change === undefined) return '';
+              return `重大波動：${change >= 0 ? '大漲' : '大跌'} ${Math.abs(change * 100).toFixed(1)}%`;
+            },
+          },
+        },
+      },
+    },
+  });
+});
+{% if snapshots %}
+// Deferred to DOMContentLoaded: the shared start/end date-defaulting
+// script runs at the bottom of the page (after every section's own
+// script), so calling requestSubmit() here immediately would hit the
+// required date inputs before they have a value and get silently
+// blocked by native browser validation - no fetch, no error, no chart.
+document.addEventListener('DOMContentLoaded', () => document.getElementById('history-form').requestSubmit());
+{% endif %}
+</script>

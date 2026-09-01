@@ -1,0 +1,126 @@
+{# Shared JS utilities used by 2+ sections: formatters, escapeHtml, makeSortable/attachTickerAutocomplete definitions, Chart.js theme defaults. Included once, before any section, so definitions exist before any section's own <script> block runs. #}
+<script>
+// Sentiment is a simple keyword count done server-side (app/market_moves.py),
+// not real NLP - just makes an obviously bullish/bearish headline easier to
+// spot. Mixed/unclear headlines come back "neutral" and get no color.
+function sentimentClass(sentiment) {
+  return sentiment === 'bullish' ? 'text-success' : sentiment === 'bearish' ? 'text-error' : '';
+}
+// News titles/publishers come from an external feed - escape before
+// injecting into the DOM rather than trusting them in innerHTML.
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+function makeSortable(table) {
+  if (!table) return;
+  const headers = table.querySelectorAll('thead th');
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  headers.forEach((th, idx) => {
+    th.classList.add('cursor-pointer', 'select-none', 'hover:bg-base-200');
+    th.addEventListener('click', () => {
+      const dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+      headers.forEach((h) => {
+        delete h.dataset.sortDir;
+        h.querySelector('.sort-arrow')?.remove();
+      });
+      th.dataset.sortDir = dir;
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow opacity-60';
+      arrow.textContent = dir === 'asc' ? ' ▲' : ' ▼';
+      th.appendChild(arrow);
+
+      const parseCell = (row) => {
+        const text = row.children[idx]?.textContent.trim() ?? '';
+        const num = parseFloat(text.replace(/[$,%+]/g, ''));
+        return { text, num: Number.isNaN(num) ? null : num };
+      };
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort((a, b) => {
+        const av = parseCell(a);
+        const bv = parseCell(b);
+        if (av.num !== null && bv.num !== null) {
+          return dir === 'asc' ? av.num - bv.num : bv.num - av.num;
+        }
+        if (av.num !== null) return -1;
+        if (bv.num !== null) return 1;
+        return dir === 'asc' ? av.text.localeCompare(bv.text) : bv.text.localeCompare(av.text);
+      });
+      rows.forEach((r) => tbody.appendChild(r));
+    });
+  });
+}
+// Ticker autocomplete. `multi: true` handles the "QQQ:0.6,VOO:0.4" weighted
+// basket syntax - it autocompletes whichever symbol segment is currently
+// being typed, not the whole field.
+function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
+  if (!input || !list) return;
+  let debounceTimer = null;
+
+  // "," separates symbol:weight pairs within one basket, ";" separates
+  // multiple comparison baskets/lines - split on both, keeping delimiters
+  // (capturing group) so choose() can splice the last segment back in place.
+  function currentQuery() {
+    const value = input.value;
+    if (!multi) return value.trim();
+    const lastSegment = value.split(/[,;]/).pop();
+    if (lastSegment.includes(':')) return null; // already past the symbol, typing a weight
+    return lastSegment.trim();
+  }
+
+  function hide() {
+    list.classList.add('hidden');
+    list.innerHTML = '';
+  }
+
+  function choose(symbol) {
+    if (multi) {
+      const tokens = input.value.split(/([,;])/);
+      tokens[tokens.length - 1] = symbol;
+      input.value = tokens.join('');
+    } else {
+      input.value = symbol;
+    }
+    hide();
+    input.focus();
+  }
+
+  input.addEventListener('input', () => {
+    const query = currentQuery();
+    clearTimeout(debounceTimer);
+    if (!query || query.length < 2) { hide(); return; }
+    debounceTimer = setTimeout(async () => {
+      const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query)}`);
+      const results = await res.json();
+      if (!results.length) { hide(); return; }
+      list.innerHTML = results.map(r =>
+        `<li><a data-symbol="${escapeHtml(r.symbol)}"><b>${escapeHtml(r.symbol)}</b> <span class="opacity-60 text-xs">${escapeHtml(r.name)}</span></a></li>`
+      ).join('');
+      list.classList.remove('hidden');
+    }, 250);
+  });
+
+  list.addEventListener('mousedown', (e) => {
+    const a = e.target.closest('a[data-symbol]');
+    if (a) { e.preventDefault(); choose(a.dataset.symbol); }
+  });
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') hide(); });
+}
+function fmtPctOrDash(v) { return v === null || v === undefined ? '-' : `${(v * 100).toFixed(1)}%`; }
+function fmtNum(v, digits = 1) { return v === null || v === undefined ? '-' : v.toFixed(digits); }
+function fmtPrice(v) { return v === null || v === undefined ? '-' : `$${v.toFixed(2)}`; }
+function posNegClass(v) { return v == null ? '' : v > 0 ? 'text-success' : v < 0 ? 'text-error' : ''; }
+function betaClass(v) { return v == null ? '' : v < 0.8 ? 'text-success' : v > 1.5 ? 'text-error' : 'text-warning'; }
+// Chart.js doesn't read CSS variables, so pick readable defaults for the
+// current theme once, up front, rather than per-chart.
+const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
+Chart.defaults.borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+const fmtPct = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`;
+const compareColors = ['#f59e0b', '#22c55e', '#ec4899', '#06b6d4', '#eab308', '#f97316'];
+</script>

@@ -1,0 +1,23 @@
+  <h2 id="section-dividend-calendar" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>配息月曆
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">依歷史配息月份規律推算未來 12 個月的預期配息，金額用該標的過去在該月份最近一次的實際發放金額估計。<b>這是依歷史推算，不是官方公告</b>，實際發放時間跟金額可能改變。</p>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
+        {% for month in dividend_calendar %}
+        <div class="border border-base-200 rounded-box p-3">
+          <p class="font-medium text-sm mb-2">{{ month.year }}-{{ "%02d"|format(month.month) }}</p>
+          <ul class="text-sm space-y-1">
+            {% for entry in month.entries %}
+            <li class="flex justify-between gap-2">
+              <span>{{ entry.symbol }}</span>
+              <span class="opacity-70">${{ "{:,.2f}".format(entry.estimated_amount) }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>

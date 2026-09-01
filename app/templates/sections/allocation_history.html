@@ -1,0 +1,46 @@
+  <h2 id="section-allocation-history" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>配置歷史走勢
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">每次刷新持股都會留一筆快照，這裡取每天最後一筆快照畫成一個點，顯示各標的佔比隨時間怎麼變化（堆疊面積圖）。資料點數取決於有紀錄的天數，剛開始用可能只有幾天的資料。</p>
+      <div class="h-80"><canvas id="allocationHistoryChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+const allocationChartData = {{ allocation_chart_data | default(none) | tojson }};
+if (allocationChartData && allocationChartData.labels.length) {
+  // One point per calendar day now (see allocation_history.py) - just the
+  // date, no time-of-day, since there's only ever one point per day.
+  const historyLabels = allocationChartData.labels.map((l) => l.slice(0, 10));
+  const historyDatasets = Object.entries(allocationChartData.series).map(([symbol, data]) => ({
+    label: symbol,
+    data,
+    fill: true,
+    tension: 0.2,
+    pointRadius: 0,
+  }));
+  new Chart(document.getElementById('allocationHistoryChart'), {
+    type: 'line',
+    data: { labels: historyLabels, datasets: historyDatasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        colors: { forceOverride: true },
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`,
+          },
+        },
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, min: 0, max: 100, ticks: { callback: (v) => `${v}%` } },
+      },
+    },
+  });
+}
+</script>
