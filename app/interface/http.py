@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 load_dotenv()
 
 from app.application.dashboard import build_dashboard_context
+from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.infrastructure import market_data
@@ -1039,6 +1040,40 @@ def set_goal(target_amount: float = Form(...), target_date: str = Form(...)):
 def delete_goal():
     with Repositories() as repo:
         repo.delete_goal()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/fire")
+def get_fire():
+    with Repositories() as repo:
+        settings = repo.fire_settings()
+        if not settings:
+            return JSONResponse({"fire": None})
+        progress = fire_progress(
+            annual_expenses=settings.annual_expenses,
+            swr=settings.swr,
+            snapshots=repo.latest_snapshots(),
+            transactions=repo.all_transactions(),
+            as_of=datetime.now().date(),
+        )
+    return JSONResponse({"fire": progress})
+
+
+@app.post("/api/fire")
+def set_fire(annual_expenses: float = Form(...), swr: float = Form(0.04)):
+    if annual_expenses <= 0:
+        return JSONResponse({"error": "年支出需大於 0"}, status_code=400)
+    if not 0.02 <= swr <= 0.10:
+        return JSONResponse({"error": "安全提領率需介於 2% ~ 10%"}, status_code=400)
+    with Repositories() as repo:
+        repo.upsert_fire_settings(annual_expenses, swr)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/fire/delete")
+def delete_fire():
+    with Repositories() as repo:
+        repo.delete_fire_settings()
     return JSONResponse({"ok": True})
 
 
