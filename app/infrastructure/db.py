@@ -212,6 +212,20 @@ class InvestmentGoal(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class FireSettings(Base):
+    """FIRE (financial independence) inputs, one row per user - same
+    "no history, no separate id" shape as InvestmentGoal. `swr` is the
+    safe withdrawal rate (0.04 = the 4% rule); FIRE number = annual_expenses
+    / swr."""
+
+    __tablename__ = "fire_settings"
+
+    user_id = _user_id_col(primary_key=True)
+    annual_expenses = Column(Float, nullable=False)
+    swr = Column(Float, nullable=False, default=0.04)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class User(Base):
     """An account. Data in every other user-scoped table is keyed by user_id.
 
@@ -281,7 +295,9 @@ def _infer_untracked_revision() -> str | None:
         return "0003_tenancy_cols"
     if not inspector.has_table("position_note_history"):
         return "0004_tenancy_pks"
-    return "0005_note_history"  # structure already matches head
+    if not inspector.has_table("fire_settings"):
+        return "0005_note_history"
+    return "0006_fire_settings"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

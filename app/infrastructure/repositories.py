@@ -22,6 +22,7 @@ from sqlalchemy import desc
 
 from app.infrastructure.db import (
     ExchangeRateSnapshot,
+    FireSettings,
     FirestradeCredential,
     FundamentalsCache,
     InvestmentGoal,
@@ -226,6 +227,33 @@ class Repositories:
 
     def delete_goal(self) -> None:
         existing = self._mine(InvestmentGoal).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
+
+    # --- FIRE settings ---------------------------------------------------------
+
+    def fire_settings(self) -> FireSettings | None:
+        return self._mine(FireSettings).first()
+
+    def upsert_fire_settings(self, annual_expenses: float, swr: float) -> None:
+        existing = self._mine(FireSettings).first()
+        if existing:
+            existing.annual_expenses = annual_expenses
+            existing.swr = swr
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            self._db.add(
+                FireSettings(
+                    user_id=self._user_id,
+                    annual_expenses=annual_expenses,
+                    swr=swr,
+                )
+            )
+        self._db.commit()
+
+    def delete_fire_settings(self) -> None:
+        existing = self._mine(FireSettings).first()
         if existing:
             self._db.delete(existing)
             self._db.commit()
