@@ -169,7 +169,7 @@
             {% endfor %}
           </div>
           {% if pace_projection | selectattr('extreme') | list %}
-          <p class="text-xs opacity-60 mt-2">⚠️ 標記的欄位：目前的年化報酬率是用較短的追蹤時間反推出來的，時間窗口越短，年化後的數字天生越容易失真；複利拉得越遠，這個誤差會被放大得越明顯，數字僅供參考，不代表實際能達到。</p>
+          <p class="text-xs opacity-60 mt-2">⚠️ 標記的欄位：年化報酬率由較短追蹤期反推，複利拉遠會放大誤差，僅供參考。</p>
           {% endif %}
         </div>
       </details>
