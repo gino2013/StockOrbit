@@ -142,7 +142,7 @@
     <div class="card-body">
       <h2 class="card-title text-base">接下來預測</h2>
       <p class="text-xs opacity-60">假設維持目前的年化報酬率（XIRR {{ "{:+.1%}".format(stats.annualized_return) }}）複利下去，不是預測未來實際報酬，只是「照現在的速度走下去會是這樣」的參考。</p>
-      <div class="stats stats-vertical sm:stats-horizontal shadow mt-2">
+      <div class="stats stats-vertical sm:stats-horizontal shadow w-full mt-2">
         {% for p in pace_projection if not p.long_term %}
         <div class="stat">
           <div class="stat-title">{{ p.label }}</div>
@@ -157,7 +157,7 @@
       <details class="collapse collapse-arrow bg-base-200 mt-2">
         <summary class="collapse-title text-sm font-medium py-2 min-h-0">長期預測（3/5/10/20 年後）</summary>
         <div class="collapse-content">
-          <div class="stats stats-vertical sm:stats-horizontal shadow">
+          <div class="stats stats-vertical sm:stats-horizontal shadow w-full">
             {% for p in pace_projection if p.long_term %}
             <div class="stat">
               <div class="stat-title">{{ p.label }}{% if p.extreme %} <span class="tooltip" data-tip="時間拉得越長，短期波動被複利放大得越誇張，數字失真風險越高，僅供參考">⚠️</span>{% endif %}</div>
