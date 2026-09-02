@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-02
+
+- `4cc08b8` 新增 FIRE 進度（4% 法則，issue #213，見 epic #212）：輸入年支出跟安全提領率（預設 4%）算出 FIRE 數字（年支出 ÷ 提領率）、目前進度、還差多少、以目前 XIRR 推估的達成日期。新表 `fire_settings`（比照 `investment_goals` 的「每人一列」模式），新 partial `sections/fire.html` 擺在「目標達成進度追蹤」之前，AJAX 自載
+
 ## 2026-09-01
 
 - `74fcc62` 修正時間戳記顯示成原始 UTC、跟台北時區（UTC+8）差 8 小時的問題（issue #205）：資料庫存的是 UTC，但存進去後 tzinfo 會被拿掉，範本直接 `.strftime()` 等於把 UTC 時鐘數字原封不動印出來；新增 `_to_taipei()`（標準庫 `zoneinfo`）轉換工具，套用到持股筆記歷史版本、設定頁 Firstrade 最後同步時間、基本面/風險表格的快取日期
