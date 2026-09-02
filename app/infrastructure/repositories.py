@@ -236,11 +236,16 @@ class Repositories:
     def fire_settings(self) -> FireSettings | None:
         return self._mine(FireSettings).first()
 
-    def upsert_fire_settings(self, annual_expenses: float, swr: float) -> None:
+    def upsert_fire_settings(
+        self, annual_expenses: float, swr: float,
+        retirement_date: date | None = None, expected_real_return: float | None = None,
+    ) -> None:
         existing = self._mine(FireSettings).first()
         if existing:
             existing.annual_expenses = annual_expenses
             existing.swr = swr
+            existing.retirement_date = retirement_date
+            existing.expected_real_return = expected_real_return
             existing.updated_at = datetime.now(timezone.utc)
         else:
             self._db.add(
@@ -248,6 +253,8 @@ class Repositories:
                     user_id=self._user_id,
                     annual_expenses=annual_expenses,
                     swr=swr,
+                    retirement_date=retirement_date,
+                    expected_real_return=expected_real_return,
                 )
             )
         self._db.commit()

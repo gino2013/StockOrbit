@@ -18,12 +18,46 @@ def fire_number(annual_expenses: float, swr: float) -> float:
     return annual_expenses / swr
 
 
+def coast_fire_number(target: float, years: float, expected_real_return: float) -> float:
+    """Portfolio size needed *today* to compound - with no further
+    contributions - to `target` in `years` years at `expected_real_return`.
+    Below this, more contributions are still needed; at or above it, the
+    current portfolio can "coast" to FIRE on growth alone."""
+    return target / (1 + expected_real_return) ** years
+
+
+def build_coast_fire(
+    current_value: float, target: float, retirement_date: date, expected_real_return: float, as_of: date
+) -> dict | None:
+    """None when there's no time left to compound (retirement_date already
+    here or past) - coasting isn't a meaningful question at that point."""
+    years = (retirement_date - as_of).days / 365.25
+    if years <= 0:
+        return None
+    coast_number = coast_fire_number(target, years, expected_real_return)
+    projected_at_retirement = current_value * (1 + expected_real_return) ** years
+    return {
+        "retirement_date": retirement_date.isoformat(),
+        "expected_real_return": expected_real_return,
+        "coast_fire_number": coast_number,
+        "already_coasting": current_value >= coast_number,
+        "remaining_to_coast": max(0.0, coast_number - current_value),
+        "projected_value_at_retirement": projected_at_retirement,
+    }
+
+
 def build_fire_progress(
-    current_value: float, annual_expenses: float, swr: float, current_annual_return: float | None, as_of: date
+    current_value: float, annual_expenses: float, swr: float, current_annual_return: float | None, as_of: date,
+    retirement_date: date | None = None, expected_real_return: float | None = None,
 ) -> dict:
     target = fire_number(annual_expenses, swr)
     progress_pct = min(1.0, current_value / target) if target else None
     proj_date = projected_achievement_date(current_value, target, current_annual_return, as_of)
+    coast = (
+        build_coast_fire(current_value, target, retirement_date, expected_real_return, as_of)
+        if retirement_date and expected_real_return is not None
+        else None
+    )
     return {
         "annual_expenses": annual_expenses,
         "swr": swr,
@@ -34,4 +68,5 @@ def build_fire_progress(
         "already_fire": current_value >= target,
         "current_annual_return": current_annual_return,
         "projected_achievement_date": proj_date,
+        "coast_fire": coast,
     }

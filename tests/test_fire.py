@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.goals.fire import build_fire_progress, fire_number
+from app.domain.goals.fire import build_coast_fire, build_fire_progress, coast_fire_number, fire_number
 
 
 def demo():
@@ -36,6 +36,43 @@ def demo():
     assert no_return["projected_achievement_date"] is None
     zero_return = build_fire_progress(10000000, 800000, 0.04, 0.0, as_of)
     assert zero_return["projected_achievement_date"] is None
+
+    # no retirement_date/expected_real_return -> coast_fire is None, not crash.
+    assert result["coast_fire"] is None
+
+    # --- Coast FIRE ---
+    # ~10 years @ 5% real return: coast number = target / 1.05^years, using
+    # the same days/365.25 year-count build_coast_fire computes internally.
+    target = 20000000
+    retirement = date(2036, 1, 1)  # ~10 years out
+    years = (retirement - as_of).days / 365.25
+    coast_num = coast_fire_number(target, years=years, expected_real_return=0.05)
+    assert abs(coast_num - target / 1.05**years) < 1e-6
+    assert coast_num < target  # compounding for a decade needs less than the raw target today
+
+    coast = build_coast_fire(current_value=coast_num, target=target, retirement_date=retirement,
+                              expected_real_return=0.05, as_of=as_of)
+    assert coast is not None
+    assert coast["already_coasting"] is True  # exactly at the coast number
+    assert coast["remaining_to_coast"] == 0.0
+    assert abs(coast["projected_value_at_retirement"] - target) < 1e-3
+
+    # short of the coast number -> not coasting yet, still a gap.
+    short = build_coast_fire(current_value=coast_num * 0.5, target=target, retirement_date=retirement,
+                              expected_real_return=0.05, as_of=as_of)
+    assert short["already_coasting"] is False
+    assert short["remaining_to_coast"] > 0
+
+    # retirement date already past -> nothing meaningful to coast toward.
+    assert build_coast_fire(coast_num, target, date(2025, 1, 1), 0.05, as_of) is None
+    assert build_coast_fire(coast_num, target, as_of, 0.05, as_of) is None  # "today" -> zero years left
+
+    # build_fire_progress wires coast_fire through end to end.
+    with_coast = build_fire_progress(
+        current_value=coast_num, annual_expenses=800000, swr=0.04, current_annual_return=0.08, as_of=as_of,
+        retirement_date=retirement, expected_real_return=0.05,
+    )
+    assert with_coast["coast_fire"]["already_coasting"] is True
 
 
 if __name__ == "__main__":
