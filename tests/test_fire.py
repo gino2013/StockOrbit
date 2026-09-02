@@ -4,7 +4,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.goals.fire import build_coast_fire, build_fire_progress, coast_fire_number, fire_number
+from app.domain.goals.fire import (
+    build_coast_fire,
+    build_dividend_coverage,
+    build_fire_progress,
+    coast_fire_number,
+    fire_number,
+)
 
 
 def demo():
@@ -73,6 +79,34 @@ def demo():
         retirement_date=retirement, expected_real_return=0.05,
     )
     assert with_coast["coast_fire"]["already_coasting"] is True
+
+    # --- dividend coverage (Barista / Dividend FIRE) ---
+    # $400k TTM dividends against $800k annual expenses -> 50% covered.
+    cov = build_dividend_coverage(ttm_dividends=400000, annual_expenses=800000, current_value=10000000)
+    assert abs(cov["coverage_pct"] - 0.5) < 1e-9
+    assert abs(cov["overall_yield"] - 0.04) < 1e-9  # 400k / 10M
+    # at a 4% yield, fully covering 800k/yr takes 800k / 0.04 = 20M.
+    assert abs(cov["principal_for_full_coverage"] - 20000000) < 1e-6
+
+    # dividends already exceed expenses -> coverage over 100%, not capped
+    # (unlike progress_pct, there's no "target" ceiling to cap it at).
+    over = build_dividend_coverage(1000000, 800000, 10000000)
+    assert over["coverage_pct"] > 1.0
+
+    # no market value yet -> no yield, no principal estimate, not a crash.
+    no_value = build_dividend_coverage(400000, 800000, 0)
+    assert no_value["overall_yield"] is None
+    assert no_value["principal_for_full_coverage"] is None
+    assert abs(no_value["coverage_pct"] - 0.5) < 1e-9  # coverage itself doesn't need market value
+
+    # not passing ttm_dividends -> dividend_coverage is None, not a crash.
+    assert result["dividend_coverage"] is None
+    # build_fire_progress wires it through end to end.
+    with_dividends = build_fire_progress(
+        current_value=10000000, annual_expenses=800000, swr=0.04, current_annual_return=0.08, as_of=as_of,
+        ttm_dividends=400000,
+    )
+    assert abs(with_dividends["dividend_coverage"]["coverage_pct"] - 0.5) < 1e-9
 
 
 if __name__ == "__main__":

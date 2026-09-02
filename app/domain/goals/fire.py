@@ -46,9 +46,24 @@ def build_coast_fire(
     }
 
 
+def build_dividend_coverage(ttm_dividends: float, annual_expenses: float, current_value: float) -> dict:
+    """How much of annual_expenses the trailing-12-month dividend income
+    already covers (the "Barista/Dividend FIRE" angle), plus - at the
+    current overall yield - roughly how much principal full coverage would
+    take. Not a projection: today's yield, held constant."""
+    overall_yield = (ttm_dividends / current_value) if current_value else None
+    return {
+        "ttm_dividends": ttm_dividends,
+        "coverage_pct": (ttm_dividends / annual_expenses) if annual_expenses else None,
+        "overall_yield": overall_yield,
+        "principal_for_full_coverage": (annual_expenses / overall_yield) if overall_yield else None,
+    }
+
+
 def build_fire_progress(
     current_value: float, annual_expenses: float, swr: float, current_annual_return: float | None, as_of: date,
     retirement_date: date | None = None, expected_real_return: float | None = None,
+    ttm_dividends: float | None = None,
 ) -> dict:
     target = fire_number(annual_expenses, swr)
     progress_pct = min(1.0, current_value / target) if target else None
@@ -56,6 +71,11 @@ def build_fire_progress(
     coast = (
         build_coast_fire(current_value, target, retirement_date, expected_real_return, as_of)
         if retirement_date and expected_real_return is not None
+        else None
+    )
+    dividend_coverage = (
+        build_dividend_coverage(ttm_dividends, annual_expenses, current_value)
+        if ttm_dividends is not None
         else None
     )
     return {
@@ -69,4 +89,5 @@ def build_fire_progress(
         "current_annual_return": current_annual_return,
         "projected_achievement_date": proj_date,
         "coast_fire": coast,
+        "dividend_coverage": dividend_coverage,
     }
