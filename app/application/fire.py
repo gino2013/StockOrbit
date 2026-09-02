@@ -11,7 +11,11 @@ from app.domain.goals.fire import build_fire_progress
 def fire_progress(
     *, annual_expenses: float, swr: float,
     snapshots: list[dict], transactions: list[dict], as_of: date,
+    retirement_date: date | None = None, expected_real_return: float | None = None,
 ) -> dict:
     current_value = sum(s["market_value"] for s in snapshots)
     current_return = xirr(portfolio_cashflows(transactions, current_value, as_of))
-    return build_fire_progress(current_value, annual_expenses, swr, current_return, as_of)
+    return build_fire_progress(
+        current_value, annual_expenses, swr, current_return, as_of,
+        retirement_date=retirement_date, expected_real_return=expected_real_return,
+    )

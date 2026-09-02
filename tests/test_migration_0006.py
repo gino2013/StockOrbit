@@ -36,14 +36,17 @@ def _sql(db_path: Path, query: str):
 def demo():
     tmp = Path(tempfile.mkdtemp())
 
-    # --- fresh DB boots to head: table exists with expected columns ---
+    # --- fresh DB at exactly 0006: table exists with the columns 0006
+    # introduced (pinned to this revision, not "head" - 0007 adds more
+    # columns on top and has its own test) ---
     db = tmp / "a.db"
-    _run(db, "from app.main import app; print('BOOT_OK')")
+    _alembic(db, "upgrade", "0006_fire_settings")
     rows = _sql(db, "PRAGMA table_info(fire_settings)")
     cols = {r[1] for r in rows}
     assert cols == {"user_id", "annual_expenses", "swr", "updated_at"}, cols
     pk = {r[1] for r in rows if r[5] > 0}
     assert pk == {"user_id"}, pk
+    _alembic(db, "upgrade", "head")
 
     # --- downgrade to 0005 drops the table, upgrade back to head restores it ---
     _alembic(db, "downgrade", "0005_note_history")

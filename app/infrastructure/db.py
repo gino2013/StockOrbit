@@ -216,13 +216,16 @@ class FireSettings(Base):
     """FIRE (financial independence) inputs, one row per user - same
     "no history, no separate id" shape as InvestmentGoal. `swr` is the
     safe withdrawal rate (0.04 = the 4% rule); FIRE number = annual_expenses
-    / swr."""
+    / swr. `retirement_date`/`expected_real_return` are optional - only set
+    when the user also wants the Coast FIRE check."""
 
     __tablename__ = "fire_settings"
 
     user_id = _user_id_col(primary_key=True)
     annual_expenses = Column(Float, nullable=False)
     swr = Column(Float, nullable=False, default=0.04)
+    retirement_date = Column(Date)
+    expected_real_return = Column(Float)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -297,7 +300,10 @@ def _infer_untracked_revision() -> str | None:
         return "0004_tenancy_pks"
     if not inspector.has_table("fire_settings"):
         return "0005_note_history"
-    return "0006_fire_settings"  # structure already matches head
+    fire_cols = {c["name"] for c in inspector.get_columns("fire_settings")}
+    if "retirement_date" not in fire_cols:
+        return "0006_fire_settings"
+    return "0007_coast_fire"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

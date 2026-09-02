@@ -1055,18 +1055,41 @@ def get_fire():
             snapshots=repo.latest_snapshots(),
             transactions=repo.all_transactions(),
             as_of=datetime.now().date(),
+            retirement_date=settings.retirement_date,
+            expected_real_return=settings.expected_real_return,
         )
     return JSONResponse({"fire": progress})
 
 
 @app.post("/api/fire")
-def set_fire(annual_expenses: float = Form(...), swr: float = Form(0.04)):
+def set_fire(
+    annual_expenses: float = Form(...), swr: float = Form(0.04),
+    retirement_date: str = Form(""), expected_real_return: str = Form(""),
+):
     if annual_expenses <= 0:
         return JSONResponse({"error": "年支出需大於 0"}, status_code=400)
     if not 0.02 <= swr <= 0.10:
         return JSONResponse({"error": "安全提領率需介於 2% ~ 10%"}, status_code=400)
+    # Coast FIRE inputs are optional - both blank means "not set up".
+    retirement_date_parsed = None
+    expected_real_return_parsed = None
+    if retirement_date or expected_real_return:
+        if not (retirement_date and expected_real_return):
+            return JSONResponse({"error": "Coast FIRE 的退休日期跟預期報酬率要一起填"}, status_code=400)
+        try:
+            retirement_date_parsed = date.fromisoformat(retirement_date)
+        except ValueError:
+            return JSONResponse({"error": "退休日期格式錯誤"}, status_code=400)
+        try:
+            expected_real_return_parsed = float(expected_real_return)
+        except ValueError:
+            return JSONResponse({"error": "預期報酬率格式錯誤"}, status_code=400)
+        if not -0.20 <= expected_real_return_parsed <= 0.20:
+            return JSONResponse({"error": "預期報酬率需介於 -20% ~ 20%"}, status_code=400)
+        if retirement_date_parsed <= datetime.now().date():
+            return JSONResponse({"error": "退休日期需晚於今天"}, status_code=400)
     with Repositories() as repo:
-        repo.upsert_fire_settings(annual_expenses, swr)
+        repo.upsert_fire_settings(annual_expenses, swr, retirement_date_parsed, expected_real_return_parsed)
     return JSONResponse({"ok": True})
 
 
