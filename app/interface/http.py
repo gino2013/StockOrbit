@@ -662,10 +662,7 @@ def dashboard(request: Request, account: str | None = None):
     with Repositories() as repo:
         latest = repo.latest_snapshot_at()
         account_numbers = repo.account_numbers(latest)
-        # A stale/tampered ?account= that no longer matches any account
-        # (or a single-account portfolio, where the dropdown isn't even
-        # shown) quietly falls back to "all accounts" rather than erroring.
-        selected_account = account if account in account_numbers and len(account_numbers) > 1 else None
+        selected_account = repo.resolve_account(account, account_numbers)
         snapshots = repo.latest_snapshots(selected_account, latest)
         context = build_dashboard_context(
             snapshots=snapshots,
@@ -986,6 +983,7 @@ def export_transactions_csv():
 @app.get("/api/cash-deployment")
 def cash_deployment(amount: float, account: str | None = None):
     with Repositories() as repo:
+        account = repo.resolve_account(account, repo.account_numbers())
         snapshots = repo.latest_snapshots(account)
         targets = repo.targets()
     if not snapshots:
@@ -1023,6 +1021,7 @@ def get_goal(account: str | None = None):
         goal = repo.goal()
         if not goal:
             return JSONResponse({"goal": None})
+        account = repo.resolve_account(account, repo.account_numbers())
         progress = goal_progress(
             target_amount=goal.target_amount,
             target_date=goal.target_date,
@@ -1059,6 +1058,7 @@ def get_fire(account: str | None = None):
         settings = repo.fire_settings()
         if not settings:
             return JSONResponse({"fire": None})
+        account = repo.resolve_account(account, repo.account_numbers())
         progress = fire_progress(
             annual_expenses=settings.annual_expenses,
             swr=settings.swr,
@@ -1118,6 +1118,7 @@ def performance_report(
     account: str | None = Form(None),
 ):
     with Repositories() as repo:
+        account = repo.resolve_account(account, repo.account_numbers())
         snapshots = repo.latest_snapshots(account)
         transactions = repo.all_transactions(account)
     if not snapshots:

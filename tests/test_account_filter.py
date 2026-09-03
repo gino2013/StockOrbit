@@ -82,6 +82,22 @@ def demo():
         # a symbol not present in the filtered account doesn't leak in.
         assert not any(s["symbol"] == "VOO" for s in a2_snaps)
 
+        # --- resolve_account(): the validation every account-accepting
+        # route should share, so a stale/removed value doesn't silently
+        # filter one endpoint to zero rows while others (which do
+        # validate) show the real all-accounts total (code review finding
+        # on #222) ---
+        numbers = repo.account_numbers()
+        assert Repositories.resolve_account("A1", numbers) == "A1"
+        assert Repositories.resolve_account("A2", numbers) == "A2"
+        # closed/renamed/nonexistent account -> falls back to "all accounts".
+        assert Repositories.resolve_account("GONE", numbers) is None
+        assert Repositories.resolve_account(None, numbers) is None
+        # single-account list -> filter UI wouldn't even show, so even a
+        # technically-valid value is ignored (matches the dashboard route's
+        # existing behavior).
+        assert Repositories.resolve_account("A1", ["A1"]) is None
+
 
 if __name__ == "__main__":
     demo()

@@ -100,6 +100,20 @@ class Repositories:
         ).with_entities(PositionSnapshot.account_number).distinct().all()
         return sorted(r[0] for r in rows)
 
+    @staticmethod
+    def resolve_account(account: str | None, account_numbers: list[str]) -> str | None:
+        """Validate a candidate ?account= against an already-fetched
+        account_numbers() list - every route that accepts an account filter
+        should route through this rather than passing the raw query param
+        straight to latest_snapshots()/all_transactions(), so a stale value
+        (an account closed/renamed since the page loaded, or bookmarked)
+        quietly falls back to "all accounts" everywhere consistently,
+        instead of silently filtering to zero rows in some endpoints while
+        the main dashboard (which already did this check) shows the real
+        total. Also covers the single-account case, where the filter UI
+        isn't even shown."""
+        return account if account and account in account_numbers and len(account_numbers) > 1 else None
+
     def latest_snapshots(self, account: str | None = None, latest=_UNSET) -> list[dict]:
         """One row per symbol. Firstrade fetches positions per account (see
         firstrade_client.fetch_positions), so a login with two accounts both
