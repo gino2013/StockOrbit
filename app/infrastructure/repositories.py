@@ -38,6 +38,7 @@ from app.infrastructure.db import (
 
 _USDTWD = "USDTWD"
 _owner_id_cache: str | None = None
+_UNSET = object()  # sentinel: "caller didn't pass this" - None is a valid value on its own
 
 
 def _resolve_owner_id() -> str:
@@ -83,10 +84,15 @@ class Repositories:
         ).order_by(desc(PositionSnapshot.snapshot_at)).first()
         return row[0] if row else None
 
-    def account_numbers(self) -> list[str]:
+    def account_numbers(self, latest=_UNSET) -> list[str]:
         """Distinct account_numbers in the latest snapshot batch, for the
-        account-filter dropdown (issue #97). Sorted for a stable menu order."""
-        latest = self.latest_snapshot_at()
+        account-filter dropdown (issue #97). Sorted for a stable menu order.
+
+        `latest`, if the caller already has it (e.g. from latest_snapshot_at()
+        moments earlier in the same request), skips the repeat lookup -
+        callers that don't pass it get one computed here as before."""
+        if latest is _UNSET:
+            latest = self.latest_snapshot_at()
         if latest is None:
             return []
         rows = self._mine(PositionSnapshot).filter(
@@ -94,7 +100,7 @@ class Repositories:
         ).with_entities(PositionSnapshot.account_number).distinct().all()
         return sorted(r[0] for r in rows)
 
-    def latest_snapshots(self, account: str | None = None) -> list[dict]:
+    def latest_snapshots(self, account: str | None = None, latest=_UNSET) -> list[dict]:
         """One row per symbol. Firstrade fetches positions per account (see
         firstrade_client.fetch_positions), so a login with two accounts both
         holding the same symbol produces two PositionSnapshot rows for it -
@@ -104,8 +110,10 @@ class Repositories:
         correlation) since they all key off symbol (issue #96).
 
         `account` (issue #97) restricts the grouping to one account_number -
-        None (the default) keeps today's "all accounts combined" behavior."""
-        latest = self.latest_snapshot_at()
+        None (the default) keeps today's "all accounts combined" behavior.
+        `latest` - see account_numbers()."""
+        if latest is _UNSET:
+            latest = self.latest_snapshot_at()
         if latest is None:
             return []
         query = self._mine(PositionSnapshot).filter(PositionSnapshot.snapshot_at == latest)

@@ -660,12 +660,13 @@ def dashboard(request: Request, account: str | None = None):
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
     with Repositories() as repo:
-        account_numbers = repo.account_numbers()
+        latest = repo.latest_snapshot_at()
+        account_numbers = repo.account_numbers(latest)
         # A stale/tampered ?account= that no longer matches any account
         # (or a single-account portfolio, where the dropdown isn't even
         # shown) quietly falls back to "all accounts" rather than erroring.
         selected_account = account if account in account_numbers and len(account_numbers) > 1 else None
-        snapshots = repo.latest_snapshots(selected_account)
+        snapshots = repo.latest_snapshots(selected_account, latest)
         context = build_dashboard_context(
             snapshots=snapshots,
             targets=repo.targets(),
@@ -983,9 +984,9 @@ def export_transactions_csv():
 
 
 @app.get("/api/cash-deployment")
-def cash_deployment(amount: float):
+def cash_deployment(amount: float, account: str | None = None):
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
+        snapshots = repo.latest_snapshots(account)
         targets = repo.targets()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
@@ -1017,7 +1018,7 @@ def delete_target(symbol: str = Form(...)):
 
 
 @app.get("/api/goal")
-def get_goal():
+def get_goal(account: str | None = None):
     with Repositories() as repo:
         goal = repo.goal()
         if not goal:
@@ -1025,8 +1026,8 @@ def get_goal():
         progress = goal_progress(
             target_amount=goal.target_amount,
             target_date=goal.target_date,
-            snapshots=repo.latest_snapshots(),
-            transactions=repo.all_transactions(),
+            snapshots=repo.latest_snapshots(account),
+            transactions=repo.all_transactions(account),
             as_of=datetime.now().date(),
         )
     return JSONResponse({"goal": progress})
@@ -1053,7 +1054,7 @@ def delete_goal():
 
 
 @app.get("/api/fire")
-def get_fire():
+def get_fire(account: str | None = None):
     with Repositories() as repo:
         settings = repo.fire_settings()
         if not settings:
@@ -1061,8 +1062,8 @@ def get_fire():
         progress = fire_progress(
             annual_expenses=settings.annual_expenses,
             swr=settings.swr,
-            snapshots=repo.latest_snapshots(),
-            transactions=repo.all_transactions(),
+            snapshots=repo.latest_snapshots(account),
+            transactions=repo.all_transactions(account),
             as_of=datetime.now().date(),
             retirement_date=settings.retirement_date,
             expected_real_return=settings.expected_real_return,
@@ -1114,10 +1115,11 @@ def performance_report(
     start: str = Form(...),
     end: str = Form(...),
     benchmark: str = Form("SPY"),
+    account: str | None = Form(None),
 ):
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
-        transactions = repo.all_transactions()
+        snapshots = repo.latest_snapshots(account)
+        transactions = repo.all_transactions(account)
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
 
