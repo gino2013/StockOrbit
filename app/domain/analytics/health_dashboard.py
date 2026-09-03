@@ -45,14 +45,25 @@ def build_health_overview(snapshots: list[dict]) -> dict:
 
         if _BENCHMARK in returns:
             benchmark_returns = returns[_BENCHMARK].dropna()
-            beta_terms = []
+            # Divide by (total - the value of holdings we couldn't compute a
+            # beta for), not by `total`: a holding too new to have 30 days of
+            # overlap otherwise contributes 0 to the sum and silently drags
+            # the weighted average down, as if it had zero market risk.
+            # Cash *does* stay in the denominator - its ~0 beta genuinely
+            # dampens the portfolio's, that's not an error.
+            weighted, unmeasurable_value = 0.0, 0.0
             for symbol in symbols:
-                if symbol not in returns:
-                    continue
-                beta = beta_vs_benchmark(returns[symbol].dropna(), benchmark_returns)
-                if beta is not None and total:
-                    beta_terms.append((value_by_symbol[symbol] / total) * beta)
-            portfolio_beta = sum(beta_terms) if beta_terms else None
+                beta = (
+                    beta_vs_benchmark(returns[symbol].dropna(), benchmark_returns)
+                    if symbol in returns
+                    else None
+                )
+                if beta is None:
+                    unmeasurable_value += value_by_symbol[symbol]
+                else:
+                    weighted += value_by_symbol[symbol] * beta
+            measurable_base = total - unmeasurable_value
+            portfolio_beta = weighted / measurable_base if measurable_base else None
 
     return {
         "position_count": len(symbols),

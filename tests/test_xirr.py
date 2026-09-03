@@ -36,6 +36,22 @@ def demo():
     # terminal value, since XIRR needs at least one prior investment date).
     assert portfolio_cashflows([], current_value=1100, as_of=date(2026, 6, 1)) == []
 
+    # whatever xirr() returns must actually be a root - if Newton's step
+    # stalls in a flat region it used to return that stalled guess without
+    # checking npv there was near zero (skipping the bisection fallback).
+    def _npv(cashflows, rate):
+        t0 = min(d for d, _ in cashflows)
+        return sum(a / (1 + rate) ** ((d - t0).days / 365) for d, a in cashflows)
+
+    for flows in (
+        [(date(2020, 1, 1), -10000), (date(2021, 6, 1), -3000), (date(2026, 9, 1), 9000)],  # a loss
+        [(date(2024, 1, 1), -5000), (date(2024, 2, 1), -5000), (date(2026, 1, 1), 30000)],  # a big gain
+        [(date(2025, 1, 1), -1000), (date(2025, 1, 2), -1), (date(2026, 1, 1), 900)],       # near-flat
+    ):
+        r = xirr(flows)
+        assert r is not None
+        assert abs(_npv(flows, r)) < 1e-3, (flows, r, _npv(flows, r))
+
 
 if __name__ == "__main__":
     demo()

@@ -59,7 +59,12 @@ def fetch_next_earnings_date(symbol: str) -> tuple[date | None, bool]:
     dates = calendar.get("Earnings Date")
     if not dates:
         return None, True
-    return min(d for d in dates if isinstance(d, date)), True
+    # Yahoo's calendar routinely includes the *last reported* earnings date
+    # alongside the next estimated one, so a plain min() often returns a
+    # date in the past. Keep only today-or-later before picking the soonest.
+    today = date.today()
+    upcoming = [d for d in dates if isinstance(d, date) and d >= today]
+    return (min(upcoming), True) if upcoming else (None, True)
 
 
 def compute_risk_metrics(

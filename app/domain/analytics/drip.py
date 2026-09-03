@@ -32,7 +32,10 @@ def simulate_drip(symbol: str, start: str, end: str, initial_investment: float =
     cash_value, drip_value = [], []
     for date, close in closes.items():
         div = dividends.get(date, 0.0)
-        if div:
+        # `> 0` (not just truthiness) so a NaN in yfinance's Dividends
+        # column - NaN is truthy in Python - doesn't poison the whole
+        # series (NaN > 0 is False).
+        if div > 0:
             cash_collected += shares_cash * div
             shares_drip += shares_drip * div / close
             total_dividends_per_share += div

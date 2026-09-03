@@ -36,6 +36,9 @@ def demo():
 
     # selling more than we have BOUGHT history for -> partial cost basis,
     # flagged via unmatched_quantity rather than assumed to be zero cost.
+    # Proceeds are scaled to the *matched* 5 shares too, so `gain` is a
+    # like-for-like figure (5*320 - 5*300 = 100), not full proceeds
+    # (8*320) against the partial 5-share cost.
     short_sale_history = [
         {"trans_type": "BOUGHT", "symbol": "MSFT", "report_date": date(2026, 1, 1), "quantity": 5, "trade_price": 300},
         {"trans_type": "SOLD", "symbol": "MSFT", "report_date": date(2026, 2, 1), "quantity": 8, "trade_price": 320},
@@ -43,6 +46,20 @@ def demo():
     realized2 = compute_realized_gains(short_sale_history)
     assert abs(realized2[0]["unmatched_quantity"] - 3) < 1e-6
     assert abs(realized2[0]["cost_basis"] - 5 * 300) < 1e-6
+    assert abs(realized2[0]["proceeds"] - 5 * 320) < 1e-6
+    assert abs(realized2[0]["gain"] - (5 * 320 - 5 * 300)) < 1e-6
+
+    # same-day round trip: SOLD row listed before its BOUGHT row. The
+    # secondary sort key (BOUGHT before SOLD on equal dates) makes the sell
+    # match that day's purchase rather than going unmatched at zero cost.
+    same_day = [
+        {"trans_type": "SOLD", "symbol": "NVDA", "report_date": date(2026, 3, 4), "quantity": 10, "trade_price": 130},
+        {"trans_type": "BOUGHT", "symbol": "NVDA", "report_date": date(2026, 3, 4), "quantity": 10, "trade_price": 120},
+    ]
+    r3 = compute_realized_gains(same_day)
+    assert r3[0]["unmatched_quantity"] == 0
+    assert abs(r3[0]["cost_basis"] - 10 * 120) < 1e-6
+    assert abs(r3[0]["gain"] - (10 * 130 - 10 * 120)) < 1e-6
 
 
 if __name__ == "__main__":
