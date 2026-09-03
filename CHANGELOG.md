@@ -6,7 +6,8 @@
 
 ## 2026-09-03
 
-- `79bd5b2` 新增帳戶篩選（issue #97，依賴已修好的 #96）：頁首加帳戶下拉選單，多帳戶時可只看單一帳戶，總市值/持股表格/圓餅圖/目標配置比對/再平衡建議/已實現損益/股利追蹤等區塊會跟著只算該帳戶的資料。`repositories.py` 新增 `account_numbers()`，`latest_snapshots()`/`all_transactions()`/`all_snapshot_points()` 都加選填的 `account` 參數。獨立 AJAX 載入的分析類區塊（風險/相關性/回測等約 20 個）這次沒有跟著串連篩選——多半是跨帳戶統計，關聯性低，等真的有需求再擴大範圍。單一帳戶時選單不出現，體驗不變
+- `79bd5b2` 新增帳戶篩選（issue #97，依賴已修好的 #96）：頁首加帳戶下拉選單，多帳戶時可只看單一帳戶，總市值/持股表格/圓餅圖/目標配置比對/再平衡建議/已實現損益/股利追蹤等區塊會跟著只算該帳戶的資料。`repositories.py` 新增 `account_numbers()`，`latest_snapshots()`/`all_transactions()`/`all_snapshot_points()` 都加選填的 `account` 參數。單一帳戶時選單不出現，體驗不變
+- `fffea3b` code review 抓到「目標達成進度／FIRE 進度／閒置現金建議／績效報告」四個獨立 AJAX 區塊沒有跟著帳戶篩選走的落差（會跟同頁已篩選好的持股表格數字對不上）——這四個都是「目前市值 vs 目標」類指標，跟持股表格同一類，補上 `account` 參數；`_shared.html` 新增 `withAccount()` 共用小工具讀 URL 上已經有的 `?account=` 塞進各自的 fetch。風險/相關性/回測等約 20 個跨帳戶統計類區塊維持原範圍不動，關聯性低，等真的有需求再擴大。順手把 `/` 路由裡 `latest_snapshot_at()` 重複查詢三次收斂成一次
 
 ## 2026-09-02
 
