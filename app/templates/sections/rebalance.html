@@ -71,7 +71,7 @@ async function loadCashDeployment() {
   }
   content.innerHTML = '<p class="opacity-60">查詢中…</p>';
 
-  const res = await fetch(`/api/cash-deployment?amount=${encodeURIComponent(amount)}`);
+  const res = await fetch('/api/cash-deployment?' + withAccount(new URLSearchParams({ amount })));
   const data = await res.json();
   if (data.error) {
     content.innerHTML = '';

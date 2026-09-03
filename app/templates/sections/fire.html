@@ -28,7 +28,7 @@
 async function loadFire() {
   const content = document.getElementById('fire-content');
   const deleteBtn = document.getElementById('fire-delete-btn');
-  const res = await fetch('/api/fire');
+  const res = await fetch('/api/fire?' + withAccount(new URLSearchParams()));
   const data = await res.json();
   if (!data.fire) {
     content.innerHTML = '';

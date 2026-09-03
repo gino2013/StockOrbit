@@ -639,7 +639,7 @@ def _refresh_and_save(user: User) -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+def dashboard(request: Request, account: str | None = None):
     user = _current_user(request)
     with Repositories() as repo:
         last_snapshot_at = repo.latest_snapshot_at()
@@ -660,13 +660,16 @@ def dashboard(request: Request):
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
+        latest = repo.latest_snapshot_at()
+        account_numbers = repo.account_numbers(latest)
+        selected_account = repo.resolve_account(account, account_numbers)
+        snapshots = repo.latest_snapshots(selected_account, latest)
         context = build_dashboard_context(
             snapshots=snapshots,
             targets=repo.targets(),
-            transactions=repo.all_transactions(),
+            transactions=repo.all_transactions(selected_account),
             fundamentals_meta=repo.fundamentals_meta(),
-            snapshot_points=repo.all_snapshot_points(),
+            snapshot_points=repo.all_snapshot_points(selected_account),
             notes=repo.notes(),
             note_history=repo.note_history(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
@@ -674,7 +677,11 @@ def dashboard(request: Request):
             as_of=datetime.now().date(),
         )
     return templates.TemplateResponse(
-        request, "dashboard.html", {**context, "user": user, "ft_connected": has_creds}
+        request, "dashboard.html",
+        {
+            **context, "user": user, "ft_connected": has_creds,
+            "account_numbers": account_numbers, "selected_account": selected_account,
+        },
     )
 
 
@@ -974,9 +981,10 @@ def export_transactions_csv():
 
 
 @app.get("/api/cash-deployment")
-def cash_deployment(amount: float):
+def cash_deployment(amount: float, account: str | None = None):
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
+        account = repo.resolve_account(account, repo.account_numbers())
+        snapshots = repo.latest_snapshots(account)
         targets = repo.targets()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
@@ -1008,16 +1016,17 @@ def delete_target(symbol: str = Form(...)):
 
 
 @app.get("/api/goal")
-def get_goal():
+def get_goal(account: str | None = None):
     with Repositories() as repo:
         goal = repo.goal()
         if not goal:
             return JSONResponse({"goal": None})
+        account = repo.resolve_account(account, repo.account_numbers())
         progress = goal_progress(
             target_amount=goal.target_amount,
             target_date=goal.target_date,
-            snapshots=repo.latest_snapshots(),
-            transactions=repo.all_transactions(),
+            snapshots=repo.latest_snapshots(account),
+            transactions=repo.all_transactions(account),
             as_of=datetime.now().date(),
         )
     return JSONResponse({"goal": progress})
@@ -1044,16 +1053,17 @@ def delete_goal():
 
 
 @app.get("/api/fire")
-def get_fire():
+def get_fire(account: str | None = None):
     with Repositories() as repo:
         settings = repo.fire_settings()
         if not settings:
             return JSONResponse({"fire": None})
+        account = repo.resolve_account(account, repo.account_numbers())
         progress = fire_progress(
             annual_expenses=settings.annual_expenses,
             swr=settings.swr,
-            snapshots=repo.latest_snapshots(),
-            transactions=repo.all_transactions(),
+            snapshots=repo.latest_snapshots(account),
+            transactions=repo.all_transactions(account),
             as_of=datetime.now().date(),
             retirement_date=settings.retirement_date,
             expected_real_return=settings.expected_real_return,
@@ -1105,10 +1115,12 @@ def performance_report(
     start: str = Form(...),
     end: str = Form(...),
     benchmark: str = Form("SPY"),
+    account: str | None = Form(None),
 ):
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
-        transactions = repo.all_transactions()
+        account = repo.resolve_account(account, repo.account_numbers())
+        snapshots = repo.latest_snapshots(account)
+        transactions = repo.all_transactions(account)
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
 

@@ -23,7 +23,7 @@ let goalProjectionChart = null;
 async function loadGoal() {
   const content = document.getElementById('goal-content');
   const deleteBtn = document.getElementById('goal-delete-btn');
-  const res = await fetch('/api/goal');
+  const res = await fetch('/api/goal?' + withAccount(new URLSearchParams()));
   const data = await res.json();
   if (!data.goal) {
     content.innerHTML = '';

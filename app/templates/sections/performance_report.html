@@ -80,7 +80,7 @@ async function loadPerformanceReport() {
   body.set('start', start);
   body.set('end', end);
   body.set('benchmark', benchmark);
-  const res = await fetch('/api/performance-report', { method: 'POST', body });
+  const res = await fetch('/api/performance-report', { method: 'POST', body: withAccount(body) });
   const data = await res.json();
   if (data.error) {
     content.innerHTML = '';
