@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-03
+
+- `79bd5b2` 新增帳戶篩選（issue #97，依賴已修好的 #96）：頁首加帳戶下拉選單，多帳戶時可只看單一帳戶，總市值/持股表格/圓餅圖/目標配置比對/再平衡建議/已實現損益/股利追蹤等區塊會跟著只算該帳戶的資料。`repositories.py` 新增 `account_numbers()`，`latest_snapshots()`/`all_transactions()`/`all_snapshot_points()` 都加選填的 `account` 參數。獨立 AJAX 載入的分析類區塊（風險/相關性/回測等約 20 個）這次沒有跟著串連篩選——多半是跨帳戶統計，關聯性低，等真的有需求再擴大範圍。單一帳戶時選單不出現，體驗不變
+
 ## 2026-09-02
 
 - `4cc08b8` 新增 FIRE 進度（4% 法則，issue #213，見 epic #212）：輸入年支出跟安全提領率（預設 4%）算出 FIRE 數字（年支出 ÷ 提領率）、目前進度、還差多少、以目前 XIRR 推估的達成日期。新表 `fire_settings`（比照 `investment_goals` 的「每人一列」模式），新 partial `sections/fire.html` 擺在「目標達成進度追蹤」之前，AJAX 自載
