@@ -83,20 +83,35 @@ class Repositories:
         ).order_by(desc(PositionSnapshot.snapshot_at)).first()
         return row[0] if row else None
 
-    def latest_snapshots(self) -> list[dict]:
+    def account_numbers(self) -> list[str]:
+        """Distinct account_numbers in the latest snapshot batch, for the
+        account-filter dropdown (issue #97). Sorted for a stable menu order."""
+        latest = self.latest_snapshot_at()
+        if latest is None:
+            return []
+        rows = self._mine(PositionSnapshot).filter(
+            PositionSnapshot.snapshot_at == latest
+        ).with_entities(PositionSnapshot.account_number).distinct().all()
+        return sorted(r[0] for r in rows)
+
+    def latest_snapshots(self, account: str | None = None) -> list[dict]:
         """One row per symbol. Firstrade fetches positions per account (see
         firstrade_client.fetch_positions), so a login with two accounts both
         holding the same symbol produces two PositionSnapshot rows for it -
         group and sum here rather than returning them as separate rows,
         which would silently double-count that symbol everywhere downstream
         (holdings table, pie charts, target-allocation comparison, risk/
-        correlation) since they all key off symbol (issue #96)."""
+        correlation) since they all key off symbol (issue #96).
+
+        `account` (issue #97) restricts the grouping to one account_number -
+        None (the default) keeps today's "all accounts combined" behavior."""
         latest = self.latest_snapshot_at()
         if latest is None:
             return []
-        rows = self._mine(PositionSnapshot).filter(
-            PositionSnapshot.snapshot_at == latest
-        ).all()
+        query = self._mine(PositionSnapshot).filter(PositionSnapshot.snapshot_at == latest)
+        if account is not None:
+            query = query.filter(PositionSnapshot.account_number == account)
+        rows = query.all()
         grouped: dict[str, dict] = {}
         for r in rows:
             g = grouped.setdefault(
@@ -113,16 +128,25 @@ class Repositories:
             g["price"] = g["market_value"] / g["quantity"] if g["quantity"] else 0.0
         return list(grouped.values())
 
-    def all_snapshot_points(self) -> list[dict]:
-        """Every snapshot row, trimmed to what the allocation-history chart needs."""
+    def all_snapshot_points(self, account: str | None = None) -> list[dict]:
+        """Every snapshot row, trimmed to what the allocation-history chart
+        needs. `account` (issue #97) restricts to one account_number."""
+        query = self._mine(PositionSnapshot)
+        if account is not None:
+            query = query.filter(PositionSnapshot.account_number == account)
         return [
             {"snapshot_at": r.snapshot_at, "symbol": r.symbol, "market_value": r.market_value}
-            for r in self._mine(PositionSnapshot).all()
+            for r in query.all()
         ]
 
     # --- transactions ------------------------------------------------------------
 
-    def all_transactions(self) -> list[dict]:
+    def all_transactions(self, account: str | None = None) -> list[dict]:
+        """`account` (issue #97) restricts to one account_number - None (the
+        default) keeps today's "all accounts combined" behavior."""
+        query = self._mine(Transaction)
+        if account is not None:
+            query = query.filter(Transaction.account_number == account)
         return [
             {
                 "id": t.id,
@@ -133,7 +157,7 @@ class Repositories:
                 "trade_price": t.trade_price,
                 "amount": t.amount,
             }
-            for t in self._mine(Transaction).all()
+            for t in query.all()
         ]
 
     # --- target allocations ----------------------------------------------------

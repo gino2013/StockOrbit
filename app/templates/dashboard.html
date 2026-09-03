@@ -50,6 +50,14 @@
       </form>
     </div>
     <div class="flex items-center gap-2">
+      {% if account_numbers|length > 1 %}
+      <select class="select select-bordered select-sm" aria-label="帳戶篩選" onchange="location.href = this.value ? '/?account=' + encodeURIComponent(this.value) : '/'">
+        <option value="" {{ 'selected' if not selected_account }}>全部帳戶</option>
+        {% for a in account_numbers %}
+        <option value="{{ a }}" {{ 'selected' if a == selected_account }}>{{ a }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
       {% if snapshots %}
       <a href="/api/export/csv" class="btn btn-ghost btn-sm">匯出 CSV</a>
       <button type="button" onclick="window.print()" class="btn btn-ghost btn-sm">匯出 PDF</button>

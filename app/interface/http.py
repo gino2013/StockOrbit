@@ -639,7 +639,7 @@ def _refresh_and_save(user: User) -> None:
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+def dashboard(request: Request, account: str | None = None):
     user = _current_user(request)
     with Repositories() as repo:
         last_snapshot_at = repo.latest_snapshot_at()
@@ -660,13 +660,18 @@ def dashboard(request: Request):
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
     with Repositories() as repo:
-        snapshots = repo.latest_snapshots()
+        account_numbers = repo.account_numbers()
+        # A stale/tampered ?account= that no longer matches any account
+        # (or a single-account portfolio, where the dropdown isn't even
+        # shown) quietly falls back to "all accounts" rather than erroring.
+        selected_account = account if account in account_numbers and len(account_numbers) > 1 else None
+        snapshots = repo.latest_snapshots(selected_account)
         context = build_dashboard_context(
             snapshots=snapshots,
             targets=repo.targets(),
-            transactions=repo.all_transactions(),
+            transactions=repo.all_transactions(selected_account),
             fundamentals_meta=repo.fundamentals_meta(),
-            snapshot_points=repo.all_snapshot_points(),
+            snapshot_points=repo.all_snapshot_points(selected_account),
             notes=repo.notes(),
             note_history=repo.note_history(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
@@ -674,7 +679,11 @@ def dashboard(request: Request):
             as_of=datetime.now().date(),
         )
     return templates.TemplateResponse(
-        request, "dashboard.html", {**context, "user": user, "ft_connected": has_creds}
+        request, "dashboard.html",
+        {
+            **context, "user": user, "ft_connected": has_creds,
+            "account_numbers": account_numbers, "selected_account": selected_account,
+        },
     )
 
 
