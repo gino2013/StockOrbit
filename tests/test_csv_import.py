@@ -52,7 +52,12 @@ def demo():
         "2026/02/01,dividend,VOO,,\n"
     )
     assert rows[0]["trans_type"] == "BOUGHT" and rows[0]["amount"] == -4000.0
+    assert rows[0]["quantity"] == 10  # BOUGHT keeps the positive quantity
     assert rows[1]["trans_type"] == "SOLD" and rows[1]["amount"] == 1800.0
+    # SOLD quantity is stored negative to match the Firstrade contract that
+    # _holdings_as_of (performance_report) relies on - a user's CSV writes
+    # "SOLD,VOO,4" but a plain sum of quantities must net the sale out.
+    assert rows[1]["quantity"] == -4
     assert str(rows[1]["report_date"]) == "2026-01-06"
     assert rows[2]["trans_type"] == "DIV" and rows[2]["amount"] == 0.0 and rows[2]["symbol"] == "VOO"
 

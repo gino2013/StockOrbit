@@ -70,7 +70,7 @@ def parse_transactions(text: str) -> list[dict]:
         raw_type = r["type"].strip().lower()
         trans_type = _TYPE_MAP.get(raw_type, raw_type.upper() or "OTHER")
         symbol = (r.get("symbol") or "").strip().upper() or None
-        qty = _num(r, "quantity", line, default=0.0)
+        qty = abs(_num(r, "quantity", line, default=0.0))
         price = _num(r, "price", line, default=0.0)
         if r.get("amount", "").strip():
             amount = _num(r, "amount", line, default=0.0)
@@ -80,12 +80,17 @@ def parse_transactions(text: str) -> list[dict]:
             amount = qty * price
         else:
             amount = 0.0
+        # Firstrade-fetched SOLD rows carry a negative quantity (see
+        # firstrade_client, and _holdings_as_of in performance_report which
+        # relies on it), so a plain sum of quantities reconstructs holdings.
+        # A user's CSV writes "sell,VOO,4" - normalise the sign here.
+        stored_qty = -qty if trans_type == "SOLD" else qty
         out.append({
             "account_number": (r.get("account_number") or "").strip() or "IMPORT",
             "symbol": symbol,
             "trans_type": trans_type,
             "report_date": report_date,
-            "quantity": qty,
+            "quantity": stored_qty,
             "trade_price": price,
             "amount": amount,
             "description": (r.get("description") or "").strip(),

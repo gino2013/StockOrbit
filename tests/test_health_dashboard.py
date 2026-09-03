@@ -42,11 +42,15 @@ def demo():
     assert result_one["avg_correlation"] is None
     assert result_one["position_count"] == 1
 
-    # missing beta for a symbol -> excluded from the weighted average, not treated as 0.
+    # missing beta for a symbol -> its value drops out of the denominator
+    # too, so beta is a true weighted average of what we could measure
+    # (not the symbol treated as beta 0, which would drag the average down).
+    # AAA (6000) unmeasurable -> base = 10000 - 6000 = 4000; BBB 3000 @ 0.6
+    # plus CASH 1000 @ ~0 -> 1800 / 4000 = 0.45.
     with patch.object(hd.market_data, "download_close", return_value=prices), \
          patch.object(hd, "beta_vs_benchmark", side_effect=[None, 0.6]):
         result_missing = hd.build_health_overview(snapshots)
-    assert abs(result_missing["portfolio_beta"] - 0.30 * 0.6) < 1e-9  # only BBB's term counted
+    assert abs(result_missing["portfolio_beta"] - (3000 * 0.6 / 4000)) < 1e-9
 
     # no holdings at all -> no crash, everything comes back empty/None.
     result_empty = hd.build_health_overview([{"symbol": "CASH", "market_value": 100}])

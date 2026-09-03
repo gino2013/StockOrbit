@@ -33,6 +33,17 @@ def demo():
     assert result["drip_final_value"] > result["cash_final_value"]
     assert abs(result["total_dividends_per_share"] - 2.0) < 1e-9
 
+    # a NaN in the Dividends column (yfinance sometimes returns NaN, not
+    # 0.0) must not poison the series - `if div > 0` skips it, `if div:`
+    # would treat NaN as truthy and make every downstream value NaN.
+    div_with_nan = dividends.copy()
+    div_with_nan.iloc[2] = float("nan")
+    with patch.object(drip.market_data, "ticker_history",
+                      return_value=pd.DataFrame({"Close": closes, "Dividends": div_with_nan})):
+        nan_result = drip.simulate_drip("AAA", "2025-01-01", "2025-01-15", initial_investment=1000.0)
+    assert nan_result["drip_final_value"] == nan_result["drip_final_value"]  # not NaN
+    assert nan_result["cash_final_value"] == nan_result["cash_final_value"]
+
     # too little data -> a clear error, not a crash.
     with patch.object(drip.market_data, "ticker_history", return_value=history.head(1)):
         try:

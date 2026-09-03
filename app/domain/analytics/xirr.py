@@ -57,7 +57,10 @@ def xirr(cashflows: list[tuple[date, float]], guess: float = 0.1) -> float | Non
         if new_rate <= -1:  # would make (1+rate) <= 0, undefined for non-integer exponents
             break
         if abs(new_rate - rate) < 1e-9:
-            return new_rate
+            # Step stalled - only trust it if it's actually a root. In a
+            # flat NPV region the step can shrink below the threshold while
+            # NPV is still far from zero; fall through to bisection then.
+            return new_rate if abs(npv(new_rate)) < 1e-6 else _xirr_bisection(npv)
         rate = new_rate
 
     return _xirr_bisection(npv)

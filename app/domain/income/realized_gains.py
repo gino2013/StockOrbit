@@ -12,11 +12,15 @@ def compute_realized_gains(transactions: list[dict]) -> list[dict]:
     """One row per SOLD transaction with its FIFO-matched cost basis and gain,
     sorted by date. `unmatched_quantity` > 0 means we sold more than our
     BOUGHT history accounts for (e.g. a lot bought before our history starts)
-    - that portion's cost basis is left out rather than guessed at, so the
-    gain for that row is understated, not fabricated.
+    - that portion is dropped from *both* cost basis and proceeds, so the
+    row's `gain` reflects only the shares we could actually cost, not a
+    guessed figure and not full proceeds against a partial cost.
     """
     trades = [t for t in transactions if t["trans_type"] in ("BOUGHT", "SOLD") and t.get("symbol")]
-    trades.sort(key=lambda t: t["report_date"])
+    # Secondary key: a BOUGHT sorts before a SOLD on the same date, so a
+    # same-day round trip matches its own purchase rather than older lots
+    # (or going unmatched when there are none). report_date has no time.
+    trades.sort(key=lambda t: (t["report_date"], 0 if t["trans_type"] == "BOUGHT" else 1))
 
     lots: dict[str, deque] = defaultdict(deque)  # symbol -> deque of [qty_remaining, price]
     realized = []
@@ -38,7 +42,13 @@ def compute_realized_gains(transactions: list[dict]) -> list[dict]:
             remaining -= take
             if lot[0] <= 1e-9:
                 lots[symbol].popleft()
-        proceeds = qty * price
+        # Only count proceeds for the shares we could FIFO-match. With
+        # `remaining == 0` (the normal case) this is just qty * price;
+        # when we sold more than our BOUGHT history covers, the unmatched
+        # shares drop out of proceeds too, so `gain` stays a like-for-like
+        # matched figure instead of full proceeds minus a partial cost.
+        matched_qty = qty - remaining
+        proceeds = matched_qty * price
         realized.append(
             {
                 "symbol": symbol,
