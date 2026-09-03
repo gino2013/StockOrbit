@@ -429,7 +429,8 @@ for f in tests/test_*.py; do .venv/bin/python "$f" || echo "FAILED: $f"; done
 - `dashboard.html` 拆成模組化的 Jinja partials（`templates/sections/`，每區塊 HTML + JS 一起、共用工具集中在 `_shared.html`），維持零建置流程
 - 持股筆記新增歷史版本；「接下來預測」長期欄位數字過於誇張時加 ⚠️ 標示
 - 時間戳記統一顯示成台北時區（UTC+8），不再直接印原始 UTC
-- 新增「FIRE 進度」（4% 法則）：年支出 + 安全提領率 → FIRE 數字、進度、預估達成日
+- 新增「FIRE 進度」：4% 法則（年支出 + 安全提領率 → FIRE 數字、進度、預估達成日）、Coast FIRE（今天起不再投入能否複利到退休）、股利覆蓋率（Barista / Dividend FIRE）
+- 修正多帳戶持股彙總 bug：同一登入下兩個帳戶都持有同一檔標的時，改成依代號加總成一列，不再是重複的兩列
 
 ## 注意事項
 

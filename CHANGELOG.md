@@ -9,6 +9,7 @@
 - `4cc08b8` 新增 FIRE 進度（4% 法則，issue #213，見 epic #212）：輸入年支出跟安全提領率（預設 4%）算出 FIRE 數字（年支出 ÷ 提領率）、目前進度、還差多少、以目前 XIRR 推估的達成日期。新表 `fire_settings`（比照 `investment_goals` 的「每人一列」模式），新 partial `sections/fire.html` 擺在「目標達成進度追蹤」之前，AJAX 自載
 - `2511e93` 新增 Coast FIRE 檢查（issue #214）：`fire_settings` 加兩個選填欄位（退休日期、預期實質報酬率），算「今天起不再投入，靠複利能否長到 FIRE 數字」——今天需要有多少才能躺平、還差多少、退休時的預估市值。併入既有 FIRE 進度表單跟 `/api/fire`，兩個欄位要一起填或都不填
 - `89ee477` 新增股利覆蓋率／Barista FIRE（issue #215）：重用既有 `trailing_twelve_month_dividends` 加總近 12 個月股利，算覆蓋了多少年支出、以目前整體殖利率回推全額覆蓋大概還需要多少本金。不用另外設定，併入既有 `/api/fire` 回應
+- `e969261` 修正多帳戶持股彙總 bug（issue #96）：`firstrade_client.fetch_positions()` 對同一登入下的每個帳號分別抓取，每筆 `PositionSnapshot` 都標記真實的 `account_number`，但 `repositories.latest_snapshots()` 是每個 row 直接轉一個字典，不是照 `symbol` 分組——兩個帳號都持有同一檔標的時會回傳重複的兩列，持股表格/圓餅圖/目標配置比對/風險相關性計算全部會被打亂。改成依 `symbol` 分組加總 quantity/cost_basis/market_value，price 從加總後的 market_value/quantity 重新算出真正的加權平均價；單一帳戶（目前唯一在用的情境）行為不變。順便把「FIRE 進度」的選單連結跟區塊移到「持股筆記」之後
 
 ## 2026-09-01
 

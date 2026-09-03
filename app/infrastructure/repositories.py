@@ -84,22 +84,34 @@ class Repositories:
         return row[0] if row else None
 
     def latest_snapshots(self) -> list[dict]:
+        """One row per symbol. Firstrade fetches positions per account (see
+        firstrade_client.fetch_positions), so a login with two accounts both
+        holding the same symbol produces two PositionSnapshot rows for it -
+        group and sum here rather than returning them as separate rows,
+        which would silently double-count that symbol everywhere downstream
+        (holdings table, pie charts, target-allocation comparison, risk/
+        correlation) since they all key off symbol (issue #96)."""
         latest = self.latest_snapshot_at()
         if latest is None:
             return []
         rows = self._mine(PositionSnapshot).filter(
             PositionSnapshot.snapshot_at == latest
         ).all()
-        return [
-            {
-                "symbol": r.symbol,
-                "quantity": r.quantity,
-                "market_value": r.market_value,
-                "price": r.price,
-                "cost_basis": r.cost_basis,
-            }
-            for r in rows
-        ]
+        grouped: dict[str, dict] = {}
+        for r in rows:
+            g = grouped.setdefault(
+                r.symbol, {"symbol": r.symbol, "quantity": 0.0, "market_value": 0.0, "cost_basis": 0.0}
+            )
+            g["quantity"] += r.quantity
+            g["market_value"] += r.market_value
+            g["cost_basis"] += r.cost_basis
+        for g in grouped.values():
+            # price re-derived from the summed totals (a same-account single
+            # row reduces to its own market_value/quantity, unchanged) so a
+            # multi-account symbol gets a genuine weighted-average price
+            # instead of one account's raw quote.
+            g["price"] = g["market_value"] / g["quantity"] if g["quantity"] else 0.0
+        return list(grouped.values())
 
     def all_snapshot_points(self) -> list[dict]:
         """Every snapshot row, trimmed to what the allocation-history chart needs."""
