@@ -597,12 +597,12 @@ AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 FLEX_MODE_COOKIE = "flex_mode"
 
 
-def _flex_basis_prices(symbols: list[str]) -> dict[str, float]:
-    """For flex mode's "報酬率 since FLEX_RETURN_SINCE": each symbol's first
-    available close on or after that date. A symbol that only listed later
-    (e.g. 2024) resolves to its own first close, so its flex return is
-    measured from then - not skipped. Any failure -> {} and the caller
-    quietly keeps the ordinary unrealized-return figure."""
+def _flex_basis(symbols: list[str]) -> dict[str, tuple]:
+    """Flex mode ("held my current position since FLEX_RETURN_SINCE"): each
+    symbol's first available close on or after that date, as (date, price).
+    A symbol that listed later (e.g. a 2024 IPO) resolves to its own first
+    trading day, so its hypothetical entry sits there - not at 2017. Any
+    failure -> {} and the dashboard shows the ordinary figures."""
     symbols = [s for s in symbols if s != "CASH"]
     if not symbols:
         return {}
@@ -616,7 +616,30 @@ def _flex_basis_prices(symbols: list[str]) -> dict[str, float]:
                 continue
             first = data[sym].dropna()
             if not first.empty:
-                out[sym] = float(first.iloc[0])
+                out[sym] = (first.index[0].date(), float(first.iloc[0]))
+        return out
+    except Exception:
+        return {}
+
+
+def _flex_ttm_div_per_share(symbols: list[str], as_of) -> dict[str, float]:
+    """Trailing-12-month dividend-per-share for each symbol, so flex mode's
+    股利追蹤 can show "what my *current* position would have paid" (x current
+    quantity, done in build_dashboard_context). {} on any failure."""
+    symbols = [s for s in symbols if s != "CASH"]
+    if not symbols:
+        return {}
+    try:
+        cutoff = (as_of - timedelta(days=365)).isoformat()
+        data = market_data.download_dividends(symbols, start=cutoff)
+        if isinstance(data, pd.Series):
+            data = data.to_frame(name=symbols[0])
+        out = {}
+        for sym in symbols:
+            if sym not in data:
+                continue
+            col = data[sym]
+            out[sym] = float(col[col > 0].sum())
         return out
     except Exception:
         return {}
@@ -690,9 +713,10 @@ def dashboard(request: Request, account: str | None = None):
         account_numbers = repo.account_numbers(latest)
         selected_account = repo.resolve_account(account, account_numbers)
         snapshots = repo.latest_snapshots(selected_account, latest)
-        flex_basis_prices = (
-            _flex_basis_prices([s["symbol"] for s in snapshots]) if flex_mode and snapshots else None
-        )
+        _syms = [s["symbol"] for s in snapshots]
+        _today = datetime.now().date()
+        flex_basis = _flex_basis(_syms) if flex_mode and snapshots else None
+        flex_div = _flex_ttm_div_per_share(_syms, _today) if flex_mode and snapshots else None
         context = build_dashboard_context(
             snapshots=snapshots,
             targets=repo.targets(),
@@ -703,8 +727,9 @@ def dashboard(request: Request, account: str | None = None):
             note_history=repo.note_history(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
             flex_mode=flex_mode,
-            flex_basis_prices=flex_basis_prices,
-            as_of=datetime.now().date(),
+            flex_basis=flex_basis,
+            flex_div_per_share=flex_div,
+            as_of=_today,
         )
     return templates.TemplateResponse(
         request, "dashboard.html",
