@@ -46,7 +46,12 @@
         </div>
       </a>
       <form action="/api/toggle-flex-mode" method="post" class="inline">
-        <button type="submit" class="w-4 h-4 opacity-0 cursor-default" tabindex="-1" aria-hidden="true"></button>
+        <!-- ponytail: hidden vanity toggle (FLEX_MODE_MULTIPLIER), stays
+        invisible on purpose - but a 16x16 fully-transparent hitbox was
+        nearly impossible to actually land a click on (issue report:
+        "the button doesn't work" - it does, it just can't be hit).
+        Bigger target, still zero visual footprint. -->
+        <button type="submit" class="w-9 h-9 opacity-0 cursor-default" tabindex="-1" aria-hidden="true"></button>
       </form>
     </div>
     <div class="flex items-center gap-2">
