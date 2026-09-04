@@ -245,6 +245,9 @@
   <!-- Section: 目前熱門標的 -->
   {% include "sections/trending.html" %}
 
+  <!-- Section: 美元匯率歷史 -->
+  {% include "sections/fx_history.html" %}
+
   {% if allocation_chart_data %}
   <!-- Section: 配置歷史走勢 -->
   {% include "sections/allocation_history.html" %}
@@ -319,6 +322,7 @@
           <li><a href="#section-technical">價格技術指標</a></li>
           <li><a href="#section-fundamentals">基本面分析</a></li>
           <li><a href="#section-trending">目前熱門標的</a></li>
+          <li><a href="#section-fx-history">美元匯率歷史</a></li>
         </ul>
       </details>
     </li>

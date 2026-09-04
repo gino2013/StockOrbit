@@ -1,0 +1,120 @@
+  <h2 id="section-fx-history" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>美元匯率歷史
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        USD/TWD 走勢。線是 <b>銀行同業間中間匯率</b>（yfinance <code>USDTWD=X</code>，跟頁首「參考匯率」同一個來源），會落在你跟銀行買、跟銀行賣之間。上方另外顯示 <b>LINE Bank 今日即期</b> 的買進/賣出牌告價（即時抓取）。台灣沒有零售銀行公開歷史牌告價，所以歷史只有中間匯率一條線。
+      </p>
+      <div class="bg-base-200 rounded-box p-4 mt-2">
+        <form id="fx-form" class="flex flex-wrap gap-3 items-end">
+          <label class="text-sm">開始<br>
+            <input name="fx-start" type="date" required class="input input-bordered input-sm mt-1 w-40">
+          </label>
+          <label class="text-sm">結束<br>
+            <input name="fx-end" type="date" required class="input input-bordered input-sm mt-1 w-40">
+          </label>
+          <label class="text-sm">顯示粒度<br>
+            <select name="fx-granularity" class="select select-bordered select-sm mt-1">
+              <option value="D" selected>每日</option>
+              <option value="W">每週</option>
+              <option value="M">每月</option>
+              <option value="Q">每季</option>
+              <option value="H">每半年</option>
+              <option value="A">每年</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-neutral">查詢</button>
+        </form>
+      </div>
+      <div id="fx-linebank" class="text-sm mt-3 hidden"></div>
+      <div id="fx-error" class="alert alert-error text-sm mt-3 hidden"></div>
+      <div id="fx-chart-wrap" class="h-72 mt-3 hidden"><canvas id="fxChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+let fxChart = null;
+async function loadFxHistory() {
+  const form = document.getElementById('fx-form');
+  const errorBox = document.getElementById('fx-error');
+  const lineBox = document.getElementById('fx-linebank');
+  const wrap = document.getElementById('fx-chart-wrap');
+  errorBox.classList.add('hidden');
+  const start = form.elements['fx-start'].value;
+  const end = form.elements['fx-end'].value;
+  const granularity = form.elements['fx-granularity'].value;
+  if (!start || !end) return;
+
+  const qs = new URLSearchParams({ start, end, granularity });
+  const res = await fetch('/api/fx-history?' + qs);
+  const data = await res.json();
+  if (data.error) {
+    wrap.classList.add('hidden');
+    lineBox.classList.add('hidden');
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (data.linebank) {
+    const b = data.linebank;
+    lineBox.innerHTML = `LINE Bank 今日即期　買進 <b>${b.buy.toFixed(3)}</b>　賣出 <b>${b.sell.toFixed(3)}</b>` +
+      (b.as_of ? `　<span class="opacity-50">（${escapeHtml(b.as_of)}）</span>` : '');
+    lineBox.classList.remove('hidden');
+  } else {
+    lineBox.classList.add('hidden');
+  }
+
+  const labels = data.points.map(p => p.date);
+  const rates = data.points.map(p => p.rate);
+  const datasets = [{
+    label: '中間匯率 (USDTWD=X)', data: rates,
+    borderColor: '#4f46e5', borderWidth: 2, pointRadius: 0, tension: 0.15,
+  }];
+  if (data.linebank) {
+    datasets.push(
+      { label: 'LINE Bank 今日買進', data: labels.map(() => data.linebank.buy),
+        borderColor: '#10b981', borderWidth: 1, pointRadius: 0, borderDash: [5, 4] },
+      { label: 'LINE Bank 今日賣出', data: labels.map(() => data.linebank.sell),
+        borderColor: '#ef4444', borderWidth: 1, pointRadius: 0, borderDash: [5, 4] },
+    );
+  }
+
+  wrap.classList.remove('hidden');
+  if (fxChart) fxChart.destroy();
+  fxChart = new Chart(document.getElementById('fxChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(4)}` } },
+      },
+      scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { ticks: { callback: (v) => v.toFixed(2) } } },
+    },
+  });
+}
+
+document.getElementById('fx-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  loadFxHistory();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Own date names (fx-start/fx-end) so the shared start/end defaulter at
+  // the bottom of the page leaves these alone; set our own defaults here
+  // (last 6 months) then run the first query.
+  const form = document.getElementById('fx-form');
+  const today = new Date();
+  const sixMonthsAgo = new Date(today); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const iso = (d) => d.toISOString().split('T')[0];
+  form.elements['fx-start'].value = iso(sixMonthsAgo);
+  form.elements['fx-start'].max = iso(today);
+  form.elements['fx-end'].value = iso(today);
+  form.elements['fx-end'].max = iso(today);
+  loadFxHistory();
+});
+</script>
