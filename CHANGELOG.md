@@ -6,6 +6,8 @@
 
 ## 2026-09-04
 
+- `5c41dc5` 市場資訊新增「美元匯率歷史」線圖：USD/TWD 走勢，顆粒度日/週/月/季/半年/年、區間可自訂（預設近 6 個月）。線是 yfinance `USDTWD=X` 銀行同業間中間匯率（跟頁首「參考匯率」同一來源）；上方一行顯示 LINE Bank 今日即期買進/賣出，從 `linebank.com.tw/board-rate/exchange-rate` 即時抓（牌價表內嵌在頁面 SSR 資料裡，不用跑 JS），畫成兩條當日水平虛線。台銀 CSV 現在有 bot 驗證牆、LINE Bank 又沒有歷史 feed，所以歷史只有中間匯率一條線。新增純函式 `fx_history.resample_rate_series()`、`infrastructure/linebank.py`、`/api/fx-history` 路由
+
 - `f5a3356` 隱藏的 flex 顯示模式（`FLEX_MODE_MULTIPLIER`，把所有金額 ×10.1）改成打字「flex」觸發，取代原本頁首那顆 16×16px 全透明、幾乎點不到的按鈕（位置還會隨標題寬度飄）。#224 曾把按鈕放大，之後 #225 還原——放大隱形按鈕還是 hack。改成 keydown 監聽：在非輸入欄位的地方打「flex」就會打既有的 `/api/toggle-flex-mode` 再 reload，一樣零可見 UI，也不會在輸入框打字時誤觸
 - `f9db3ad` flex 模式下「報酬率」改成「假設每檔現在的持股都在 2017-01-01 當天的價位買進」的價格報酬（後來 `7cca156` 整個重做，見下）
 - `7cca156` flex 模式整個重新定義：不再是「所有金額 ×10.1」的裝飾倍數，而是「假設我用**目前的持倉**（現在持有的股數）在 2017-01-01 買進、晚上市的持股用該檔第一個交易日、之後都沒動過」，所有數字照這個算：

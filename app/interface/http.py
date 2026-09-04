@@ -27,7 +27,7 @@ from app.infrastructure.db import (
 )
 from app.interface import auth
 from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
-from app.infrastructure import crypto, mailer
+from app.infrastructure import crypto, linebank, mailer
 from app.infrastructure.csv_import import CsvImportError, parse_positions, parse_transactions
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
@@ -40,6 +40,7 @@ from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
+from app.domain.analytics.fx_history import resample_rate_series
 from app.domain.analytics.drip import simulate_drip
 from app.domain.analytics.health_dashboard import build_health_overview
 from app.domain.analytics.holdings_history import (
@@ -908,6 +909,41 @@ def trending(screener: str = "day_gainers"):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+_FX_GRANULARITIES = {"D", "W", "M", "Q", "H", "A"}
+
+
+@app.get("/api/fx-history")
+def fx_history(start: str, end: str, granularity: str = "D"):
+    """USD/TWD history line for the market-info section. `line` is yfinance's
+    USDTWD=X interbank mid rate (the same series as the dashboard's 參考匯率
+    - no retail bank publishes a free historical buy/sell feed). `linebank`
+    is today's LINE Bank spot buy/sell, scraped live, shown as a marker on
+    top; None if that scrape fails."""
+    if granularity not in _FX_GRANULARITIES:
+        return JSONResponse({"error": "未知的顯示粒度"}, status_code=400)
+    try:
+        start_d, end_d = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError:
+        return JSONResponse({"error": "日期格式錯誤"}, status_code=400)
+    if end_d <= start_d:
+        return JSONResponse({"error": "結束日期要晚於開始日期"}, status_code=400)
+
+    try:
+        series = market_data.download_close("USDTWD=X", start=start, end=end)
+        if isinstance(series, pd.DataFrame):  # some yfinance versions return a 1-col frame
+            series = series.iloc[:, 0]
+        series = series.dropna()
+    except Exception as e:
+        return JSONResponse({"error": f"抓取匯率失敗：{e}"}, status_code=400)
+    if series.empty:
+        return JSONResponse({"error": "這個區間沒有匯率資料"}, status_code=400)
+
+    return JSONResponse({
+        "points": resample_rate_series(series, granularity),
+        "linebank": linebank.fetch_usd_spot(),
+    })
 
 
 @app.get("/api/compound-curve")
