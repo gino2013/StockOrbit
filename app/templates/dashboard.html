@@ -45,9 +45,6 @@
           <p class="text-sm opacity-60">Firstrade 持股追蹤與建議</p>
         </div>
       </a>
-      <form action="/api/toggle-flex-mode" method="post" class="inline">
-        <button type="submit" class="w-4 h-4 opacity-0 cursor-default" tabindex="-1" aria-hidden="true"></button>
-      </form>
     </div>
     <div class="flex items-center gap-2">
       {% if account_numbers|length > 1 %}
@@ -371,6 +368,25 @@ function toggleTheme() {
   localStorage.theme = next;
   document.documentElement.setAttribute('data-theme', next);
   document.getElementById('theme-icon').innerHTML = next === 'dark' ? ICON_SUN : ICON_MOON;
+}
+
+// Hidden vanity toggle (FLEX_MODE_MULTIPLIER, server-side): type "flex"
+// anywhere that isn't a text field. Replaced the old invisible 16x16px
+// header button, which was effectively impossible to click. No visible UI
+// on purpose - the server flips the flex_mode cookie and the reload picks
+// up the scaled numbers.
+{
+  let buf = '';
+  document.addEventListener('keydown', (e) => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (e.key.length !== 1) return;
+    buf = (buf + e.key.toLowerCase()).slice(-4);
+    if (buf === 'flex') {
+      buf = '';
+      fetch('/api/toggle-flex-mode', { method: 'POST' }).then(() => location.reload());
+    }
+  });
 }
 
 </script>
