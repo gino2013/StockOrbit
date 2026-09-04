@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-04
+
+- `f5a3356` 隱藏的 flex 顯示模式（`FLEX_MODE_MULTIPLIER`，把所有金額 ×10.1）改成打字「flex」觸發，取代原本頁首那顆 16×16px 全透明、幾乎點不到的按鈕（位置還會隨標題寬度飄）。#224 曾把按鈕放大，之後 #225 還原——放大隱形按鈕還是 hack。改成 keydown 監聽：在非輸入欄位的地方打「flex」就會打既有的 `/api/toggle-flex-mode` 再 reload，一樣零可見 UI，也不會在輸入框打字時誤觸
+
 ## 2026-09-03
 
 - `79bd5b2` 新增帳戶篩選（issue #97，依賴已修好的 #96）：頁首加帳戶下拉選單，多帳戶時可只看單一帳戶，總市值/持股表格/圓餅圖/目標配置比對/再平衡建議/已實現損益/股利追蹤等區塊會跟著只算該帳戶的資料。`repositories.py` 新增 `account_numbers()`，`latest_snapshots()`/`all_transactions()`/`all_snapshot_points()` 都加選填的 `account` 參數。單一帳戶時選單不出現，體驗不變
