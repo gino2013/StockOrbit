@@ -12,7 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 load_dotenv()
 
-from app.application.dashboard import build_dashboard_context
+from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
@@ -597,6 +597,31 @@ AUTO_REFRESH_STALE_AFTER = timedelta(minutes=30)
 FLEX_MODE_COOKIE = "flex_mode"
 
 
+def _flex_basis_prices(symbols: list[str]) -> dict[str, float]:
+    """For flex mode's "報酬率 since FLEX_RETURN_SINCE": each symbol's first
+    available close on or after that date. A symbol that only listed later
+    (e.g. 2024) resolves to its own first close, so its flex return is
+    measured from then - not skipped. Any failure -> {} and the caller
+    quietly keeps the ordinary unrealized-return figure."""
+    symbols = [s for s in symbols if s != "CASH"]
+    if not symbols:
+        return {}
+    try:
+        data = market_data.download_close(symbols, start=FLEX_RETURN_SINCE)
+        if isinstance(data, pd.Series):  # yfinance returns a Series for a single symbol
+            data = data.to_frame(name=symbols[0])
+        out = {}
+        for sym in symbols:
+            if sym not in data:
+                continue
+            first = data[sym].dropna()
+            if not first.empty:
+                out[sym] = float(first.iloc[0])
+        return out
+    except Exception:
+        return {}
+
+
 def _stored_creds(repo: Repositories) -> tuple[FtCreds | None, FirestradeCredential | None]:
     """Decrypt this user's stored Firstrade credentials, if any."""
     row = repo.firstrade_credential()
@@ -659,11 +684,15 @@ def dashboard(request: Request, account: str | None = None):
             except Exception:
                 pass  # fall back to showing the stale snapshot rather than breaking the page
 
+    flex_mode = request.cookies.get(FLEX_MODE_COOKIE) == "1"
     with Repositories() as repo:
         latest = repo.latest_snapshot_at()
         account_numbers = repo.account_numbers(latest)
         selected_account = repo.resolve_account(account, account_numbers)
         snapshots = repo.latest_snapshots(selected_account, latest)
+        flex_basis_prices = (
+            _flex_basis_prices([s["symbol"] for s in snapshots]) if flex_mode and snapshots else None
+        )
         context = build_dashboard_context(
             snapshots=snapshots,
             targets=repo.targets(),
@@ -673,7 +702,8 @@ def dashboard(request: Request, account: str | None = None):
             notes=repo.notes(),
             note_history=repo.note_history(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
-            flex_mode=request.cookies.get(FLEX_MODE_COOKIE) == "1",
+            flex_mode=flex_mode,
+            flex_basis_prices=flex_basis_prices,
             as_of=datetime.now().date(),
         )
     return templates.TemplateResponse(

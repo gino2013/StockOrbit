@@ -16,6 +16,7 @@ from app.domain.analytics.pace_projection import project_at_pace
 from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 FLEX_MODE_MULTIPLIER = 10.1
+FLEX_RETURN_SINCE = "2017-01-01"
 
 
 def apply_flex_mode(snapshots: list[dict]) -> list[dict]:
@@ -33,6 +34,30 @@ def apply_flex_mode(snapshots: list[dict]) -> list[dict]:
     ]
 
 
+def flex_return_pct(snapshots: list[dict], basis_prices: dict[str, float]) -> float | None:
+    """Flex-mode 報酬率: pretend every current holding was bought at its
+    FLEX_RETURN_SINCE price (or its earliest available price if it listed
+    later - `basis_prices` already resolves that), and return the
+    current-market-value-weighted blend of each symbol's price return.
+
+    Symbols with no usable basis price (bad ticker, fully delisted) drop out
+    of both the weighted sum and its denominator. None when nothing is left
+    to weight - the caller then keeps the ordinary unrealized-return figure.
+    """
+    weighted_sum = 0.0
+    covered_value = 0.0
+    for s in snapshots:
+        if s["symbol"] == "CASH":
+            continue
+        basis = basis_prices.get(s["symbol"])
+        current = s["price"]
+        if not basis or basis <= 0 or not current:
+            continue
+        weighted_sum += s["market_value"] * (current / basis - 1)
+        covered_value += s["market_value"]
+    return weighted_sum / covered_value if covered_value else None
+
+
 def build_dashboard_context(
     *,
     snapshots: list[dict],
@@ -44,6 +69,7 @@ def build_dashboard_context(
     note_history: dict[str, list[dict]],
     usd_twd_rate: float | None,
     flex_mode: bool,
+    flex_basis_prices: dict[str, float] | None = None,
     as_of: date,
 ) -> dict:
     sector_allocation = compute_sector_allocation(snapshots, fundamentals_meta) if snapshots else {}
@@ -85,10 +111,20 @@ def build_dashboard_context(
         )
     ]
 
+    # Flex mode swaps the plain unrealized-return figure for a
+    # "held since FLEX_RETURN_SINCE" price return (see flex_return_pct);
+    # falls back to the ordinary ratio if the basis prices couldn't be
+    # resolved (offline, every ticker bad, or flex just isn't on).
+    total_gain_pct = (total_gain / total_cost) if total_cost else 0
+    if flex_mode and flex_basis_prices:
+        flex_pct = flex_return_pct(snapshots, flex_basis_prices)
+        if flex_pct is not None:
+            total_gain_pct = flex_pct
+
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
-        "total_gain_pct": (total_gain / total_cost) if total_cost else 0,
+        "total_gain_pct": total_gain_pct,
         "annualized_return": annualized_return,
         "position_count": sum(1 for s in snapshots if s["symbol"] != "CASH"),
         "usd_twd_rate": usd_twd_rate,
