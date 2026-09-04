@@ -28,6 +28,15 @@ def download_close(symbols, *, start=None, end=None, period=None):
     return yf.download(symbols, auto_adjust=True, progress=False, **_window(start, end, period))["Close"]
 
 
+def download_dividends(symbols, *, start=None, end=None, period=None):
+    """`yf.download(..., actions=True)["Dividends"]` - per-symbol dividend
+    amounts, 0.0 on non-ex-dates. Same Series-vs-DataFrame shape rules as
+    download_close (Series for a single symbol on some yfinance versions)."""
+    return yf.download(
+        symbols, auto_adjust=True, actions=True, progress=False, **_window(start, end, period)
+    )["Dividends"]
+
+
 def ticker_history(symbol: str, *, start=None, end=None, period=None, auto_adjust: bool = True):
     """Full OHLCV(+Dividends) frame for one symbol - used where the caller
     needs more than the close column (e.g. DRIP needs per-share dividends)."""

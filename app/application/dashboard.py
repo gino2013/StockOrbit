@@ -15,47 +15,58 @@ from app.domain.income.realized_gains import compute_realized_gains, summarize_r
 from app.domain.analytics.pace_projection import project_at_pace
 from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
-FLEX_MODE_MULTIPLIER = 10.1
 FLEX_RETURN_SINCE = "2017-01-01"
 
 
-def apply_flex_mode(snapshots: list[dict]) -> list[dict]:
-    """Cosmetic display multiplier (see the hidden toggle in the header).
-    Never persisted - a purely presentational scaling of the snapshot dicts.
-    round() avoids float artifacts leaking into the un-formatted template."""
-    return [
-        {
-            **s,
-            "quantity": round(s["quantity"] * FLEX_MODE_MULTIPLIER, 6),
-            "cost_basis": round(s["cost_basis"] * FLEX_MODE_MULTIPLIER, 2),
-            "market_value": round(s["market_value"] * FLEX_MODE_MULTIPLIER, 2),
-        }
-        for s in snapshots
-    ]
+# --- flex mode -------------------------------------------------------------
+# Flex mode reframes the whole dashboard as "I bought my *current* position
+# (the exact share counts I hold now) back on FLEX_RETURN_SINCE - or on a
+# symbol's first trading day if it listed later - and never touched it
+# since". Market value / quantity / price stay real (same shares); cost
+# basis, unrealized P/L, return %, XIRR, the pace projection, and dividend
+# income are all recomputed off that hypothetical 2017 entry. Realized P/L
+# is zero (nothing was ever sold). Triggered by typing "flex"; the
+# flex_basis / flex_div_per_share inputs are fetched by the route only when
+# the cookie is set, and any fetch failure -> flex_basis None -> the
+# ordinary figures, page unaffected.
 
 
-def flex_return_pct(snapshots: list[dict], basis_prices: dict[str, float]) -> float | None:
-    """Flex-mode 報酬率: pretend every current holding was bought at its
-    FLEX_RETURN_SINCE price (or its earliest available price if it listed
-    later - `basis_prices` already resolves that), and return the
-    current-market-value-weighted blend of each symbol's price return.
+def apply_flex_since(snapshots: list[dict], basis_prices: dict[str, float]) -> list[dict]:
+    """Rewrite each holding's cost_basis to `current quantity x basis price`
+    (what those shares would have cost at their FLEX_RETURN_SINCE / first-
+    listed price). market_value / quantity / price are left real. CASH and
+    any symbol with no usable basis keep their real cost_basis so they don't
+    distort the totals."""
+    out = []
+    for s in snapshots:
+        b = basis_prices.get(s["symbol"])
+        if s["symbol"] == "CASH" or not b or b <= 0:
+            out.append(s)
+        else:
+            out.append({**s, "cost_basis": round(s["quantity"] * b, 2)})
+    return out
 
-    Symbols with no usable basis price (bad ticker, fully delisted) drop out
-    of both the weighted sum and its denominator. None when nothing is left
-    to weight - the caller then keeps the ordinary unrealized-return figure.
-    """
-    weighted_sum = 0.0
-    covered_value = 0.0
+
+def flex_cashflows_since(snapshots: list[dict], basis: dict[str, tuple], as_of: date) -> list[tuple]:
+    """XIRR cashflows for flex mode: one buy per non-cash symbol at its
+    basis *date* for (current quantity x basis price), then the whole
+    non-cash position marked to today's market value. A symbol that only
+    listed after FLEX_RETURN_SINCE gets its buy at the listing date, so the
+    annualized rate reflects the real holding period, not a fake 9 years."""
+    flows: list[tuple] = []
+    terminal = 0.0
     for s in snapshots:
         if s["symbol"] == "CASH":
             continue
-        basis = basis_prices.get(s["symbol"])
-        current = s["price"]
-        if not basis or basis <= 0 or not current:
+        entry = basis.get(s["symbol"])
+        if not entry or entry[1] <= 0:
             continue
-        weighted_sum += s["market_value"] * (current / basis - 1)
-        covered_value += s["market_value"]
-    return weighted_sum / covered_value if covered_value else None
+        basis_date, basis_price = entry
+        flows.append((basis_date, -(s["quantity"] * basis_price)))
+        terminal += s["market_value"]
+    if flows:
+        flows.append((as_of, terminal))
+    return flows
 
 
 def build_dashboard_context(
@@ -69,7 +80,8 @@ def build_dashboard_context(
     note_history: dict[str, list[dict]],
     usd_twd_rate: float | None,
     flex_mode: bool,
-    flex_basis_prices: dict[str, float] | None = None,
+    flex_basis: dict[str, tuple] | None = None,
+    flex_div_per_share: dict[str, float] | None = None,
     as_of: date,
 ) -> dict:
     sector_allocation = compute_sector_allocation(snapshots, fundamentals_meta) if snapshots else {}
@@ -79,19 +91,21 @@ def build_dashboard_context(
     allocation_chart_data = chart_series(daily_allocation_history) if daily_allocation_history else None
     concentration_chart_data = concentration_series(daily_allocation_history) if daily_allocation_history else None
 
-    realized = compute_realized_gains(transactions)
+    # `flex_active` needs both the toggle AND resolved basis prices - a fetch
+    # failure leaves flex_basis None and the dashboard shows the ordinary
+    # figures. Once active, "held since 2017" replaces cost basis, XIRR,
+    # dividends and realized P/L wholesale (see the flex-mode note above).
+    flex_active = flex_mode and bool(flex_basis)
+    if flex_active:
+        basis_price = {sym: p for sym, (_, p) in flex_basis.items()}
+        snapshots = apply_flex_since(snapshots, basis_price)
+
+    # Never sold under "held since 2017" -> no realized gains.
+    realized = compute_realized_gains([] if flex_active else transactions)
     realized_summary = {
         "all_time": summarize_realized_gains(realized),
         "this_year": summarize_realized_gains(realized, year=as_of.year),
     }
-
-    # XIRR's terminal cashflow must be the *real* total value: comparing real
-    # deposit history against a flex-inflated ending value blows the rate up
-    # into nonsense (seen: 20078% vs the real ~45%). Capture it before flex
-    # scaling. total_gain_pct is fine under flex because both its inputs scale.
-    real_total_value = sum(s["market_value"] for s in snapshots)
-    if flex_mode:
-        snapshots = apply_flex_mode(snapshots)
 
     advice = build_advice(snapshots, targets, sector_allocation=sector_allocation) if snapshots else None
     rebalance_plan = build_rebalance_plan(snapshots, targets) if snapshots and targets else None
@@ -100,26 +114,42 @@ def build_dashboard_context(
     total_value = sum(s["market_value"] for s in snapshots)
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
-    annualized_return = xirr(portfolio_cashflows(transactions, real_total_value, as_of))
+    total_gain_pct = (total_gain / total_cost) if total_cost else 0
+
+    if flex_active:
+        annualized_return = xirr(flex_cashflows_since(snapshots, flex_basis, as_of))
+    else:
+        # non-flex: nothing scaled `total_value`, so it's the real terminal value.
+        annualized_return = xirr(portfolio_cashflows(transactions, total_value, as_of))
 
     market_value_by_symbol = {s["symbol"]: s["market_value"] for s in snapshots}
-    dividend_rows = with_yield(trailing_twelve_month_dividends(transactions, as_of), market_value_by_symbol)
+    if flex_active and flex_div_per_share is not None:
+        # "what my current position would have yielded in the last 12
+        # months" - per-symbol TTM dividend-per-share x current quantity.
+        ttm_rows = [
+            {"symbol": s["symbol"], "ttm_dividends": s["quantity"] * flex_div_per_share.get(s["symbol"], 0.0)}
+            for s in snapshots
+            if s["symbol"] != "CASH" and flex_div_per_share.get(s["symbol"], 0.0) > 0
+        ]
+    else:
+        ttm_rows = trailing_twelve_month_dividends(transactions, as_of)
+    dividend_rows = with_yield(ttm_rows, market_value_by_symbol)
+
+    real_ttm_total = sum(r["ttm_dividends"] for r in trailing_twelve_month_dividends(transactions, as_of))
+    flex_ttm_total = sum(r["ttm_dividends"] for r in ttm_rows)
+    div_scale = (flex_ttm_total / real_ttm_total) if (flex_active and real_ttm_total) else 1.0
     dividend_calendar = [
-        {"year": year, "month": month, "entries": list(entries)}
+        {
+            "year": year,
+            "month": month,
+            "entries": [
+                {**e, "estimated_amount": e["estimated_amount"] * div_scale} for e in entries
+            ],
+        }
         for (year, month), entries in groupby(
             forecast_dividend_calendar(transactions, as_of), key=lambda f: (f["year"], f["month"])
         )
     ]
-
-    # Flex mode swaps the plain unrealized-return figure for a
-    # "held since FLEX_RETURN_SINCE" price return (see flex_return_pct);
-    # falls back to the ordinary ratio if the basis prices couldn't be
-    # resolved (offline, every ticker bad, or flex just isn't on).
-    total_gain_pct = (total_gain / total_cost) if total_cost else 0
-    if flex_mode and flex_basis_prices:
-        flex_pct = flex_return_pct(snapshots, flex_basis_prices)
-        if flex_pct is not None:
-            total_gain_pct = flex_pct
 
     stats = {
         "total_value": total_value,
