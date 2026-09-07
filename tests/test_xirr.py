@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.analytics.xirr import portfolio_cashflows, xirr
+from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
 
 
 def demo():
@@ -51,6 +51,33 @@ def demo():
         r = xirr(flows)
         assert r is not None
         assert abs(_npv(flows, r)) < 1e-3, (flows, r, _npv(flows, r))
+
+    # --- estimate_annual_contribution (issue #232): net deposits / years ---
+    as_of = date(2026, 1, 1)
+    txns = [
+        {"trans_type": "DEPOSIT", "report_date": date(2024, 1, 1), "amount": 5000},
+        {"trans_type": "DEPOSIT", "report_date": date(2025, 1, 1), "amount": 5000},
+        {"trans_type": "BOUGHT", "report_date": date(2024, 1, 2), "amount": -5000},  # not external
+        {"trans_type": "DIV", "report_date": date(2025, 6, 1), "amount": 80},        # not external
+        {"trans_type": "WITHDRAWAL", "report_date": date(2025, 7, 1), "amount": 2000},
+    ]
+    # net in = 10000 - 2000 = 8000 over 2 years -> ~4000/yr
+    est = estimate_annual_contribution(txns, as_of)
+    assert abs(est - 8000 / ((as_of - date(2024, 1, 1)).days / 365.25)) < 1e-6
+    assert 3900 < est < 4100
+
+    # no deposit history -> 0, not a divide-by-zero.
+    assert estimate_annual_contribution([{"trans_type": "BOUGHT", "report_date": as_of, "amount": -100}], as_of) == 0.0
+    assert estimate_annual_contribution([], as_of) == 0.0
+    # less than a year of history -> 0 (annualizing a few months is noise).
+    recent = [{"trans_type": "DEPOSIT", "report_date": date(2025, 10, 1), "amount": 3000}]
+    assert estimate_annual_contribution(recent, as_of) == 0.0
+    # net withdrawals (took more out than put in) -> 0, not negative.
+    net_out = [
+        {"trans_type": "DEPOSIT", "report_date": date(2024, 1, 1), "amount": 1000},
+        {"trans_type": "WITHDRAWAL", "report_date": date(2025, 1, 1), "amount": 5000},
+    ]
+    assert estimate_annual_contribution(net_out, as_of) == 0.0
 
 
 if __name__ == "__main__":

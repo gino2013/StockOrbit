@@ -63,11 +63,13 @@ def build_dividend_coverage(ttm_dividends: float, annual_expenses: float, curren
 def build_fire_progress(
     current_value: float, annual_expenses: float, swr: float, current_annual_return: float | None, as_of: date,
     retirement_date: date | None = None, expected_real_return: float | None = None,
-    ttm_dividends: float | None = None,
+    ttm_dividends: float | None = None, annual_contribution: float = 0.0,
 ) -> dict:
     target = fire_number(annual_expenses, swr)
     progress_pct = min(1.0, current_value / target) if target else None
-    proj_date = projected_achievement_date(current_value, target, current_annual_return, as_of)
+    proj_date = projected_achievement_date(
+        current_value, target, current_annual_return, as_of, annual_contribution
+    )
     coast = (
         build_coast_fire(current_value, target, retirement_date, expected_real_return, as_of)
         if retirement_date and expected_real_return is not None
@@ -87,6 +89,7 @@ def build_fire_progress(
         "remaining_amount": max(0.0, target - current_value),
         "already_fire": current_value >= target,
         "current_annual_return": current_annual_return,
+        "annual_contribution": annual_contribution,
         "projected_achievement_date": proj_date,
         "coast_fire": coast,
         "dividend_coverage": dividend_coverage,

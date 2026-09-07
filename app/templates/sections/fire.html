@@ -124,6 +124,7 @@ async function loadFire() {
       <span>${progressPct}%</span>
     </div>
     <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>
+    ${f.annual_contribution ? `<p class="text-xs opacity-50 mt-1">「推估達成日期」已假設你每年持續投入約 $${f.annual_contribution.toLocaleString('en-US', { maximumFractionDigits: 0 })}（依過去的入金推算）。</p>` : ''}
     <div class="stats stats-vertical sm:stats-horizontal shadow w-full bg-base-200 mt-3">
       <div class="stat">
         <div class="stat-title">目前市值</div>

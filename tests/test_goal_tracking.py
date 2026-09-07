@@ -64,6 +64,35 @@ def demo():
     # no XIRR yet -> no curve, no date, rather than a fabricated flat line.
     assert build_goal_progress(15000, 20000, date(2027, 1, 1), None, as_of)["projection"] == []
 
+    # --- annual_contribution (issue #232) ---
+    # default 0 -> unchanged from the closed-form result.
+    d0 = projected_achievement_date(10000, 20000, 0.10, as_of)
+    d0b = projected_achievement_date(10000, 20000, 0.10, as_of, 0.0)
+    assert d0 == d0b
+
+    # adding contributions gets there sooner than return alone.
+    slow = projected_achievement_date(10000, 20000, 0.05, as_of)
+    fast = projected_achievement_date(10000, 20000, 0.05, as_of, annual_contribution=3000)
+    assert fast is not None and slow is not None
+    assert date.fromisoformat(fast) < date.fromisoformat(slow)
+
+    # a zero/negative return can still reach the target on deposits alone
+    # (the closed form would short-circuit to None here).
+    only_deposits = projected_achievement_date(10000, 20000, 0.0, as_of, annual_contribution=2000)
+    assert only_deposits is not None
+    losing_but_saving = projected_achievement_date(10000, 20000, -0.05, as_of, annual_contribution=5000)
+    assert losing_but_saving is not None
+
+    # the projection curve reflects the deposits: with contributions the
+    # end value exceeds the pure-compounding end value over the same window.
+    with_c = build_goal_progress(15000, 20000, date(2028, 1, 1), 0.05, as_of, annual_contribution=4000)
+    without_c = build_goal_progress(15000, 20000, date(2028, 1, 1), 0.05, as_of)
+    assert with_c["annual_contribution"] == 4000
+    assert with_c["projection"][-1]["value"] > without_c["projection"][-1]["value"]
+
+    # build_goal_progress echoes the contribution back for the caption.
+    assert build_goal_progress(15000, 20000, date(2027, 1, 1), 0.30, as_of)["annual_contribution"] == 0.0
+
 
 if __name__ == "__main__":
     demo()

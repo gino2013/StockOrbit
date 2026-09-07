@@ -4,7 +4,7 @@ the raw snapshot/transaction data."""
 
 from datetime import date
 
-from app.domain.analytics.xirr import portfolio_cashflows, xirr
+from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
 from app.domain.goals.goal_tracking import build_goal_progress
 
 
@@ -14,4 +14,7 @@ def goal_progress(
 ) -> dict:
     current_value = sum(s["market_value"] for s in snapshots)
     current_return = xirr(portfolio_cashflows(transactions, current_value, as_of))
-    return build_goal_progress(current_value, target_amount, target_date, current_return, as_of)
+    annual_contribution = estimate_annual_contribution(transactions, as_of)
+    return build_goal_progress(
+        current_value, target_amount, target_date, current_return, as_of, annual_contribution
+    )

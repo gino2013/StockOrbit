@@ -9,6 +9,27 @@ EXTERNAL_CASH_IN_TYPES = {"DEPOSIT"}
 EXTERNAL_CASH_OUT_TYPES = {"WITHDRAWAL", "WITHDRAW"}
 
 
+def estimate_annual_contribution(transactions: list[dict], as_of: date) -> float:
+    """Average net external cash put in per year, from the DEPOSIT/WITHDRAWAL
+    history: (total deposits - total withdrawals) / years since the first
+    transaction. The forward projections (goal, pace, FIRE) use this to
+    assume the investor keeps contributing at their historical rate rather
+    than pretending all future growth is investment return only. 0 when
+    there's no deposit history or the elapsed period rounds below a year."""
+    net_in = 0.0
+    dates = []
+    for t in transactions:
+        dates.append(t["report_date"])
+        if t["trans_type"] in EXTERNAL_CASH_IN_TYPES:
+            net_in += abs(t["amount"])
+        elif t["trans_type"] in EXTERNAL_CASH_OUT_TYPES:
+            net_in -= abs(t["amount"])
+    if net_in <= 0 or not dates:
+        return 0.0
+    years = (as_of - min(dates)).days / 365.25
+    return net_in / years if years >= 1 else 0.0
+
+
 def portfolio_cashflows(transactions: list[dict], current_value: float, as_of: date) -> list[tuple[date, float]]:
     """External cash movements only - deposits (negative, money the investor
     put in) and withdrawals (positive, money taken out). Trades and

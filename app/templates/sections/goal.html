@@ -68,6 +68,9 @@ async function loadGoal() {
       <span>${progressPct}%</span>
     </div>
     <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>`;
+  if (g.annual_contribution) {
+    html += `<p class="text-xs opacity-50 mt-1">推算已假設你每年持續投入約 $${g.annual_contribution.toLocaleString('en-US', { maximumFractionDigits: 0 })}（依過去的入金推算），不只靠投資報酬。</p>`;
+  }
   if (g.projection && g.projection.length) {
     html += '<div class="h-64 mt-4"><canvas id="goalProjectionChart"></canvas></div>';
   }
