@@ -4,6 +4,11 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-07
+
+- `45d70d7` 新增 repo 根目錄的 `CLAUDE.md`，把「issue → feature branch → PR（內文 `Closes #<issue>`）→ 連 Project #3、assign gino2013 → squash merge」的開發流程寫成明文（issue #233）
+- `ab36210` 目標達成進度 / 接下來預測 / FIRE 進度的推估，改成把「使用者過去的定期入金習慣」也算進去（issue #232）。原本三個地方都是 `目前市值 × (1+XIRR)^年數`，等於假設從今天起不再存錢——固定每年入金、而且佔資產成長比例大的人會被低估，達標日期偏悲觀。新增 `xirr.estimate_annual_contribution()`（過去淨入金 ÷ 追蹤年數；沒入金紀錄/未滿一年/淨提領皆回 0），三個推估函式都加選填的 `annual_contribution`（預設 0，行為完全不變），把它當每月年金疊在複利本金上；有年金項時達標日期改逐月遞推（沒有封閉解），且零/負報酬也不再直接回 None（光靠入金也能到）。flex 模式（「從 2017 抱到現在、都沒動過」）明確傳 0。三個區塊的說明文字會在入金非零時標出假設的年入金金額
+
 ## 2026-09-04
 
 - `5c41dc5` 市場資訊新增「美元匯率歷史」線圖：USD/TWD 走勢，顆粒度日/週/月/季/半年/年、區間可自訂（預設近 6 個月）。線是 yfinance `USDTWD=X` 銀行同業間中間匯率（跟頁首「參考匯率」同一來源）；上方一行顯示 LINE Bank 今日即期買進/賣出，從 `linebank.com.tw/board-rate/exchange-rate` 即時抓（牌價表內嵌在頁面 SSR 資料裡，不用跑 JS），畫成兩條當日水平虛線。台銀 CSV 現在有 bot 驗證牆、LINE Bank 又沒有歷史 feed，所以歷史只有中間匯率一條線。新增純函式 `fx_history.resample_rate_series()`、`infrastructure/linebank.py`、`/api/fx-history` 路由
