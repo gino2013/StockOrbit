@@ -25,12 +25,23 @@ _CHECKPOINTS = [
 EXTREME_CHANGE_PCT = 10.0  # +1000%
 
 
-def project_at_pace(current_value: float, annual_return: float) -> list[dict]:
+def project_at_pace(current_value: float, annual_return: float, annual_contribution: float = 0.0) -> list[dict]:
+    """`annual_contribution` (see xirr.estimate_annual_contribution) is added
+    as a monthly annuity on top of the compounding lump sum, so the pace
+    reflects "if this return *and* my deposit habit both hold"."""
     if current_value <= 0:
         return []
+    monthly_rate = (1 + annual_return) ** (1 / 12) - 1
+    monthly_contribution = annual_contribution / 12
     results = []
     for label, years, long_term in _CHECKPOINTS:
-        projected_value = current_value * (1 + annual_return) ** years
+        months = years * 12
+        projected_value = current_value * (1 + monthly_rate) ** months
+        if monthly_contribution:
+            if monthly_rate:
+                projected_value += monthly_contribution * ((1 + monthly_rate) ** months - 1) / monthly_rate
+            else:
+                projected_value += monthly_contribution * months
         change_pct = (projected_value / current_value) - 1
         results.append(
             {

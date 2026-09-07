@@ -146,7 +146,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <h2 class="card-title text-base">接下來預測</h2>
-      <p class="text-xs opacity-60">假設維持目前的年化報酬率（XIRR {{ "{:+.1%}".format(stats.annualized_return) }}）複利下去，不是預測未來實際報酬，只是「照現在的速度走下去會是這樣」的參考。</p>
+      <p class="text-xs opacity-60">假設維持目前的年化報酬率（XIRR {{ "{:+.1%}".format(stats.annualized_return) }}）複利下去{% if pace_annual_contribution %}、並且每年持續投入約 ${{ "{:,.0f}".format(pace_annual_contribution) }}（依你過去的入金推算）{% endif %}，不是預測未來實際報酬，只是「照現在的速度走下去會是這樣」的參考。</p>
       <div class="stats stats-vertical sm:stats-horizontal shadow w-full mt-2">
         {% for p in pace_projection if not p.long_term %}
         <div class="stat">

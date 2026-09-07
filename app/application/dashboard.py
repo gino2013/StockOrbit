@@ -13,7 +13,7 @@ from app.domain.portfolio.sector_allocation import compute_sector_allocation, sy
 from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.domain.analytics.pace_projection import project_at_pace
-from app.domain.analytics.xirr import portfolio_cashflows, xirr
+from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
 
 FLEX_RETURN_SINCE = "2017-01-01"
 
@@ -161,7 +161,14 @@ def build_dashboard_context(
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
         "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
     }
-    pace_projection = project_at_pace(total_value, annualized_return) if annualized_return is not None else []
+    # Flex mode ("held since 2017, never touched it") has no future deposits
+    # by premise; otherwise assume the investor keeps contributing at their
+    # historical rate so the pace isn't understated.
+    pace_contribution = 0.0 if flex_active else estimate_annual_contribution(transactions, as_of)
+    pace_projection = (
+        project_at_pace(total_value, annualized_return, pace_contribution)
+        if annualized_return is not None else []
+    )
 
     return {
         "snapshots": snapshots,
@@ -169,6 +176,7 @@ def build_dashboard_context(
         "targets": targets,
         "stats": stats,
         "pace_projection": pace_projection,
+        "pace_annual_contribution": pace_contribution,
         "rebalance_plan": rebalance_plan,
         "target_weight_sum": target_weight_sum,
         "realized_summary": realized_summary,

@@ -108,6 +108,23 @@ def demo():
     )
     assert abs(with_dividends["dividend_coverage"]["coverage_pct"] - 0.5) < 1e-9
 
+    # --- annual_contribution (issue #232): future deposits pull the
+    # projected achievement date earlier ---
+    # FIRE number = 40000 / 0.04 = 1,000,000; start at 400k so the target
+    # is genuinely ahead.
+    far_off = build_fire_progress(
+        current_value=400_000, annual_expenses=40_000, swr=0.04, current_annual_return=0.05, as_of=as_of,
+    )
+    with_savings = build_fire_progress(
+        current_value=400_000, annual_expenses=40_000, swr=0.04, current_annual_return=0.05, as_of=as_of,
+        annual_contribution=120_000,
+    )
+    assert with_savings["annual_contribution"] == 120_000
+    assert far_off["annual_contribution"] == 0.0
+    d_far = date.fromisoformat(far_off["projected_achievement_date"])
+    d_near = date.fromisoformat(with_savings["projected_achievement_date"])
+    assert d_near < d_far
+
 
 if __name__ == "__main__":
     demo()

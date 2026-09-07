@@ -38,6 +38,23 @@ def demo():
     assert project_at_pace(0.0, 0.20) == []
     assert project_at_pace(-100.0, 0.20) == []
 
+    # annual_contribution defaults to 0 and reproduces the old lump-sum
+    # numbers (monthly compounding still lands on the annual figure).
+    assert abs(project_at_pace(10000.0, 0.20, 0.0)[3]["projected_value"] - 12000.0) < 1e-6
+
+    # a positive contribution lifts every checkpoint above the no-contrib one.
+    base = project_at_pace(10000.0, 0.20)
+    with_contrib = project_at_pace(10000.0, 0.20, 1200.0)
+    assert all(w["projected_value"] > b["projected_value"] for w, b in zip(with_contrib, base))
+    # 1-year: 10000 grown at 20% (12000) + a $100/mo ordinary annuity.
+    mr = 1.20 ** (1 / 12) - 1
+    annuity_1y = 100 * ((1 + mr) ** 12 - 1) / mr
+    assert abs(with_contrib[3]["projected_value"] - (12000.0 + annuity_1y)) < 1e-6
+
+    # contributions work even at a zero return - pure deposits accumulate.
+    flat = project_at_pace(10000.0, 0.0, 1200.0)
+    assert abs(flat[3]["projected_value"] - (10000.0 + 1200.0)) < 1e-6
+
 
 if __name__ == "__main__":
     demo()
