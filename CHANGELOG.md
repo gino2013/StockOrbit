@@ -17,6 +17,7 @@
 - `4c64fb9` 側邊選單分類圖示改成黑白線條 SVG（跟頁首按鈕同一套 `stroke="currentColor"` 風格），不用彩色 emoji
 - `75022b0` 修側邊選單橫向捲軸；收合時藏 details 箭頭；flyout 改 position:fixed（issue #258）：`#nav-menu-scroll` 只設 `overflow-y-auto` 沒明確設 `overflow-x`，CSS 規範規定沒設的那軸會被算成 `auto` 而非 `visible`，清單裡任何一丁點超出容器寬度的東西都會冒出橫向捲軸，捲一點點就會看到內容被推到右邊，看起來像分裂成兩欄——明確加上 `overflow-x: hidden`。附帶修：收合狀態下 `<details>` 原生展開箭頭沒意義（子選單靠 hover flyout，不是點開 `<details>`），藏起來；flyout 原本 `position:absolute` 會被上面那個明確的 overflow clip 連帶裁掉看不到，改成 JS 讀 hover 圖示的 `getBoundingClientRect()`、用 `position:fixed` 定位，逃出任何祖先的 overflow clip
 - `9d8945b` 修側邊選單展開時項目換欄排版；收合時圖示對齊 logo（issue #260）：上一筆的 `overflow-x` 修正沒抓到真正根因——daisyUI 的 `.menu` 元件預設 `flex-wrap: wrap`，`#nav-menu-scroll` 又是高度受限（`100vh` 的 `#nav-menu` 裡的 `flex-1`），30 個連結超出容器高度時會被排成新的一欄而不是往下捲動，展開/收合狀態都會發生，跟 hover flyout（只在收合時觸發）無關；明確加上 `flex-wrap: nowrap` 蓋掉預設值。另外收合狀態下 logo 圖示因為自己的 inline `padding-left` 沒對齊三個分類圖示，給 logo `<li>` 加 class 用 `!important` 蓋掉、加上 `justify-content: center` 讓兩者對齊同一條垂直線
+- `17bce2c` 修 flyout 殘留 position:fixed 亂飄；收合狀態 hover 沒反應；側邊欄留白（issue #262）：flyout 顯示靠 toggle 一個 CSS class 控制，但 `mouseleave` 只移除了 class、沒清掉 JS 在 `mouseenter` 設過的 inline `position/top/left`，收合狀態 hover 過某個分類後那組座標會殘留，展開側邊欄時 CSS 的 `display:none`（只在收合狀態生效）不再適用，`<ul>` 變回預設可見，殘留的 `position:fixed` 卻還在，於是用舊座標飄在畫面上蓋住其他內容；收合狀態 hover 沒反應則是那條 class 切換規則被 daisyUI 自己的樣式蓋掉。改成完全用 JS 直接控制 inline `style.display`，`mouseleave` 把 `display/position/top/left` 全部清空歸零；`toggleNavMenu()` 切換時也額外清一次所有 flyout 殘留樣式。另外 `#nav-menu-scroll` 的 padding 從 `p-4` 改成 `py-4 pl-4 pr-1`，減少右側視覺留白
 
 ## 2026-09-07
 
