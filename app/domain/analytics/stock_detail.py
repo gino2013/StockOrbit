@@ -73,9 +73,16 @@ def build_stock_detail(symbol: str, fundamentals: dict, quote: dict, ohlc: dict,
         change_abs = price - start_price
         change_pct = change_abs / start_price
 
-    dividend_rate = fundamentals.get("dividendRate")
-    if dividend_rate is None:
-        dividend_rate = quote.get("dividendRate")
+    # dividendRate (forward, per-payment x frequency) is often None for
+    # ETFs even when they clearly pay dividends (e.g. VOO) - fall back to
+    # trailingAnnualDividendRate (actual trailing-12-months total) before
+    # giving up and showing "-".
+    dividend_rate = (
+        fundamentals.get("dividendRate")
+        or fundamentals.get("trailingAnnualDividendRate")
+        or quote.get("dividendRate")
+        or quote.get("trailingAnnualDividendRate")
+    )
     return {
         "symbol": symbol,
         "name": fundamentals.get("longName") or quote.get("longName") or quote.get("shortName") or symbol,

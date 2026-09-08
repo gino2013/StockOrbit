@@ -40,6 +40,9 @@ FIELDS = [
     "exchange",
     "currency",
     "dividendRate",
+    "trailingAnnualDividendRate",  # dividendRate (forward, per-payment x frequency)
+    # is often None for ETFs even when they clearly pay dividends (e.g. VOO) -
+    # this is the trailing-12-months actual total instead, a reliable fallback
 ]
 
 # ponytail: get_info() is a slow, blocking HTTP round-trip per symbol with

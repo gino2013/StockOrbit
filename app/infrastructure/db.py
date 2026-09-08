@@ -117,6 +117,7 @@ class FundamentalsCache(Base):
     exchange = Column(String)
     currency = Column(String)
     dividendRate = Column(Float)
+    trailingAnnualDividendRate = Column(Float)
     next_earnings_date = Column(String)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -311,7 +312,9 @@ def _infer_untracked_revision() -> str | None:
     fundamentals_cols = {c["name"] for c in inspector.get_columns("fundamentals_cache")}
     if "totalAssets" not in fundamentals_cols:
         return "0007_coast_fire"
-    return "0008_fundamentals_quote"  # structure already matches head
+    if "trailingAnnualDividendRate" not in fundamentals_cols:
+        return "0008_fundamentals_quote"
+    return "0009_dividend_fallback"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
