@@ -36,7 +36,10 @@
      fix so it can still shrink and scroll internally on the rare case
      content *does* exceed the available space, instead of overflowing
      the fixed-height column. */
-  #nav-menu-scroll { overflow-x: hidden; flex-wrap: nowrap; min-height: 0; }
+  /* !important because daisyUI's own .menu rules (likely !important
+     themselves, e.g. for its flex sizing) otherwise keep winning over a
+     plain override here regardless of selector specificity. */
+  #nav-menu-scroll { overflow-x: hidden !important; flex-wrap: nowrap !important; flex: 0 1 auto !important; height: auto !important; min-height: 0 !important; }
   #nav-menu.nav-menu-collapsed #nav-menu-scroll { padding-left: .5rem; padding-right: .5rem; }
   /* center the logo and each group icon in the narrow rail - the logo li's
      own padding-left (for its normal, expanded layout) would otherwise
@@ -455,10 +458,10 @@ if (localStorage.navMenuCollapsed === '1') {
 // style it set, not just display, so nothing (in particular the fixed
 // position/coordinates) survives to leak into the expanded sidebar later.
 function resetNavFlyout(flyout) {
-  flyout.style.display = '';
-  flyout.style.position = '';
-  flyout.style.top = '';
-  flyout.style.left = '';
+  flyout.style.removeProperty('display');
+  flyout.style.removeProperty('position');
+  flyout.style.removeProperty('top');
+  flyout.style.removeProperty('left');
 }
 document.querySelectorAll('.nav-menu-group').forEach((group) => {
   const flyout = group.querySelector(':scope > details > ul');
@@ -466,10 +469,13 @@ document.querySelectorAll('.nav-menu-group').forEach((group) => {
   group.addEventListener('mouseenter', () => {
     if (!document.getElementById('nav-menu').classList.contains('nav-menu-collapsed')) return;
     const rect = group.getBoundingClientRect();
-    flyout.style.position = 'fixed';
-    flyout.style.top = `${rect.top}px`;
-    flyout.style.left = `${rect.right + 4}px`;
-    flyout.style.display = 'block';
+    // setProperty(..., 'important'): daisyUI's own .menu rules can be
+    // !important themselves, which beats a plain .style.x = y (that's
+    // always non-important) no matter how specific the selector is.
+    flyout.style.setProperty('position', 'fixed', 'important');
+    flyout.style.setProperty('top', `${rect.top}px`, 'important');
+    flyout.style.setProperty('left', `${rect.right + 4}px`, 'important');
+    flyout.style.setProperty('display', 'block', 'important');
   });
   group.addEventListener('mouseleave', () => resetNavFlyout(flyout));
 });
