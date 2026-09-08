@@ -147,8 +147,6 @@
     {% endif %}
   </div>
 
-  {% include "sections/stock_lookup.html" %}
-
   {% if pace_projection %}
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
@@ -254,6 +252,8 @@
 
   <!-- Section: 美元匯率歷史 -->
   {% include "sections/fx_history.html" %}
+
+  {% include "sections/stock_lookup.html" %}
 
   {% if allocation_chart_data %}
   <!-- Section: 配置歷史走勢 -->

@@ -22,6 +22,7 @@ FIELDS = [
     "sector",
     "industry",
     "marketCap",
+    "totalAssets",  # ETFs/funds have no marketCap - this is their AUM equivalent
     "trailingPE",
     "forwardPE",
     "pegRatio",
@@ -35,6 +36,10 @@ FIELDS = [
     "fiftyTwoWeekHigh",
     "targetMeanPrice",
     "recommendationKey",
+    "longName",
+    "exchange",
+    "currency",
+    "dividendRate",
 ]
 
 # ponytail: get_info() is a slow, blocking HTTP round-trip per symbol with
