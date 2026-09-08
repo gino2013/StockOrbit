@@ -5,7 +5,10 @@
           <span class="w-1.5 h-5 bg-primary rounded-full"></span>個股資訊查詢
         </h2>
         <form id="stock-lookup-form" class="flex gap-2">
-          <input name="symbol" value="{{ snapshots[0].symbol if snapshots else 'AAPL' }}" class="input input-bordered input-sm w-28 uppercase" placeholder="股票代碼">
+          <div class="relative">
+            <input id="stock-lookup-symbol" name="symbol" value="{{ snapshots[0].symbol if snapshots else 'AAPL' }}" autocomplete="off" class="input input-bordered input-sm w-28 uppercase" placeholder="股票代碼">
+            <ul id="stock-lookup-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+          </div>
           <button class="btn btn-neutral btn-sm">查詢</button>
         </form>
       </div>
@@ -148,5 +151,6 @@ document.getElementById('stock-lookup-form').addEventListener('submit', (e) => {
   loadStockLookup(symbol, period);
 });
 
+attachTickerAutocomplete('stock-lookup-symbol', 'stock-lookup-symbol-suggestions');
 loadStockLookup(document.querySelector('#stock-lookup-form input[name=symbol]').value, '1y');
 </script>
