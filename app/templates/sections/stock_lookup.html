@@ -97,11 +97,11 @@ async function loadStockLookup(symbol, period) {
   document.getElementById('stock-lookup-52l').textContent = stockLookupFmtNum(data.fifty_two_week_low);
 
   const intraday = (period === '1d' || period === '5d');
+  const withYear = (period === '1y' || period === '5y' || period === 'max');
   const labels = data.history.map(p => {
     const d = new Date(p.t);
-    return intraday
-      ? d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
-      : d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+    if (intraday) return d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('zh-TW', withYear ? { year: '2-digit', month: 'numeric', day: 'numeric' } : { month: 'numeric', day: 'numeric' });
   });
   const closes = data.history.map(p => p.close);
   const lineColor = up ? '#16a34a' : '#dc2626';
@@ -114,6 +114,7 @@ async function loadStockLookup(symbol, period) {
     }] },
     options: {
       maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => stockLookupFmtNum(ctx.parsed.y) } } },
       scales: {
         x: { ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true } },

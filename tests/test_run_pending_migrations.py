@@ -93,6 +93,15 @@ with engine.begin() as conn:
         ("target_allocations", "symbol,target_weight"),
         ("position_notes", "symbol,note,updated_at"),
         ("transaction_notes", "transaction_id,note,updated_at"),
+        # fundamentals_cache predates 0008 too - strip the columns that
+        # migration adds so its real ADD COLUMN runs below instead of
+        # colliding with create_all()'s already-current-model copy.
+        (
+            "fundamentals_cache",
+            "symbol,quoteType,sector,industry,marketCap,trailingPE,forwardPE,pegRatio,returnOnEquity,"
+            "profitMargins,revenueGrowth,earningsGrowth,debtToEquity,beta,fiftyTwoWeekLow,fiftyTwoWeekHigh,"
+            "targetMeanPrice,recommendationKey,next_earnings_date,fetched_at",
+        ),
     ]:
         conn.execute(text(f"CREATE TABLE {{table}}_old AS SELECT {{cols}} FROM {{table}}"))
         conn.execute(text(f"DROP TABLE {{table}}"))

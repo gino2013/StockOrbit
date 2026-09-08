@@ -99,6 +99,7 @@ class FundamentalsCache(Base):
     sector = Column(String)
     industry = Column(String)
     marketCap = Column(Float)
+    totalAssets = Column(Float)
     trailingPE = Column(Float)
     forwardPE = Column(Float)
     pegRatio = Column(Float)
@@ -112,6 +113,10 @@ class FundamentalsCache(Base):
     fiftyTwoWeekHigh = Column(Float)
     targetMeanPrice = Column(Float)
     recommendationKey = Column(String)
+    longName = Column(String)
+    exchange = Column(String)
+    currency = Column(String)
+    dividendRate = Column(Float)
     next_earnings_date = Column(String)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -303,7 +308,10 @@ def _infer_untracked_revision() -> str | None:
     fire_cols = {c["name"] for c in inspector.get_columns("fire_settings")}
     if "retirement_date" not in fire_cols:
         return "0006_fire_settings"
-    return "0007_coast_fire"  # structure already matches head
+    fundamentals_cols = {c["name"] for c in inspector.get_columns("fundamentals_cache")}
+    if "totalAssets" not in fundamentals_cols:
+        return "0007_coast_fire"
+    return "0008_fundamentals_cache_quote_fields"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

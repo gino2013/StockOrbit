@@ -7,12 +7,16 @@ quoteSummary block (see app/infrastructure/fundamentals.py):
 - open/day-high/day-low/price come from `today_ohlc()` - a plain
   `ticker_history(period="1d")` bar. That's the *unblocked* endpoint, so
   these never need a fallback and are never shown stale.
-- market cap / trailing PE / 52-week range come from the caller's
-  fetch_fundamentals() (with its usual repo.fundamentals_cache() fallback) -
-  these move slowly enough that a few-day-old cached value is still honest.
-- name/exchange/currency/dividend are best-effort from a raw
-  `fetch_quote()` (quoteSummary) call with no fallback - if Yahoo blocks it
-  these just show "-"/the bare symbol rather than something misleading.
+- market cap (or totalAssets for ETFs, which have no marketCap) / trailing
+  PE / 52-week range / name / exchange / currency / dividend all come from
+  the caller's fetch_fundamentals() (with its usual repo.fundamentals_cache()
+  fallback) - these move slowly enough that a few-day-old cached value is
+  still honest, and that cache is what actually survives Render's block.
+- `fetch_quote()` (a raw, uncached quoteSummary call) only fills in when
+  fundamentals has nothing at all - e.g. a symbol nobody holds, so the
+  scheduled cache-refresh job (which only covers held symbols) never
+  populated it. No fallback of its own: if Yahoo blocks it too, these
+  just show "-"/the bare symbol rather than something misleading.
 """
 
 from app.infrastructure import market_data
@@ -69,24 +73,26 @@ def build_stock_detail(symbol: str, fundamentals: dict, quote: dict, ohlc: dict,
         change_abs = price - start_price
         change_pct = change_abs / start_price
 
-    dividend_rate = quote.get("dividendRate")
+    dividend_rate = fundamentals.get("dividendRate")
+    if dividend_rate is None:
+        dividend_rate = quote.get("dividendRate")
     return {
         "symbol": symbol,
-        "name": quote.get("longName") or quote.get("shortName") or symbol,
-        "exchange": quote.get("exchange"),
-        "currency": quote.get("currency"),
+        "name": fundamentals.get("longName") or quote.get("longName") or quote.get("shortName") or symbol,
+        "exchange": fundamentals.get("exchange") or quote.get("exchange"),
+        "currency": fundamentals.get("currency") or quote.get("currency"),
         "price": price,
         "change_abs": change_abs,
         "change_pct": change_pct,
         "open": ohlc.get("open") if ohlc.get("open") is not None else (quote.get("open") or quote.get("regularMarketOpen")),
         "day_high": ohlc.get("day_high") if ohlc.get("day_high") is not None else (quote.get("dayHigh") or quote.get("regularMarketDayHigh")),
         "day_low": ohlc.get("day_low") if ohlc.get("day_low") is not None else (quote.get("dayLow") or quote.get("regularMarketDayLow")),
-        "market_cap": fundamentals.get("marketCap"),
-        "trailing_pe": fundamentals.get("trailingPE"),
+        "market_cap": fundamentals.get("marketCap") or fundamentals.get("totalAssets") or quote.get("marketCap") or quote.get("totalAssets"),
+        "trailing_pe": fundamentals.get("trailingPE") or quote.get("trailingPE"),
         "dividend_rate": dividend_rate,
         "dividend_quarterly": (dividend_rate / 4) if dividend_rate else None,
-        "fifty_two_week_high": fundamentals.get("fiftyTwoWeekHigh"),
-        "fifty_two_week_low": fundamentals.get("fiftyTwoWeekLow"),
+        "fifty_two_week_high": fundamentals.get("fiftyTwoWeekHigh") or quote.get("fiftyTwoWeekHigh"),
+        "fifty_two_week_low": fundamentals.get("fiftyTwoWeekLow") or quote.get("fiftyTwoWeekLow"),
         "history": history,
     }
 
@@ -119,6 +125,17 @@ def demo() -> None:
     empty = build_stock_detail("BAD", {}, {}, {}, [])
     assert empty["price"] is None
     assert empty["change_pct"] is None
+
+    # a symbol nobody holds (so the scheduled cache-refresh job never wrote
+    # a fundamentals_cache row) but the live quoteSummary call still worked
+    # -> fetch_quote() fills the gap.
+    uncached = build_stock_detail("TEST", {}, {"marketCap": 999.0, "dividendRate": 2.0}, ohlc, history)
+    assert uncached["market_cap"] == 999.0
+    assert uncached["dividend_quarterly"] == 0.5
+
+    # an ETF: no marketCap anywhere, only totalAssets (its AUM).
+    etf = build_stock_detail("QQQ", {"totalAssets": 12345.0}, {}, ohlc, history)
+    assert etf["market_cap"] == 12345.0
 
     from unittest.mock import patch
     with patch.object(market_data, "ticker_info", side_effect=RuntimeError("blocked")):

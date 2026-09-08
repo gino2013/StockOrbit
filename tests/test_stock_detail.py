@@ -27,13 +27,18 @@ def demo():
     except ValueError:
         pass
 
-    fundamentals = {"marketCap": 5000.0, "trailingPE": 20.0, "fiftyTwoWeekHigh": 120.0, "fiftyTwoWeekLow": 90.0}
-    quote = {"longName": "AAA Corp", "dividendRate": 4.0}
+    fundamentals = {
+        "marketCap": 5000.0, "trailingPE": 20.0, "fiftyTwoWeekHigh": 120.0, "fiftyTwoWeekLow": 90.0,
+        "longName": "AAA Corp", "dividendRate": 4.0,
+    }
+    quote = {"longName": "AAA Corp (live)", "dividendRate": 4.0}
     ohlc = {"open": 108.0, "day_high": 111.0, "day_low": 107.0, "price": 110.0}
 
     # a symbol that dividend-pays: change% measured against the first close
     # in the selected window, not against previousClose - matches the
     # Google Finance behaviour of the badge changing with the period tab.
+    # fundamentals (the cache-resilient source) wins over the uncached live
+    # quote when both have a value.
     result = stock_detail.build_stock_detail("AAA", fundamentals, quote, ohlc, history)
     assert result["change_abs"] == 10.0
     assert abs(result["change_pct"] - 0.1) < 1e-9
@@ -41,6 +46,7 @@ def demo():
     assert result["price"] == 110.0
     assert result["market_cap"] == 5000.0
     assert result["open"] == 108.0
+    assert result["name"] == "AAA Corp"
 
     # Yahoo blocks quoteSummary (the Render issue) but the unblocked
     # ticker_history endpoint still works -> price/open/day-range survive
@@ -52,6 +58,18 @@ def demo():
     assert blocked["name"] == "AAA"
     assert blocked["market_cap"] is None
     assert blocked["dividend_quarterly"] is None
+
+    # a symbol nobody holds (no fundamentals_cache row - that job only
+    # covers held symbols) but the live quoteSummary call still worked ->
+    # fetch_quote() fills the gap instead of showing "-" for no reason.
+    uncached = stock_detail.build_stock_detail("AAA", {}, {"marketCap": 999.0, "dividendRate": 2.0}, ohlc, history)
+    assert uncached["market_cap"] == 999.0
+    assert uncached["dividend_quarterly"] == 0.5
+
+    # an ETF: no marketCap anywhere (yfinance never sets it for ETFs), only
+    # totalAssets (its AUM) - still shown in the same "市值" slot.
+    etf = stock_detail.build_stock_detail("QQQ", {"totalAssets": 12345.0}, {}, ohlc, history)
+    assert etf["market_cap"] == 12345.0
 
     # everything blocked and no history at all (bad symbol) -> no change%, no crash.
     empty = stock_detail.build_stock_detail("BAD", {}, {}, {}, [])
