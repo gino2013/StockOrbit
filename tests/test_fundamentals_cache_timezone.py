@@ -11,7 +11,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_DB}"
 os.environ["APP_SECRET_KEY"] = "x" * 40
 
 from app.infrastructure.db import Base, SessionLocal, engine  # noqa: E402
-from app.infrastructure.fundamentals_cache import load_fundamentals, save_fundamentals  # noqa: E402
+from app.infrastructure.fundamentals_cache import load_fundamentals, register_symbol, save_fundamentals  # noqa: E402
 
 
 def demo():
@@ -35,6 +35,18 @@ def demo():
         # day here, but the hour must reflect the +8 shift, not raw UTC.
         assert fetched_at.startswith("2026-09-02T08:30"), fetched_at
         assert fetched_at.endswith("+08:00"), fetched_at
+
+        # a symbol nobody's cached yet -> gets a bare placeholder row (every
+        # actual field null) so the scheduled refresh job picks it up next run.
+        register_symbol(db, "TSLA")
+        db.commit()
+        assert load_fundamentals(db, ["TSLA"])["TSLA"]["marketCap"] is None
+
+        # registering an already-cached symbol must never clobber its real data.
+        aapl_before = load_fundamentals(db, ["AAPL"])["AAPL"]["fetched_at"]
+        register_symbol(db, "AAPL")
+        db.commit()
+        assert load_fundamentals(db, ["AAPL"])["AAPL"]["fetched_at"] == aapl_before
     finally:
         db.close()
 
