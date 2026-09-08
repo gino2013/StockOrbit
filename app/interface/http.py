@@ -1012,8 +1012,14 @@ def api_stock_detail(symbol: str, period: str = "1y"):
     if not fundamentals.get("_fetch_ok"):
         with Repositories() as repo:
             cached = repo.fundamentals_cache([symbol]).get(symbol)
-        if cached:
-            fundamentals = {**fundamentals, **cached}
+            if cached:
+                fundamentals = {**fundamentals, **cached}
+            else:
+                # nobody holds this symbol, so the scheduled cache-refresh
+                # job never had a reason to fetch it - register it so that
+                # job (unaffected by Render's Yahoo block) picks it up next
+                # run instead of this symbol staying "-" forever.
+                repo.register_fundamentals_symbol(symbol)
     return JSONResponse(stock_detail.build_stock_detail(symbol, fundamentals, quote, ohlc, history))
 
 

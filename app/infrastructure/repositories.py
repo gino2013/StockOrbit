@@ -406,6 +406,12 @@ class Repositories:
 
         return load_fundamentals(self._db, symbols)
 
+    def register_fundamentals_symbol(self, symbol: str) -> None:
+        from app.infrastructure.fundamentals_cache import register_symbol
+
+        register_symbol(self._db, symbol)
+        self._db.commit()
+
     # --- refresh write path -------------------------------------------------
 
     def save_refresh(self, positions: list[dict], transactions: list[dict], rate: float | None) -> None:

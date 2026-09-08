@@ -18,7 +18,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from sqlalchemy import desc
 
-from app.infrastructure.db import PositionSnapshot, SessionLocal, init_db
+from app.infrastructure.db import FundamentalsCache, PositionSnapshot, SessionLocal, init_db
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.infrastructure.fundamentals_cache import save_fundamentals
 from app.domain.analytics.risk import fetch_next_earnings_date
@@ -37,13 +37,22 @@ def held_symbols(db) -> list[str]:
     return [r[0] for r in rows if r[0] != "CASH"]
 
 
+def refresh_symbols(db) -> list[str]:
+    """Held symbols, plus anything the stock-lookup page has ever been
+    asked about (app.infrastructure.fundamentals_cache.register_symbol) -
+    a symbol nobody holds still deserves real data, not a permanent "-"."""
+    held = set(held_symbols(db))
+    looked_up = {row[0] for row in db.query(FundamentalsCache.symbol).all()}
+    return sorted(held | looked_up)
+
+
 def main():
     init_db()
     db = SessionLocal()
     try:
-        symbols = held_symbols(db)
+        symbols = refresh_symbols(db)
         if not symbols:
-            print("No held symbols found, nothing to refresh.")
+            print("No symbols found, nothing to refresh.")
             return
         fundamentals = fetch_fundamentals(symbols)
         for symbol in symbols:
