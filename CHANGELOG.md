@@ -13,6 +13,7 @@
 - `ee837b9` Hotfix：migration `0008` 的 revision id `0008_fundamentals_cache_quote_fields`（36 字元）超過 Postgres `alembic_version.version_num` 的 `VARCHAR(32)` 上限（issue #249）——本機 SQLite 測不出來（不檢查欄位長度），部署到正式 Neon Postgres 時炸成 `StringDataRightTruncation`，導致 PR #246、#248 兩次部署都失敗，Render 停在更早、還沒修好 dividend/區塊位置問題的版本。revision id 縮短成 `0008_fundamentals_quote`（23 字元）；新增 `tests/test_migration_revision_ids.py` 掃過所有 migration 強制檢查長度 ≤32；用 Docker 起真的 Postgres 容器把資料庫塞成跟正式站一樣「剛好在 0007」的狀態，實際跑過 0007→0008 驗證，不再只信任 SQLite 本機測試
 - `acfa94b` 收合按鈕搬進側邊欄本體；個股資訊查詢輸入框加自動完成（issue #251）：收合／展開按鈕從頁首移進側邊欄，跟 logo 同一列，收合時側邊欄縮成一條只留 logo icon + 展開按鈕的窄軌（3.5rem）而不是完全消失，頁首恢復乾淨。個股資訊查詢的代碼輸入框改用既有的 `attachTickerAutocomplete()`，跟其他區塊（回測比較基準、複利曲線等）一樣有自動完成建議
 - `f00c350` 第一次搜尋的冷門代號立刻觸發快取更新；修自動完成競速 bug（issue #253）：`register_symbol()` 改回傳 bool，`/api/stock-detail` 第一次登記一個沒人持有過的代號時，用新的 `app/infrastructure/github_actions.py`（`GH_ACTIONS_TOKEN`，fine-grained PAT）立刻觸發 `refresh-fundamentals-cache.yml` 跑一次，通常 1-2 分鐘內就有真資料，不用乾等最多 6 小時的排程；沒設這把 token 就靜默跳過，退回原本行為。另外修好 `attachTickerAutocomplete()` 的競速 bug：debounced 查詢送出後使用者又刪字，回應在畫面該隱藏之後才到，會把內容對不上目前輸入的建議清單重新顯示出來——回應到達時多檢查一次查詢字串還對不對，不對就丟棄
+- `8255b21` 側邊選單收合改成圖示軌＋hover 彈出子選單，箭頭移到右下角（issue #255）：之前收合直接把整個群組隱藏、按鈕跟 logo 同一列，而且側邊欄用 `min-h-full` 跟著很長的 dashboard 頁面一起撐高，收合時窄軌被拉得比視窗還高、版面跑掉。改成側邊欄 `position:sticky` + `height:100vh`（不再跟頁面一起撐高，清單自己 `overflow-y:auto`）；收合後三個分類（持股管理/市場資訊/歷史分析）各縮成一個 emoji 圖示，滑鼠移上去用 CSS `:hover` + `position:absolute` 彈出子項目清單，移開收回；收合／展開按鈕搬到側邊欄最下面、跟 logo 分開
 
 ## 2026-09-07
 
