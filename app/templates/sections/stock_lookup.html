@@ -1,0 +1,151 @@
+  <div id="section-stock-lookup" class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body gap-1">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h2 class="card-title text-base flex items-center gap-2">
+          <span class="w-1.5 h-5 bg-primary rounded-full"></span>個股資訊查詢
+        </h2>
+        <form id="stock-lookup-form" class="flex gap-2">
+          <input name="symbol" value="{{ snapshots[0].symbol if snapshots else 'AAPL' }}" class="input input-bordered input-sm w-28 uppercase" placeholder="股票代碼">
+          <button class="btn btn-neutral btn-sm">查詢</button>
+        </form>
+      </div>
+
+      <div id="stock-lookup-error" class="alert alert-error text-sm mt-2 hidden"></div>
+
+      <div id="stock-lookup-name" class="text-lg font-bold mt-2"></div>
+      <div id="stock-lookup-sub" class="text-xs opacity-60"></div>
+      <div class="flex items-end gap-3 mt-2">
+        <span id="stock-lookup-price" class="text-4xl font-bold"></span>
+        <span id="stock-lookup-currency" class="text-sm opacity-60 mb-1"></span>
+      </div>
+      <div class="flex items-center gap-2 mt-1">
+        <span id="stock-lookup-change-badge" class="badge gap-1"></span>
+        <span id="stock-lookup-period-label" class="text-sm opacity-60"></span>
+      </div>
+
+      <div role="tablist" class="tabs tabs-boxed mt-4 w-fit flex-wrap" id="stock-lookup-tabs">
+        <a role="tab" class="tab" data-period="1d">1天</a>
+        <a role="tab" class="tab" data-period="5d">5天</a>
+        <a role="tab" class="tab" data-period="1mo">1個月</a>
+        <a role="tab" class="tab" data-period="6mo">6個月</a>
+        <a role="tab" class="tab" data-period="ytd">本年迄今</a>
+        <a role="tab" class="tab tab-active" data-period="1y">1年</a>
+        <a role="tab" class="tab" data-period="5y">5年</a>
+        <a role="tab" class="tab" data-period="max">最久</a>
+      </div>
+
+      <div class="relative w-full h-64 mt-3"><canvas id="stockLookupChart"></canvas></div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-4 text-sm mt-6">
+        <div><div class="opacity-60">開盤</div><div id="stock-lookup-open" class="font-medium"></div></div>
+        <div><div class="opacity-60">市值</div><div id="stock-lookup-market-cap" class="font-medium"></div></div>
+        <div><div class="opacity-60">本益比</div><div id="stock-lookup-pe" class="font-medium"></div></div>
+        <div><div class="opacity-60">最高</div><div id="stock-lookup-high" class="font-medium"></div></div>
+        <div><div class="opacity-60">股息</div><div id="stock-lookup-dividend" class="font-medium"></div></div>
+        <div><div class="opacity-60">季度股利金額</div><div id="stock-lookup-dividend-q" class="font-medium"></div></div>
+        <div><div class="opacity-60">最低</div><div id="stock-lookup-low" class="font-medium"></div></div>
+        <div><div class="opacity-60">52週高點</div><div id="stock-lookup-52h" class="font-medium"></div></div>
+        <div><div class="opacity-60">52週低點</div><div id="stock-lookup-52l" class="font-medium"></div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let stockLookupChart = null;
+
+function stockLookupFmtNum(v, digits = 2) {
+  return (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function stockLookupFmtCompact(v) {
+  return (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+}
+
+async function loadStockLookup(symbol, period) {
+  const errorBox = document.getElementById('stock-lookup-error');
+  errorBox.classList.add('hidden');
+  const qs = new URLSearchParams({ symbol, period });
+  const res = await fetch('/api/stock-detail?' + qs);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  document.querySelector('#stock-lookup-form input[name=symbol]').value = data.symbol;
+
+  document.getElementById('stock-lookup-name').textContent = data.name;
+  document.getElementById('stock-lookup-sub').textContent = [data.exchange, data.symbol].filter(Boolean).join(': ');
+  document.getElementById('stock-lookup-price').textContent = stockLookupFmtNum(data.price);
+  document.getElementById('stock-lookup-currency').textContent = data.currency || '';
+
+  const badge = document.getElementById('stock-lookup-change-badge');
+  const up = (data.change_pct ?? 0) >= 0;
+  badge.className = 'badge gap-1 ' + (up ? 'badge-success' : 'badge-error');
+  badge.textContent = (up ? '↑' : '↓') + stockLookupFmtNum(Math.abs((data.change_pct ?? 0) * 100), 2) + '%  ' +
+    (up ? '+' : '') + stockLookupFmtNum(data.change_abs, 2);
+  document.getElementById('stock-lookup-period-label').textContent =
+    document.querySelector('#stock-lookup-tabs .tab-active')?.textContent.trim() || '';
+
+  document.getElementById('stock-lookup-open').textContent = stockLookupFmtNum(data.open);
+  document.getElementById('stock-lookup-market-cap').textContent = stockLookupFmtCompact(data.market_cap);
+  document.getElementById('stock-lookup-pe').textContent = data.trailing_pe ? stockLookupFmtNum(data.trailing_pe) : '-';
+  document.getElementById('stock-lookup-high').textContent = stockLookupFmtNum(data.day_high);
+  document.getElementById('stock-lookup-dividend').textContent = data.dividend_rate ? stockLookupFmtNum(data.dividend_rate) : '-';
+  document.getElementById('stock-lookup-dividend-q').textContent = data.dividend_quarterly ? stockLookupFmtNum(data.dividend_quarterly) : '-';
+  document.getElementById('stock-lookup-low').textContent = stockLookupFmtNum(data.day_low);
+  document.getElementById('stock-lookup-52h').textContent = stockLookupFmtNum(data.fifty_two_week_high);
+  document.getElementById('stock-lookup-52l').textContent = stockLookupFmtNum(data.fifty_two_week_low);
+
+  const intraday = (period === '1d' || period === '5d');
+  const labels = data.history.map(p => {
+    const d = new Date(p.t);
+    return intraday
+      ? d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+      : d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+  });
+  const closes = data.history.map(p => p.close);
+  const lineColor = up ? '#16a34a' : '#dc2626';
+  if (stockLookupChart) stockLookupChart.destroy();
+  stockLookupChart = new Chart(document.getElementById('stockLookupChart'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      data: closes, borderColor: lineColor, backgroundColor: lineColor + '22',
+      fill: true, borderWidth: 2, pointRadius: 0, tension: 0.15,
+    }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => stockLookupFmtNum(ctx.parsed.y) } } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true } },
+        y: { ticks: { callback: (v) => stockLookupFmtNum(v, 0) } },
+      },
+    },
+  });
+}
+
+function stockLookupGoto(symbol) {
+  document.querySelector('#stock-lookup-form input[name=symbol]').value = symbol;
+  document.querySelectorAll('#stock-lookup-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+  document.querySelector('#stock-lookup-tabs .tab[data-period="1y"]').classList.add('tab-active');
+  loadStockLookup(symbol, '1y');
+}
+
+document.getElementById('stock-lookup-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  document.querySelectorAll('#stock-lookup-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+  tab.classList.add('tab-active');
+  const symbol = document.querySelector('#stock-lookup-form input[name=symbol]').value.trim().toUpperCase();
+  loadStockLookup(symbol, tab.dataset.period);
+});
+
+document.getElementById('stock-lookup-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const symbol = e.target.elements.symbol.value.trim().toUpperCase();
+  if (!symbol) return;
+  const period = document.querySelector('#stock-lookup-tabs .tab-active')?.dataset.period || '1y';
+  loadStockLookup(symbol, period);
+});
+
+loadStockLookup(document.querySelector('#stock-lookup-form input[name=symbol]').value, '1y');
+</script>

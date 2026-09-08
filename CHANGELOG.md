@@ -7,6 +7,7 @@
 ## 2026-09-08
 
 - `31f9bcc` 新增個股詳情頁 `/stock/{代碼}`（issue #241）：重現 Google Finance 個股頁——名稱、目前價格、依所選區間（1天/5天/1個月/6個月/本年迄今/1年/5年/最久）計算的漲跌幅走勢圖，以及開盤/市值/本益比/最高/股息/季度股利金額/最低/52 週高低點。側邊選單「市場資訊」跟持股表的代號都連過去，頁面上有換代碼查詢跟「回到上一頁」。新增 `market_data.ticker_info()` 單次抓 quote 欄位，刻意不走 `fetch_fundamentals()` 的 FIELDS/FundamentalsCache（Render 連不到 Yahoo quoteSummary 時的快取表）——開盤/當日高低本質是當下數字，從隔了幾天的快取生出來是安靜地錯而不只是舊，所以 Render 上這頁指標會顯示「-」而不是騙人的舊資料，走勢圖不受影響（`ticker_history()` 走另一個沒被擋的端點）
+- `bcfb35e` 個股資訊查詢改嵌入 dashboard 頂部區塊，修 quote 全「-」跟圖表版面（issue #243）：上一筆的 `fetch_quote()` 是單一一次 quoteSummary 呼叫，一被 Render 擋就所有欄位一起變「-」，連原本該有快取退回的市值/本益比/52 週高低也遭殃；拆成三層——開盤/當日高低/現價改走 `today_ohlc()`（`ticker_history(period="1d")`，沒被擋的端點，永遠拿得到），市值/本益比/52 週高低改回沿用 `fetch_fundamentals()` + 既有的 `repo.fundamentals_cache()` 退回，公司全名/交易所/股息維持 best-effort。走勢圖 x 軸標籤改成短日期字串、不強制旋轉，canvas 外層補 `relative w-full` 修版面留白。拿掉獨立的 `/stock/{symbol}` 頁面，改成 `sections/stock_lookup.html` 嵌入 dashboard 總覽卡片下面常駐顯示，側邊選單跟持股表代號都改成捲動＋自動查詢；side 選單新增收合／展開按鈕（記在 localStorage）
 
 ## 2026-09-07
 
