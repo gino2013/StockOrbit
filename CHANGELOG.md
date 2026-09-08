@@ -14,6 +14,8 @@
 - `acfa94b` 收合按鈕搬進側邊欄本體；個股資訊查詢輸入框加自動完成（issue #251）：收合／展開按鈕從頁首移進側邊欄，跟 logo 同一列，收合時側邊欄縮成一條只留 logo icon + 展開按鈕的窄軌（3.5rem）而不是完全消失，頁首恢復乾淨。個股資訊查詢的代碼輸入框改用既有的 `attachTickerAutocomplete()`，跟其他區塊（回測比較基準、複利曲線等）一樣有自動完成建議
 - `f00c350` 第一次搜尋的冷門代號立刻觸發快取更新；修自動完成競速 bug（issue #253）：`register_symbol()` 改回傳 bool，`/api/stock-detail` 第一次登記一個沒人持有過的代號時，用新的 `app/infrastructure/github_actions.py`（`GH_ACTIONS_TOKEN`，fine-grained PAT）立刻觸發 `refresh-fundamentals-cache.yml` 跑一次，通常 1-2 分鐘內就有真資料，不用乾等最多 6 小時的排程；沒設這把 token 就靜默跳過，退回原本行為。另外修好 `attachTickerAutocomplete()` 的競速 bug：debounced 查詢送出後使用者又刪字，回應在畫面該隱藏之後才到，會把內容對不上目前輸入的建議清單重新顯示出來——回應到達時多檢查一次查詢字串還對不對，不對就丟棄
 - `8255b21` 側邊選單收合改成圖示軌＋hover 彈出子選單，箭頭移到右下角（issue #255）：之前收合直接把整個群組隱藏、按鈕跟 logo 同一列，而且側邊欄用 `min-h-full` 跟著很長的 dashboard 頁面一起撐高，收合時窄軌被拉得比視窗還高、版面跑掉。改成側邊欄 `position:sticky` + `height:100vh`（不再跟頁面一起撐高，清單自己 `overflow-y:auto`）；收合後三個分類（持股管理/市場資訊/歷史分析）各縮成一個 emoji 圖示，滑鼠移上去用 CSS `:hover` + `position:absolute` 彈出子項目清單，移開收回；收合／展開按鈕搬到側邊欄最下面、跟 logo 分開
+- `4c64fb9` 側邊選單分類圖示改成黑白線條 SVG（跟頁首按鈕同一套 `stroke="currentColor"` 風格），不用彩色 emoji
+- `75022b0` 修側邊選單橫向捲軸；收合時藏 details 箭頭；flyout 改 position:fixed（issue #258）：`#nav-menu-scroll` 只設 `overflow-y-auto` 沒明確設 `overflow-x`，CSS 規範規定沒設的那軸會被算成 `auto` 而非 `visible`，清單裡任何一丁點超出容器寬度的東西都會冒出橫向捲軸，捲一點點就會看到內容被推到右邊，看起來像分裂成兩欄——明確加上 `overflow-x: hidden`。附帶修：收合狀態下 `<details>` 原生展開箭頭沒意義（子選單靠 hover flyout，不是點開 `<details>`），藏起來；flyout 原本 `position:absolute` 會被上面那個明確的 overflow clip 連帶裁掉看不到，改成 JS 讀 hover 圖示的 `getBoundingClientRect()`、用 `position:fixed` 定位，逃出任何祖先的 overflow clip
 
 ## 2026-09-07
 
