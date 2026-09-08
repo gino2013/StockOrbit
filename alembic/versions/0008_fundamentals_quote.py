@@ -6,7 +6,7 @@ company-identity/dividend fields that page needs but the portfolio-wide
 fundamentals section never did. All nullable - existing cached rows just
 have them as null until the next scheduled refresh.
 
-Revision ID: 0008_fundamentals_cache_quote_fields
+Revision ID: 0008_fundamentals_quote
 Revises: 0007_coast_fire
 Create Date: 2026-09-08
 """
@@ -14,7 +14,7 @@ Create Date: 2026-09-08
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0008_fundamentals_cache_quote_fields"
+revision = "0008_fundamentals_quote"
 down_revision = "0007_coast_fire"
 branch_labels = None
 depends_on = None

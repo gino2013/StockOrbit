@@ -311,7 +311,7 @@ def _infer_untracked_revision() -> str | None:
     fundamentals_cols = {c["name"] for c in inspector.get_columns("fundamentals_cache")}
     if "totalAssets" not in fundamentals_cols:
         return "0007_coast_fire"
-    return "0008_fundamentals_cache_quote_fields"  # structure already matches head
+    return "0008_fundamentals_quote"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
