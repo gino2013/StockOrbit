@@ -27,34 +27,41 @@ def demo():
     except ValueError:
         pass
 
+    fundamentals = {"marketCap": 5000.0, "trailingPE": 20.0, "fiftyTwoWeekHigh": 120.0, "fiftyTwoWeekLow": 90.0}
+    quote = {"longName": "AAA Corp", "dividendRate": 4.0}
+    ohlc = {"open": 108.0, "day_high": 111.0, "day_low": 107.0, "price": 110.0}
+
     # a symbol that dividend-pays: change% measured against the first close
     # in the selected window, not against previousClose - matches the
     # Google Finance behaviour of the badge changing with the period tab.
-    result = stock_detail.build_stock_detail(
-        "AAA", {"currentPrice": 110.0, "dividendRate": 4.0, "trailingPE": 20.0}, history
-    )
+    result = stock_detail.build_stock_detail("AAA", fundamentals, quote, ohlc, history)
     assert result["change_abs"] == 10.0
     assert abs(result["change_pct"] - 0.1) < 1e-9
     assert result["dividend_quarterly"] == 1.0
     assert result["price"] == 110.0
+    assert result["market_cap"] == 5000.0
+    assert result["open"] == 108.0
 
-    # no fundamentals at all (Yahoo blocked + no cache) -> price falls back
-    # to the last history close, and every stat that has nothing behind it
-    # is None rather than a crash.
-    fallback = stock_detail.build_stock_detail("AAA", {}, history)
-    assert fallback["price"] == 110.0
-    assert fallback["trailing_pe"] is None
-    assert fallback["dividend_quarterly"] is None
+    # Yahoo blocks quoteSummary (the Render issue) but the unblocked
+    # ticker_history endpoint still works -> price/open/day-range survive
+    # from ohlc alone; only the quoteSummary-only stats go blank instead of
+    # showing something misleading.
+    blocked = stock_detail.build_stock_detail("AAA", {}, {}, ohlc, history)
+    assert blocked["price"] == 110.0
+    assert blocked["open"] == 108.0
+    assert blocked["name"] == "AAA"
+    assert blocked["market_cap"] is None
+    assert blocked["dividend_quarterly"] is None
 
-    # no history at all (bad symbol) -> no change%, no crash.
-    empty = stock_detail.build_stock_detail("BAD", {}, [])
+    # everything blocked and no history at all (bad symbol) -> no change%, no crash.
+    empty = stock_detail.build_stock_detail("BAD", {}, {}, {}, [])
     assert empty["price"] is None
     assert empty["change_pct"] is None
 
-    # Yahoo blocks quoteSummary (the Render issue) -> degrade to {}, not a crash;
-    # the caller then shows "-" for every quote stat rather than stale/wrong data.
     with patch.object(stock_detail.market_data, "ticker_info", side_effect=RuntimeError("blocked")):
         assert stock_detail.fetch_quote("AAA") == {}
+    with patch.object(stock_detail.market_data, "ticker_history", side_effect=RuntimeError("blocked")):
+        assert stock_detail.today_ohlc("AAA") == {}
 
 
 if __name__ == "__main__":

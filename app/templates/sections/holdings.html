@@ -28,7 +28,7 @@
                 {% set target = targets.get(s.symbol) %}
                 {% set avg_cost = (s.cost_basis / s.quantity) if s.quantity else 0 %}
                 <tr>
-                  <td class="font-medium">{% if s.symbol != 'CASH' %}<a href="/stock/{{ s.symbol }}" class="link link-hover">{{ s.symbol }}</a>{% else %}{{ s.symbol }}{% endif %}</td>
+                  <td class="font-medium">{% if s.symbol != 'CASH' %}<a href="#section-stock-lookup" onclick="stockLookupGoto('{{ s.symbol }}')" class="link link-hover">{{ s.symbol }}</a>{% else %}{{ s.symbol }}{% endif %}</td>
                   <td>{{ s.quantity }}</td>
                   <td>${{ "{:,.2f}".format(avg_cost) }}</td>
                   <td class="{{ 'text-success' if s.price > avg_cost else 'text-error' if s.price < avg_cost else '' }}">${{ "{:,.2f}".format(s.price) }}</td>

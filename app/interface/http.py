@@ -993,15 +993,6 @@ def compounder_checklist(symbol: str):
     return JSONResponse(result)
 
 
-@app.get("/stock/{symbol}", response_class=HTMLResponse)
-def stock_detail_page(request: Request, symbol: str):
-    user = _current_user(request)
-    return templates.TemplateResponse(
-        request, "stock_detail.html",
-        {"user": user, "symbol": symbol.upper(), "periods": stock_detail.PERIOD_LABELS.items()},
-    )
-
-
 @app.get("/api/stock-detail")
 def api_stock_detail(symbol: str, period: str = "1y"):
     symbol = symbol.strip().upper()
@@ -1016,7 +1007,14 @@ def api_stock_detail(symbol: str, period: str = "1y"):
     if not history:
         return JSONResponse({"error": f"找不到股票代碼 {symbol}"}, status_code=404)
     quote = stock_detail.fetch_quote(symbol)
-    return JSONResponse(stock_detail.build_stock_detail(symbol, quote, history))
+    ohlc = stock_detail.today_ohlc(symbol)
+    fundamentals = fetch_fundamentals([symbol]).get(symbol, {})
+    if not fundamentals.get("_fetch_ok"):
+        with Repositories() as repo:
+            cached = repo.fundamentals_cache([symbol]).get(symbol)
+        if cached:
+            fundamentals = {**fundamentals, **cached}
+    return JSONResponse(stock_detail.build_stock_detail(symbol, fundamentals, quote, ohlc, history))
 
 
 @app.get("/api/correlation")
