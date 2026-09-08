@@ -31,7 +31,16 @@
      so the box (already sized to its own content, see align-self below)
      LOOKED like it kept going empty down the page when it never did. */
   #nav-menu { width: 16rem; max-height: 100vh; align-self: start; position: sticky; top: 0; transition: width .15s ease; border-right: 1px solid rgba(128,128,128,0.25); }
-  #nav-menu.nav-menu-collapsed { width: 3.5rem; }
+  /* Collapsed rail: pin the toggle arrow to the true bottom of the screen,
+     unlike the expanded sidebar (which hugs its own content height via
+     align-self/max-height above, since 30-odd nav links can be taller
+     than the viewport and a full-height empty rail there would look
+     broken). Collapsed content is always just a handful of icons, so
+     forcing height:100vh + margin-top:auto on the footer is exactly the
+     icon-rail pattern this is meant to look like, with no risk of ending
+     up mostly-empty for a different reason. */
+  #nav-menu.nav-menu-collapsed { width: 3.5rem; height: 100vh; }
+  #nav-menu.nav-menu-collapsed #nav-toggle-footer { margin-top: auto !important; }
   /* explicit overflow-x (not just overflow-y-auto from the class) - a
      lone overflow-y otherwise computes overflow-x to auto too, so any
      stray pixel of horizontal overflow (icons, a details marker) shows
@@ -51,7 +60,14 @@
   /* !important because daisyUI's own .menu rules (likely !important
      themselves, e.g. for its flex sizing) otherwise keep winning over a
      plain override here regardless of selector specificity. */
-  #nav-menu-scroll { overflow-x: hidden !important; flex-wrap: nowrap !important; flex: 0 1 auto !important; height: auto !important; min-height: 0 !important; }
+  /* width:100% because daisyUI's own .menu rule sizes it to its content
+     (like width:max-content) instead of stretching to fill #nav-menu -
+     align-items:stretch (the flex column default, which normally sizes
+     cross-axis/width for you) never gets a say once a rule sets an
+     explicit width. Without this the list - and its scrollbar - sits
+     ~90px short of the sidebar's true right edge, looking off-center
+     instead of flush against it. */
+  #nav-menu-scroll { width: 100% !important; overflow-x: hidden !important; flex-wrap: nowrap !important; flex: 0 1 auto !important; height: auto !important; min-height: 0 !important; }
   #nav-menu.nav-menu-collapsed #nav-menu-scroll { padding-left: .5rem; padding-right: .5rem; }
   /* center the logo and each group icon in the narrow rail - the logo li's
      own padding-left (for its normal, expanded layout) would otherwise
