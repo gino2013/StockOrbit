@@ -22,19 +22,21 @@ def save_fundamentals(db, symbol: str, fields: dict, next_earnings_date: str | N
     row.fetched_at = datetime.now(timezone.utc)
 
 
-def register_symbol(db, symbol: str) -> None:
+def register_symbol(db, symbol: str) -> bool:
     """Note that someone looked this symbol up, so the scheduled refresh
     job (scripts/refresh_fundamentals_cache.py, unaffected by Render's
-    Yahoo block) picks it up on its next run even though nobody holds it.
-    No-op if a row already exists - never overwrite real cached data with
-    an empty placeholder. The placeholder's every field but `fetched_at`
-    stays null (harmless: every reader already guards on the field it
-    actually wants, e.g. fundamentals.html's cache badge checks `f.sector`
-    first) - fighting the column's default to null `fetched_at` too isn't
-    worth it."""
+    Yahoo block) picks it up even though nobody holds it. Returns True the
+    first time (so the caller can also poke the job to run right away
+    instead of waiting for its next schedule) and False on every repeat
+    lookup - no-op, never overwrite real cached data with an empty
+    placeholder. The placeholder's every field but `fetched_at` stays null
+    (harmless: every reader already guards on the field it actually wants,
+    e.g. fundamentals.html's cache badge checks `f.sector` first) -
+    fighting the column's default to null `fetched_at` too isn't worth it."""
     if db.get(FundamentalsCache, symbol) is not None:
-        return
+        return False
     db.add(FundamentalsCache(symbol=symbol))
+    return True
 
 
 def load_fundamentals(db, symbols: list[str]) -> dict[str, dict]:

@@ -406,11 +406,12 @@ class Repositories:
 
         return load_fundamentals(self._db, symbols)
 
-    def register_fundamentals_symbol(self, symbol: str) -> None:
+    def register_fundamentals_symbol(self, symbol: str) -> bool:
         from app.infrastructure.fundamentals_cache import register_symbol
 
-        register_symbol(self._db, symbol)
+        inserted = register_symbol(self._db, symbol)
         self._db.commit()
+        return inserted
 
     # --- refresh write path -------------------------------------------------
 

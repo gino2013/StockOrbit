@@ -12,6 +12,7 @@
 - `ff0b301` 非持股代號的基本面資料也能被排程快取；頁首常駐置頂（issue #247）：上一筆的快取退回只在使用者持有過的代號上有效，因為排程 job（`scripts/refresh_fundamentals_cache.py`）只掃描目前持股——查一個從沒持有過的代號（例如 NVDA），Render 連不到 Yahoo 也永遠不會被那個 job 抓到，卡死在「-」。新增 `fundamentals_cache.register_symbol()`：即時查詢失敗又沒有快取時，寫一筆空白佔位記錄；排程掃描範圍改成「持股 ∪ 已經在 fundamentals_cache 裡的所有代號」，下次排程（最多 6 小時內）就抓得到真資料。頁首補 `sticky top-0 z-30 bg-base-200`，往下捲動時維持在最上方可見
 - `ee837b9` Hotfix：migration `0008` 的 revision id `0008_fundamentals_cache_quote_fields`（36 字元）超過 Postgres `alembic_version.version_num` 的 `VARCHAR(32)` 上限（issue #249）——本機 SQLite 測不出來（不檢查欄位長度），部署到正式 Neon Postgres 時炸成 `StringDataRightTruncation`，導致 PR #246、#248 兩次部署都失敗，Render 停在更早、還沒修好 dividend/區塊位置問題的版本。revision id 縮短成 `0008_fundamentals_quote`（23 字元）；新增 `tests/test_migration_revision_ids.py` 掃過所有 migration 強制檢查長度 ≤32；用 Docker 起真的 Postgres 容器把資料庫塞成跟正式站一樣「剛好在 0007」的狀態，實際跑過 0007→0008 驗證，不再只信任 SQLite 本機測試
 - `acfa94b` 收合按鈕搬進側邊欄本體；個股資訊查詢輸入框加自動完成（issue #251）：收合／展開按鈕從頁首移進側邊欄，跟 logo 同一列，收合時側邊欄縮成一條只留 logo icon + 展開按鈕的窄軌（3.5rem）而不是完全消失，頁首恢復乾淨。個股資訊查詢的代碼輸入框改用既有的 `attachTickerAutocomplete()`，跟其他區塊（回測比較基準、複利曲線等）一樣有自動完成建議
+- `f00c350` 第一次搜尋的冷門代號立刻觸發快取更新；修自動完成競速 bug（issue #253）：`register_symbol()` 改回傳 bool，`/api/stock-detail` 第一次登記一個沒人持有過的代號時，用新的 `app/infrastructure/github_actions.py`（`GH_ACTIONS_TOKEN`，fine-grained PAT）立刻觸發 `refresh-fundamentals-cache.yml` 跑一次，通常 1-2 分鐘內就有真資料，不用乾等最多 6 小時的排程；沒設這把 token 就靜默跳過，退回原本行為。另外修好 `attachTickerAutocomplete()` 的競速 bug：debounced 查詢送出後使用者又刪字，回應在畫面該隱藏之後才到，會把內容對不上目前輸入的建議清單重新顯示出來——回應到達時多檢查一次查詢字串還對不對，不對就丟棄
 
 ## 2026-09-07
 

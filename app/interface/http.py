@@ -16,7 +16,7 @@ from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
-from app.infrastructure import market_data
+from app.infrastructure import github_actions, market_data
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import (
     FirestradeCredential,
@@ -1017,9 +1017,11 @@ def api_stock_detail(symbol: str, period: str = "1y"):
             else:
                 # nobody holds this symbol, so the scheduled cache-refresh
                 # job never had a reason to fetch it - register it so that
-                # job (unaffected by Render's Yahoo block) picks it up next
-                # run instead of this symbol staying "-" forever.
-                repo.register_fundamentals_symbol(symbol)
+                # job (unaffected by Render's Yahoo block) picks it up.
+                # First time seeing this symbol -> also poke the job to run
+                # right now instead of waiting for its next schedule.
+                if repo.register_fundamentals_symbol(symbol):
+                    github_actions.trigger_fundamentals_refresh()
     return JSONResponse(stock_detail.build_stock_detail(symbol, fundamentals, quote, ohlc, history))
 
 

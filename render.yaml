@@ -27,6 +27,12 @@ services:
       # Unset -> per-user Firstrade sync is disabled. Keep separate from APP_SECRET_KEY.
       - key: FT_CREDENTIAL_KEY
         sync: false
+      # GH_ACTIONS_TOKEN: fine-grained GitHub PAT, Actions:write on this repo
+      # only. Lets a first-time stock-lookup symbol trigger
+      # refresh-fundamentals-cache.yml immediately instead of waiting for its
+      # schedule. Unset -> that symbol just waits for the next scheduled run.
+      - key: GH_ACTIONS_TOKEN
+        sync: false
       # SMTP_*: sends the email-verification and password-reset mails.
       # Unset -> mailer just logs the message (registration still works; the
       # owner can read the pending verification link from the deploy log).

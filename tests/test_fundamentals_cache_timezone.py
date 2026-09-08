@@ -37,16 +37,22 @@ def demo():
         assert fetched_at.endswith("+08:00"), fetched_at
 
         # a symbol nobody's cached yet -> gets a bare placeholder row (every
-        # actual field null) so the scheduled refresh job picks it up next run.
-        register_symbol(db, "TSLA")
+        # actual field null) so the scheduled refresh job picks it up next
+        # run; True return tells the caller this is the *first* sighting,
+        # worth also poking the job to run right now (see github_actions.py).
+        assert register_symbol(db, "TSLA") is True
         db.commit()
         assert load_fundamentals(db, ["TSLA"])["TSLA"]["marketCap"] is None
 
-        # registering an already-cached symbol must never clobber its real data.
+        # registering an already-cached symbol must never clobber its real
+        # data, and reports False - repeat lookups shouldn't re-trigger.
         aapl_before = load_fundamentals(db, ["AAPL"])["AAPL"]["fetched_at"]
-        register_symbol(db, "AAPL")
+        assert register_symbol(db, "AAPL") is False
         db.commit()
         assert load_fundamentals(db, ["AAPL"])["AAPL"]["fetched_at"] == aapl_before
+
+        # a second lookup of the still-empty TSLA placeholder is also a repeat.
+        assert register_symbol(db, "TSLA") is False
     finally:
         db.close()
 
