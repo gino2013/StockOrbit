@@ -56,6 +56,7 @@ from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
 from app.domain.analytics.scenario import simulate_market_drop
+from app.domain.analytics import stock_detail
 from app.domain.analytics.technical_indicators import compute_technical_indicators
 from app.domain.analytics.trending import SCREENERS, trending_tickers
 
@@ -990,6 +991,32 @@ def compounder_checklist(symbol: str):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
+
+
+@app.get("/stock/{symbol}", response_class=HTMLResponse)
+def stock_detail_page(request: Request, symbol: str):
+    user = _current_user(request)
+    return templates.TemplateResponse(
+        request, "stock_detail.html",
+        {"user": user, "symbol": symbol.upper(), "periods": stock_detail.PERIOD_LABELS.items()},
+    )
+
+
+@app.get("/api/stock-detail")
+def api_stock_detail(symbol: str, period: str = "1y"):
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return JSONResponse({"error": "請輸入股票代碼"}, status_code=400)
+    if period not in stock_detail.PERIODS:
+        return JSONResponse({"error": "未知的區間"}, status_code=400)
+    try:
+        history = stock_detail.price_history(symbol, period)
+    except Exception as e:
+        return JSONResponse({"error": f"抓取價格失敗：{e}"}, status_code=400)
+    if not history:
+        return JSONResponse({"error": f"找不到股票代碼 {symbol}"}, status_code=404)
+    quote = stock_detail.fetch_quote(symbol)
+    return JSONResponse(stock_detail.build_stock_detail(symbol, quote, history))
 
 
 @app.get("/api/correlation")

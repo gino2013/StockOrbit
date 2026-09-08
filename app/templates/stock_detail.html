@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>{{ symbol }} · StockOrbit</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+<link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" rel="stylesheet" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  document.documentElement.setAttribute('data-theme',
+    localStorage.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+</script>
+<style>body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }</style>
+</head>
+<body class="bg-base-200 min-h-screen p-4">
+  <div class="max-w-2xl mx-auto py-6 flex flex-col gap-4">
+
+    <header class="flex items-center gap-2 mb-2">
+      <a href="/" onclick="if (document.referrer) { history.back(); return false; }" class="btn btn-ghost btn-sm">← 回到上一頁</a>
+      <form id="symbol-form" class="ml-auto flex gap-2">
+        <input name="symbol" value="{{ symbol }}" class="input input-bordered input-sm w-32 uppercase" placeholder="股票代碼">
+        <button class="btn btn-neutral btn-sm">查詢</button>
+      </form>
+    </header>
+
+    <div id="error" class="alert alert-error text-sm hidden"></div>
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body gap-1">
+        <div id="quote-name" class="text-lg font-bold"></div>
+        <div id="quote-sub" class="text-xs opacity-60"></div>
+        <div class="flex items-end gap-3 mt-2">
+          <span id="quote-price" class="text-4xl font-bold"></span>
+          <span id="quote-currency" class="text-sm opacity-60 mb-1"></span>
+        </div>
+        <div class="flex items-center gap-2 mt-1">
+          <span id="quote-change-badge" class="badge gap-1"></span>
+          <span id="quote-period-label" class="text-sm opacity-60"></span>
+        </div>
+
+        <div role="tablist" class="tabs tabs-boxed mt-4 w-fit flex-wrap" id="period-tabs">
+          {% for key, label in periods %}
+          <a role="tab" class="tab {{ 'tab-active' if key == '1y' else '' }}" data-period="{{ key }}">{{ label }}</a>
+          {% endfor %}
+        </div>
+
+        <div class="h-64 mt-3"><canvas id="priceChart"></canvas></div>
+
+        <div class="grid grid-cols-3 gap-y-4 text-sm mt-6">
+          <div><div class="opacity-60">開盤</div><div id="stat-open" class="font-medium"></div></div>
+          <div><div class="opacity-60">市值</div><div id="stat-market-cap" class="font-medium"></div></div>
+          <div><div class="opacity-60">本益比</div><div id="stat-pe" class="font-medium"></div></div>
+          <div><div class="opacity-60">最高</div><div id="stat-high" class="font-medium"></div></div>
+          <div><div class="opacity-60">股息</div><div id="stat-dividend" class="font-medium"></div></div>
+          <div><div class="opacity-60">季度股利金額</div><div id="stat-dividend-q" class="font-medium"></div></div>
+          <div><div class="opacity-60">最低</div><div id="stat-low" class="font-medium"></div></div>
+          <div><div class="opacity-60">52週高點</div><div id="stat-52h" class="font-medium"></div></div>
+          <div><div class="opacity-60">52週低點</div><div id="stat-52l" class="font-medium"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let priceChart = null;
+let currentSymbol = {{ symbol|tojson }};
+
+function fmtNum(v, digits = 2) {
+  return (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function fmtCompact(v) {
+  return (v === null || v === undefined) ? '-' : Number(v).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+}
+async function loadStock(symbol, period) {
+  const errorBox = document.getElementById('error');
+  errorBox.classList.add('hidden');
+  const qs = new URLSearchParams({ symbol, period });
+  const res = await fetch('/api/stock-detail?' + qs);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  currentSymbol = data.symbol;
+  history.replaceState(null, '', '/stock/' + data.symbol);
+  document.title = data.symbol + ' · StockOrbit';
+
+  document.getElementById('quote-name').textContent = data.name;
+  document.getElementById('quote-sub').textContent = [data.exchange, data.symbol].filter(Boolean).join(': ');
+  document.getElementById('quote-price').textContent = fmtNum(data.price);
+  document.getElementById('quote-currency').textContent = data.currency || '';
+
+  const badge = document.getElementById('quote-change-badge');
+  const up = (data.change_pct ?? 0) >= 0;
+  badge.className = 'badge gap-1 ' + (up ? 'badge-success' : 'badge-error');
+  badge.textContent = (up ? '↑' : '↓') + fmtNum(Math.abs((data.change_pct ?? 0) * 100), 2) + '%  ' +
+    (up ? '+' : '') + fmtNum(data.change_abs, 2);
+  document.getElementById('quote-period-label').textContent =
+    document.querySelector('#period-tabs .tab-active')?.textContent.trim() || '';
+
+  document.getElementById('stat-open').textContent = fmtNum(data.open);
+  document.getElementById('stat-market-cap').textContent = fmtCompact(data.market_cap);
+  document.getElementById('stat-pe').textContent = data.trailing_pe ? fmtNum(data.trailing_pe) : '-';
+  document.getElementById('stat-high').textContent = fmtNum(data.day_high);
+  document.getElementById('stat-dividend').textContent = data.dividend_rate ? fmtNum(data.dividend_rate) : '-';
+  document.getElementById('stat-dividend-q').textContent = data.dividend_quarterly ? fmtNum(data.dividend_quarterly) : '-';
+  document.getElementById('stat-low').textContent = fmtNum(data.day_low);
+  document.getElementById('stat-52h').textContent = fmtNum(data.fifty_two_week_high);
+  document.getElementById('stat-52l').textContent = fmtNum(data.fifty_two_week_low);
+
+  const labels = data.history.map(p => p.t);
+  const closes = data.history.map(p => p.close);
+  const lineColor = up ? '#16a34a' : '#dc2626';
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(document.getElementById('priceChart'), {
+    type: 'line',
+    data: { labels, datasets: [{
+      data: closes, borderColor: lineColor, backgroundColor: lineColor + '22',
+      fill: true, borderWidth: 2, pointRadius: 0, tension: 0.15,
+    }] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => fmtNum(ctx.parsed.y) } } },
+      scales: { x: { ticks: { maxTicksLimit: 6 } }, y: { ticks: { callback: (v) => fmtNum(v, 0) } } },
+    },
+  });
+}
+
+document.getElementById('period-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  document.querySelectorAll('#period-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+  tab.classList.add('tab-active');
+  loadStock(currentSymbol, tab.dataset.period);
+});
+
+document.getElementById('symbol-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const symbol = e.target.elements.symbol.value.trim().toUpperCase();
+  if (!symbol) return;
+  const period = document.querySelector('#period-tabs .tab-active')?.dataset.period || '1y';
+  loadStock(symbol, period);
+});
+
+loadStock(currentSymbol, '1y');
+</script>
+</body>
+</html>

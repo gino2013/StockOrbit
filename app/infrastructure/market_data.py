@@ -37,10 +37,21 @@ def download_dividends(symbols, *, start=None, end=None, period=None):
     )["Dividends"]
 
 
-def ticker_history(symbol: str, *, start=None, end=None, period=None, auto_adjust: bool = True):
+def ticker_history(symbol: str, *, start=None, end=None, period=None, interval=None, auto_adjust: bool = True):
     """Full OHLCV(+Dividends) frame for one symbol - used where the caller
     needs more than the close column (e.g. DRIP needs per-share dividends)."""
-    return yf.Ticker(symbol).history(auto_adjust=auto_adjust, **_window(start, end, period))
+    kw = _window(start, end, period)
+    if interval:
+        kw["interval"] = interval
+    return yf.Ticker(symbol).history(auto_adjust=auto_adjust, **kw)
+
+
+def ticker_info(symbol: str) -> dict:
+    """`yf.Ticker(symbol).get_info()` - the same crumb-authenticated
+    quoteSummary call fundamentals.py uses (and that Render can't reach,
+    see that module's docstring); callers decide what an empty/failed
+    result means for them."""
+    return yf.Ticker(symbol).get_info()
 
 
 def earnings_calendar(symbol: str):
