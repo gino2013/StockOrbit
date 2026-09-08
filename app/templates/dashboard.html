@@ -90,17 +90,33 @@
   .nav-group-icon { display: none; }
   /* collapsed: each group shrinks to just its icon; hovering pops its
      items out as a flyout so sub-items stay reachable without expanding
-     the whole rail back out. #nav-menu-scroll clips overflow (needed so
-     its own vertical scrollbar doesn't also drag in a horizontal one -
-     see the overflow-x note above), and a scroll container can't clip
-     one axis while leaving the other free, so the flyout can't just be
-     position:absolute inside it: it would be clipped away entirely. It's
-     positioned instead with JS-computed position:fixed (below), which
-     escapes any ancestor's overflow clipping. */
+     the whole rail back out. At rest (not hovered), the <ul> is hidden
+     right where it normally lives (inside its <details>) - this rule. */
   #nav-menu.nav-menu-collapsed .nav-group-icon { display: inline-block; }
-  #nav-menu.nav-menu-collapsed .nav-menu-group > details > ul {
-    display: none; z-index: 50; min-width: 12rem; padding: .5rem; border-radius: .5rem;
-    box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  #nav-menu.nav-menu-collapsed .nav-menu-group > details > ul { display: none; }
+  /* When actually shown, JS detaches the <ul> and re-parents it onto
+     document.body (see below) - #nav-menu-scroll clips overflow (needed
+     so its own vertical scrollbar doesn't also drag in a horizontal one,
+     see the overflow-x note above) and, separately, #nav-menu itself is
+     an unwitting position:fixed containing block: daisyUI's own drawer
+     CSS puts `will-change:transform` on every direct child of
+     .drawer-side (for its off-canvas slide animation), and per spec an
+     element with will-change:transform is treated as if transformed for
+     containing-block purposes - so a position:fixed descendant of
+     #nav-menu resolves against #nav-menu's own box, not the viewport,
+     and paints inside its ancestor's stacking context instead of on top
+     of the page (verified live: it rendered, geometrically exactly where
+     expected, yet elementFromPoint() at that spot returned a sibling
+     div - a paint-order problem no z-index within that stacking context
+     can fix). Reparenting onto body sidesteps both issues at once.
+     Because it's no longer a descendant of #nav-menu when shown, its
+     visual chrome has to come from a class that doesn't depend on that
+     ancestry - hence this separate rule instead of extending the one
+     above. */
+  .nav-menu-flyout-active {
+    position: fixed !important; display: block !important; z-index: 999;
+    min-width: 12rem; padding: .5rem; border-radius: .5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
   }
   @media print {
     .drawer-side, .btn, input, select, form, .join { display: none !important; }
@@ -471,41 +487,66 @@ function toggleTheme() {
 function toggleNavMenu() {
   const collapsed = document.getElementById('nav-menu').classList.toggle('nav-menu-collapsed');
   localStorage.navMenuCollapsed = collapsed ? '1' : '0';
-  document.querySelectorAll('.nav-menu-group > details > ul').forEach(resetNavFlyout);
+  navFlyouts.forEach((f) => f.hide(true));
 }
 if (localStorage.navMenuCollapsed === '1') {
   document.getElementById('nav-menu').classList.add('nav-menu-collapsed');
 }
 
-// Collapsed-rail flyouts: #nav-menu-scroll clips overflow (see its CSS),
-// so a flyout can't just be position:absolute inside it - position:fixed,
-// computed here from the hovered icon's actual on-screen position, is what
-// escapes that clipping. display is driven with an inline style (not a
-// toggled class) so it always wins over the stylesheet's default
-// display:none with no specificity games; mouseleave clears every inline
-// style it set, not just display, so nothing (in particular the fixed
-// position/coordinates) survives to leak into the expanded sidebar later.
-function resetNavFlyout(flyout) {
-  flyout.style.removeProperty('display');
-  flyout.style.removeProperty('position');
-  flyout.style.removeProperty('top');
-  flyout.style.removeProperty('left');
-}
-document.querySelectorAll('.nav-menu-group').forEach((group) => {
+// Collapsed-rail flyouts. Two problems, one fix (reparenting onto
+// document.body - see the .nav-menu-flyout-active CSS comment above for
+// why position:fixed alone doesn't escape #nav-menu):
+// - a scroll container can't clip one axis while leaving the other free,
+//   so a flyout can't be position:absolute inside #nav-menu-scroll (which
+//   must clip overflow-x, see that rule's own comment) - it'd be clipped
+//   away entirely.
+// - #nav-menu is an unwitting position:fixed containing block (daisyUI's
+//   drawer CSS puts will-change:transform on it), so a position:fixed
+//   flyout left as its descendant resolves against #nav-menu's own box
+//   and paints inside its stacking context - never on top of the page,
+//   no matter its z-index.
+// Each flyout remembers where it actually lives (nextSibling, not just
+// parentElement - insertBefore(el, null) appends, so a flyout that was
+// last in its <ul> would silently migrate to first after one round trip
+// otherwise) so hide() can put it back for the expanded sidebar, where
+// this same <ul> is the normal, always-visible sub-item list.
+const navFlyouts = Array.from(document.querySelectorAll('.nav-menu-group')).map((group) => {
   const flyout = group.querySelector(':scope > details > ul');
-  if (!flyout) return;
-  group.addEventListener('mouseenter', () => {
+  const homeParent = flyout.parentElement;
+  const homeNextSibling = flyout.nextSibling;
+  let hideTimer = null;
+
+  function show() {
     if (!document.getElementById('nav-menu').classList.contains('nav-menu-collapsed')) return;
+    clearTimeout(hideTimer);
     const rect = group.getBoundingClientRect();
-    // setProperty(..., 'important'): daisyUI's own .menu rules can be
-    // !important themselves, which beats a plain .style.x = y (that's
-    // always non-important) no matter how specific the selector is.
-    flyout.style.setProperty('position', 'fixed', 'important');
-    flyout.style.setProperty('top', `${rect.top}px`, 'important');
-    flyout.style.setProperty('left', `${rect.right + 4}px`, 'important');
-    flyout.style.setProperty('display', 'block', 'important');
-  });
-  group.addEventListener('mouseleave', () => resetNavFlyout(flyout));
+    document.body.appendChild(flyout);
+    flyout.style.top = `${rect.top}px`;
+    flyout.style.left = `${rect.right + 4}px`;
+    flyout.classList.add('nav-menu-flyout-active');
+  }
+  // A short delay, cancelled by re-entering either the icon or the
+  // flyout itself, gives the mouse time to travel the gap between them
+  // (otherwise leaving the icon hides the flyout before the cursor ever
+  // reaches it - there's no way to move diagonally into a menu that's
+  // already gone).
+  function scheduleHide() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => hide(false), 250);
+  }
+  function hide(immediate) {
+    clearTimeout(hideTimer);
+    flyout.classList.remove('nav-menu-flyout-active');
+    flyout.style.removeProperty('top');
+    flyout.style.removeProperty('left');
+    homeParent.insertBefore(flyout, homeNextSibling);
+  }
+
+  group.addEventListener('mouseenter', show);
+  group.addEventListener('mouseleave', scheduleHide);
+  flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+  flyout.addEventListener('mouseleave', scheduleHide);
+  return {hide};
 });
 
 // Hidden vanity toggle (flex mode, server-side): type "flex"
