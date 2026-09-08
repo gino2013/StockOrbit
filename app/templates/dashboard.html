@@ -20,23 +20,35 @@
   h2[id] { scroll-margin-top: 1rem; }
   #nav-menu { width: 16rem; height: 100vh; position: sticky; top: 0; transition: width .15s ease; }
   #nav-menu.nav-menu-collapsed { width: 3.5rem; }
-  #nav-menu.nav-menu-collapsed #nav-menu-scroll { padding-left: .5rem; padding-right: .5rem; overflow-x: hidden; }
+  /* explicit overflow-x (not just overflow-y-auto from the class) - a
+     lone overflow-y otherwise computes overflow-x to auto too, so any
+     stray pixel of horizontal overflow (icons, a details marker) shows
+     as a scrollbar instead of just clipping. */
+  #nav-menu-scroll { overflow-x: hidden; }
+  #nav-menu.nav-menu-collapsed #nav-menu-scroll { padding-left: .5rem; padding-right: .5rem; }
   #nav-menu.nav-menu-collapsed .nav-menu-group-label,
   #nav-menu.nav-menu-collapsed #nav-logo-text { display: none; }
+  #nav-menu.nav-menu-collapsed .nav-menu-group summary::-webkit-details-marker { display: none; }
+  #nav-menu.nav-menu-collapsed .nav-menu-group summary::after,
+  #nav-menu.nav-menu-collapsed .nav-menu-group summary::marker { display: none; content: none; }
   #nav-toggle-btn { transition: transform .15s ease; }
   #nav-menu.nav-menu-collapsed #nav-toggle-btn { transform: rotate(180deg); }
-  .nav-menu-group { position: relative; }
   .nav-group-icon { display: none; }
   /* collapsed: each group shrinks to just its icon; hovering pops its
      items out as a flyout so sub-items stay reachable without expanding
-     the whole rail back out. */
+     the whole rail back out. #nav-menu-scroll clips overflow (needed so
+     its own vertical scrollbar doesn't also drag in a horizontal one -
+     see the overflow-x note above), and a scroll container can't clip
+     one axis while leaving the other free, so the flyout can't just be
+     position:absolute inside it: it would be clipped away entirely. It's
+     positioned instead with JS-computed position:fixed (below), which
+     escapes any ancestor's overflow clipping. */
   #nav-menu.nav-menu-collapsed .nav-group-icon { display: inline-block; }
   #nav-menu.nav-menu-collapsed .nav-menu-group > details > ul {
-    display: none; position: absolute; left: 3rem; top: 0; z-index: 50;
-    min-width: 12rem; padding: .5rem; border-radius: .5rem;
+    display: none; z-index: 50; min-width: 12rem; padding: .5rem; border-radius: .5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,.25);
   }
-  #nav-menu.nav-menu-collapsed .nav-menu-group:hover > details > ul { display: block; }
+  #nav-menu.nav-menu-collapsed .nav-menu-group > details > ul.nav-flyout-open { display: block; }
   @media print {
     .drawer-side, .btn, input, select, form, .join { display: none !important; }
     .drawer-content { margin: 0 !important; }
@@ -410,6 +422,24 @@ function toggleNavMenu() {
 if (localStorage.navMenuCollapsed === '1') {
   document.getElementById('nav-menu').classList.add('nav-menu-collapsed');
 }
+
+// Collapsed-rail flyouts: #nav-menu-scroll clips overflow (see its CSS),
+// so a flyout can't just be position:absolute inside it - position:fixed,
+// computed here from the hovered icon's actual on-screen position, is what
+// escapes that clipping.
+document.querySelectorAll('.nav-menu-group').forEach((group) => {
+  const flyout = group.querySelector(':scope > details > ul');
+  if (!flyout) return;
+  group.addEventListener('mouseenter', () => {
+    if (!document.getElementById('nav-menu').classList.contains('nav-menu-collapsed')) return;
+    const rect = group.getBoundingClientRect();
+    flyout.style.position = 'fixed';
+    flyout.style.top = `${rect.top}px`;
+    flyout.style.left = `${rect.right + 4}px`;
+    flyout.classList.add('nav-flyout-open');
+  });
+  group.addEventListener('mouseleave', () => flyout.classList.remove('nav-flyout-open'));
+});
 
 // Hidden vanity toggle (flex mode, server-side): type "flex"
 // anywhere that isn't a text field. Replaced the old invisible 16x16px
