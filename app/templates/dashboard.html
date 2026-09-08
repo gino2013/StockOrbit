@@ -25,7 +25,12 @@
      bug) - align-self:start opts out of that stretch so it sizes to its
      own content, and max-height only kicks in to cap+scroll it on the
      rare case that content is actually taller than the viewport. */
-  #nav-menu { width: 16rem; max-height: 100vh; align-self: start; position: sticky; top: 0; transition: width .15s ease; }
+  /* border-right so the sidebar's actual edge is visible - its background
+     (bg-base-100) and the page's (bg-base-200) are two very close shades
+     of dark navy in dark mode, near-indistinguishable without a border,
+     so the box (already sized to its own content, see align-self below)
+     LOOKED like it kept going empty down the page when it never did. */
+  #nav-menu { width: 16rem; max-height: 100vh; align-self: start; position: sticky; top: 0; transition: width .15s ease; border-right: 1px solid rgba(128,128,128,0.25); }
   #nav-menu.nav-menu-collapsed { width: 3.5rem; }
   /* explicit overflow-x (not just overflow-y-auto from the class) - a
      lone overflow-y otherwise computes overflow-x to auto too, so any
