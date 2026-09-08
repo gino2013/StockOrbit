@@ -18,7 +18,14 @@
   body { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; }
   html { scroll-behavior: smooth; }
   h2[id] { scroll-margin-top: 1rem; }
-  #nav-menu { width: 16rem; height: 100vh; position: sticky; top: 0; transition: width .15s ease; }
+  /* max-height (a cap), not height (a fixed size): #nav-menu is a grid
+     item next to the much taller main content column, and grid's default
+     align-items:stretch would otherwise force it to match that column's
+     height (the original "collapsed rail as tall as the whole long page"
+     bug) - align-self:start opts out of that stretch so it sizes to its
+     own content, and max-height only kicks in to cap+scroll it on the
+     rare case that content is actually taller than the viewport. */
+  #nav-menu { width: 16rem; max-height: 100vh; align-self: start; position: sticky; top: 0; transition: width .15s ease; }
   #nav-menu.nav-menu-collapsed { width: 3.5rem; }
   /* explicit overflow-x (not just overflow-y-auto from the class) - a
      lone overflow-y otherwise computes overflow-x to auto too, so any
@@ -40,11 +47,6 @@
      themselves, e.g. for its flex sizing) otherwise keep winning over a
      plain override here regardless of selector specificity. */
   #nav-menu-scroll { overflow-x: hidden !important; flex-wrap: nowrap !important; flex: 0 1 auto !important; height: auto !important; min-height: 0 !important; }
-  /* pin the toggle button to the bottom of the 100vh rail regardless of
-     how tall the (naturally-sized, no longer stretched) list above it
-     is - margin-top:auto eats whatever space is left instead of the
-     list being force-stretched to fill it. */
-  #nav-toggle-footer { margin-top: auto !important; }
   #nav-menu.nav-menu-collapsed #nav-menu-scroll { padding-left: .5rem; padding-right: .5rem; }
   /* center the logo and each group icon in the narrow rail - the logo li's
      own padding-left (for its normal, expanded layout) would otherwise
@@ -414,7 +416,7 @@
       </details>
     </li>
     </ul>
-    <div id="nav-toggle-footer" class="p-2 flex justify-end border-t border-base-200">
+    <div id="nav-toggle-footer" class="p-2 flex justify-end">
       <button type="button" onclick="toggleNavMenu()" id="nav-toggle-btn" class="btn btn-ghost btn-xs btn-circle" aria-label="收合／展開選單">‹</button>
     </div>
   </div>
