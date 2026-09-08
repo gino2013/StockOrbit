@@ -227,7 +227,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 - **持股基本面分析**：本益比、PEG、ROE、毛利率、營收成長、負債權益比、52 週高低、分析師目標價與評等等 yfinance 客觀數據；Render 連不到 Yahoo 即時 API 時會自動退回排程更新的快取（見下方技術棧）
 - **目前熱門標的**：全市場漲幅/跌幅/成交量排行，附最新新聞標題與關鍵字式利多/利空標示
 - **美元匯率歷史**：USD/TWD 走勢線圖，顆粒度日/週/月/季/半年/年、區間可自訂。線是銀行同業間中間匯率（yfinance `USDTWD=X`，跟頁首「參考匯率」同一來源）；上方另外顯示 LINE Bank 今日即期買進/賣出牌告價（即時抓取）。台灣沒有零售銀行公開歷史牌告價，所以歷史只有中間匯率一條線
-- **個股資訊查詢**：輸入任一股票代碼，重現 Google Finance 個股頁的資訊——名稱/交易所、目前價格、依所選區間（1天/5天/1個月/6個月/本年迄今/1年/5年/最久）計算的漲跌幅走勢圖，以及開盤/市值（ETF 沒有市值時退回顯示資產規模）/本益比/最高/股息/季度股利金額/最低/52 週高低點。是「美元匯率歷史」下面常駐的一個區塊（不是另開頁面），從側邊選單或持股表的代號點過去都是捲動＋自動查詢。這些欄位（含股息）都跟其他基本面欄位一樣，走對 Render 連不到 Yahoo 即時 API 有快取退回的管道；開盤/當日高低/現價改用不會被擋的走勢資料算，所以永遠看得到。第一次查一個從沒持有過的冷門代號，Yahoo 被擋時可能暫時顯示「-」，但查詢會順便把代號登記進排程快取名單，最晚 6 小時內（下次排程重新整理）就會有真資料
+- **個股資訊查詢**：輸入任一股票代碼，重現 Google Finance 個股頁的資訊——名稱/交易所、目前價格、依所選區間（1天/5天/1個月/6個月/本年迄今/1年/5年/最久）計算的漲跌幅走勢圖，以及開盤/市值（ETF 沒有市值時退回顯示資產規模）/本益比/最高/股息/季度股利金額/最低/52 週高低點。是「美元匯率歷史」下面常駐的一個區塊（不是另開頁面），從側邊選單或持股表的代號點過去都是捲動＋自動查詢。這些欄位（含股息）都跟其他基本面欄位一樣，走對 Render 連不到 Yahoo 即時 API 有快取退回的管道；開盤/當日高低/現價改用不會被擋的走勢資料算，所以永遠看得到。第一次查一個從沒持有過的冷門代號，會順便把代號登記進排程快取名單，並立刻觸發一次快取重新整理（設了 `GH_ACTIONS_TOKEN` 的話，見下方環境變數）；沒有這把 token，或觸發的那次剛好也被 Yahoo 擋，才會等到下次排程（最晚 6 小時）
 
 ### 歷史分析
 
@@ -260,7 +260,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 - **前端**：Jinja2 樣板 + [daisyUI](https://daisyui.com/)（Tailwind CSS 元件庫） + [Chart.js](https://www.chartjs.org/)，全部透過 CDN 引入，沒有 npm 建置流程
 - **市場資料**：[yfinance](https://github.com/ranaroussi/yfinance)
 - **持股資料來源**：[firstrade-api](https://github.com/MaxxRK/firstrade-api)（非官方，reverse-engineered）
-- **基本面資料快取**：Render 的對外 IP 會被 Yahoo Finance 的 quoteSummary API 擋掉（401 Invalid Crumb），改用 GitHub Actions 排程 job（`.github/workflows/refresh-fundamentals-cache.yml`，每 6 小時跑一次，不受此限制）把基本面/財報日資料寫進 `fundamentals_cache` 資料表，正式站即時抓取失敗時自動退回讀這份快取
+- **基本面資料快取**：Render 的對外 IP 會被 Yahoo Finance 的 quoteSummary API 擋掉（401 Invalid Crumb），改用 GitHub Actions 排程 job（`.github/workflows/refresh-fundamentals-cache.yml`，每 6 小時跑一次，不受此限制）把基本面/財報日資料寫進 `fundamentals_cache` 資料表，正式站即時抓取失敗時自動退回讀這份快取。個股資訊查詢查到一個從沒快取過的代號時，`app/infrastructure/github_actions.py` 會用 `GH_ACTIONS_TOKEN`（fine-grained PAT，只給這個 repo 的 Actions:write）立刻觸發這個 job 跑一次，不用等排程
 
 ## 專案結構
 
@@ -324,6 +324,7 @@ app/
     firstrade_client.py          # Firstrade 登入與持股抓取
     fundamentals.py              # 基本面即時抓取
     fundamentals_cache.py        # 基本面資料快取讀寫
+    github_actions.py            # 觸發 GitHub Actions 排程 job 立刻跑一次（見下方 GH_ACTIONS_TOKEN）
     export.py                    # CSV 匯出
     csv_import.py                # CSV 匯入（不需 Firstrade 帳密的替代資料來源）
     crypto.py                    # Fernet 加密其他使用者的 Firstrade 憑證
@@ -374,6 +375,7 @@ cp .env.example .env   # 填入下面的環境變數
 | `FT_CREDENTIAL_KEY` | Fernet 金鑰，用來加密其他使用者存進來的 Firstrade 憑證（`python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`）。不設的話「連結 Firstrade」功能停用。**跟 `APP_SECRET_KEY` 分開，只放環境變數** |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS）。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結）。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER`。Gmail：`SMTP_HOST=smtp.gmail.com`、`SMTP_PORT=587`、`SMTP_USER` 是 Gmail 位址、`SMTP_PASSWORD` 用 [應用程式密碼](https://myaccount.google.com/apppasswords)（需先開兩步驟驗證），不是帳號密碼 |
 | `REQUIRE_EMAIL_VERIFICATION` | 預設 `true`：Firstrade 連結表單跟 CSV 匯入都要先驗證信箱。沒有要接 SMTP 的話設成 `false` 拿掉這道 gate，任何註冊的人直接能用——代價是少了開放註冊的濫用防線（見下方安全性段落） |
+| `GH_ACTIONS_TOKEN` | 細粒度 GitHub PAT，只給這個 repo 的 `Actions: write` 權限。個股資訊查詢第一次查一個沒人持有過的代號時，會用它立刻觸發一次 `refresh-fundamentals-cache.yml`，不用等排程（見下方技術棧）。不設的話一樣能用，只是要等排程跑到才會有真資料 |
 | `DATABASE_URL` | 資料庫連線字串，本機預設 `sqlite:///./stockorbit.db`，正式環境填 Postgres 連線字串 |
 
 `.env` 已加進 `.gitignore`，不會被提交。

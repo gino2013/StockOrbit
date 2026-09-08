@@ -96,6 +96,10 @@ function attachTickerAutocomplete(inputId, listId, { multi = false } = {}) {
     debounceTimer = setTimeout(async () => {
       const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query)}`);
       const results = await res.json();
+      // the user may have kept typing (or deleted back below 2 chars)
+      // while this request was in flight - a response for a now-stale
+      // query must not clobber whatever's already showing.
+      if (currentQuery() !== query) return;
       if (!results.length) { hide(); return; }
       list.innerHTML = results.map(r =>
         `<li><a data-symbol="${escapeHtml(r.symbol)}"><b>${escapeHtml(r.symbol)}</b> <span class="opacity-60 text-xs">${escapeHtml(r.name)}</span></a></li>`
