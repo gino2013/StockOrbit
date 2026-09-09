@@ -71,6 +71,15 @@ def demo():
     etf = stock_detail.build_stock_detail("QQQ", {"totalAssets": 12345.0}, {}, ohlc, history)
     assert etf["market_cap"] == 12345.0
 
+    # an ETF that clearly pays dividends (e.g. VOO) but yfinance leaves
+    # dividendRate None anyway - trailingAnnualDividendRate (the actual
+    # trailing-12-months total) must be used instead of showing "-".
+    div_fallback = stock_detail.build_stock_detail(
+        "VOO", {"trailingAnnualDividendRate": 5.44}, {}, ohlc, history
+    )
+    assert div_fallback["dividend_rate"] == 5.44
+    assert abs(div_fallback["dividend_quarterly"] - 1.36) < 1e-9
+
     # everything blocked and no history at all (bad symbol) -> no change%, no crash.
     empty = stock_detail.build_stock_detail("BAD", {}, {}, {}, [])
     assert empty["price"] is None

@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-09
+
+- `dd0a627` 修 VOO 等 ETF 明明有配息卻顯示「-」：加 trailingAnnualDividendRate 退回（issue #280）：yfinance 的 `dividendRate`（前瞻性：最近一次配息金額 x 配息頻率）欄位對某些 ETF 常常是 `None`，即使該 ETF 明顯有在配息——直接查證實 `yf.Ticker("VOO").get_info()["dividendRate"]` 是 `None`，但 `trailingAnnualDividendRate`（過去 12 個月實際配發總額）有正確數字 5.437。`fundamentals.FIELDS` 補上這個欄位，`FundamentalsCache` 加對應欄位 + migration `0009`，`build_stock_detail()` 的股息判斷順序改成 fundamentals.dividendRate → fundamentals.trailingAnnualDividendRate → quote.dividendRate → quote.trailingAnnualDividendRate，全部沒有才顯示「-」
+
 ## 2026-09-08
 
 - `31f9bcc` 新增個股詳情頁 `/stock/{代碼}`（issue #241）：重現 Google Finance 個股頁——名稱、目前價格、依所選區間（1天/5天/1個月/6個月/本年迄今/1年/5年/最久）計算的漲跌幅走勢圖，以及開盤/市值/本益比/最高/股息/季度股利金額/最低/52 週高低點。側邊選單「市場資訊」跟持股表的代號都連過去，頁面上有換代碼查詢跟「回到上一頁」。新增 `market_data.ticker_info()` 單次抓 quote 欄位，刻意不走 `fetch_fundamentals()` 的 FIELDS/FundamentalsCache（Render 連不到 Yahoo quoteSummary 時的快取表）——開盤/當日高低本質是當下數字，從隔了幾天的快取生出來是安靜地錯而不只是舊，所以 Render 上這頁指標會顯示「-」而不是騙人的舊資料，走勢圖不受影響（`ticker_history()` 走另一個沒被擋的端點）
