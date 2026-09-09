@@ -1,3 +1,5 @@
+<img src="docs/logo.png" width="96" height="96" alt="StockOrbit">
+
 # StockOrbit
 
 個人用的 Firstrade 投資組合追蹤網站：自動同步持股（含現金）、依配置給出建議、對任意再平衡策略跑歷史回測，加上一整套風險/稅務/複利分析工具，全部透過一個零建置流程的網頁儀表板操作。
