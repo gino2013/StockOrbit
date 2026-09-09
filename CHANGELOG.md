@@ -6,6 +6,7 @@
 
 ## 2026-09-09
 
+- `53b1382` 儀表板加上主題切換下拉選單，支援 daisyUI 全部 35 種主題（issue #286）：深色模式 icon 旁邊加調色盤 icon，點下去列出 daisyUI 5 內建的全部主題（不只 light/dark），選了存進 localStorage、跟原本的深色切換共用同一個 key。原本二選一的太陽/月亮圖示邏輯改成查一個 `DARK_THEMES` 名單，選其他深色系主題（synthwave、dracula 等）時圖示還是正確
 - `dd0a627` 修 VOO 等 ETF 明明有配息卻顯示「-」：加 trailingAnnualDividendRate 退回（issue #280）：yfinance 的 `dividendRate`（前瞻性：最近一次配息金額 x 配息頻率）欄位對某些 ETF 常常是 `None`，即使該 ETF 明顯有在配息——直接查證實 `yf.Ticker("VOO").get_info()["dividendRate"]` 是 `None`，但 `trailingAnnualDividendRate`（過去 12 個月實際配發總額）有正確數字 5.437。`fundamentals.FIELDS` 補上這個欄位，`FundamentalsCache` 加對應欄位 + migration `0009`，`build_stock_detail()` 的股息判斷順序改成 fundamentals.dividendRate → fundamentals.trailingAnnualDividendRate → quote.dividendRate → quote.trailingAnnualDividendRate，全部沒有才顯示「-」
 
 ## 2026-09-08
