@@ -182,6 +182,16 @@
       <button type="button" onclick="toggleTheme()" class="btn btn-square btn-ghost btn-sm" aria-label="切換深色模式">
         <span id="theme-icon"></span>
       </button>
+      <div class="dropdown dropdown-end">
+        <button tabindex="0" type="button" class="btn btn-square btn-ghost btn-sm" aria-label="選擇主題">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42" /></svg>
+        </button>
+        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[60] w-40 p-2 shadow-lg max-h-80 overflow-y-auto flex-nowrap">
+          {% for t in ["light","dark","cupcake","bumblebee","emerald","corporate","synthwave","retro","cyberpunk","valentine","halloween","garden","forest","aqua","lofi","pastel","fantasy","wireframe","black","luxury","dracula","cmyk","autumn","business","acid","lemonade","night","coffee","winter","dim","nord","sunset","caramellatte","abyss","silk"] %}
+          <li><a onclick="setTheme('{{ t }}')" data-theme-option="{{ t }}">{{ t }}</a></li>
+          {% endfor %}
+        </ul>
+      </div>
       {% if user %}<span class="text-xs opacity-60 hidden sm:inline">{{ user.email }}</span>
       <a href="/settings" class="btn btn-ghost btn-sm">設定</a>{% endif %}
       <form action="/logout" method="post">
@@ -486,14 +496,29 @@
 
 const ICON_SUN = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>';
 const ICON_MOON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" /></svg>';
-document.getElementById('theme-icon').innerHTML =
-  document.documentElement.getAttribute('data-theme') === 'dark' ? ICON_SUN : ICON_MOON;
+// daisyUI ships 35 named themes (see the dropdown list above), not just a
+// light/dark pair - this set is only for picking sun-vs-moon on the quick
+// toggle button, going by each theme's own light/dark family per daisyUI's
+// docs (https://daisyui.com/docs/themes/).
+const DARK_THEMES = new Set(['dark', 'synthwave', 'halloween', 'forest', 'black', 'luxury', 'dracula', 'business', 'night', 'coffee', 'dim', 'sunset', 'abyss']);
+function updateThemeIcon(theme) {
+  document.getElementById('theme-icon').innerHTML = DARK_THEMES.has(theme) ? ICON_SUN : ICON_MOON;
+  document.querySelectorAll('[data-theme-option]').forEach((el) => {
+    el.parentElement.classList.toggle('menu-active', el.dataset.themeOption === theme);
+  });
+}
+updateThemeIcon(document.documentElement.getAttribute('data-theme'));
 
 function toggleTheme() {
-  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-  localStorage.theme = next;
-  document.documentElement.setAttribute('data-theme', next);
-  document.getElementById('theme-icon').innerHTML = next === 'dark' ? ICON_SUN : ICON_MOON;
+  const current = document.documentElement.getAttribute('data-theme');
+  setTheme(DARK_THEMES.has(current) ? 'light' : 'dark');
+}
+
+function setTheme(theme) {
+  localStorage.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+  document.activeElement?.blur(); // closes the daisyUI dropdown (it opens on :focus-within)
 }
 
 function toggleNavMenu() {
