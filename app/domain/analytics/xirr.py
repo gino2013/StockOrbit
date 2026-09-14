@@ -3,10 +3,28 @@ put in, unlike the simple (value - cost) / cost figure already shown
 elsewhere, which treats every dollar as if it had been invested on day one.
 """
 
-from datetime import date
+from datetime import date, timedelta
 
 EXTERNAL_CASH_IN_TYPES = {"DEPOSIT"}
 EXTERNAL_CASH_OUT_TYPES = {"WITHDRAWAL", "WITHDRAW"}
+
+
+def trailing_twelve_month_net_savings(transactions: list[dict], as_of: date) -> float:
+    """Net external cash put in over the trailing 12 months (deposits minus
+    withdrawals) - unlike estimate_annual_contribution's lifetime average,
+    this reacts to a recent raise/pay-cut/life-change instead of smoothing
+    it out over the whole account history. Used for the "savings rate"
+    FIRE estimate (issue #216). Can be negative (net withdrawals)."""
+    window_start = as_of - timedelta(days=365)
+    net_in = 0.0
+    for t in transactions:
+        if not (window_start <= t["report_date"] <= as_of):
+            continue
+        if t["trans_type"] in EXTERNAL_CASH_IN_TYPES:
+            net_in += abs(t["amount"])
+        elif t["trans_type"] in EXTERNAL_CASH_OUT_TYPES:
+            net_in -= abs(t["amount"])
+    return net_in
 
 
 def estimate_annual_contribution(transactions: list[dict], as_of: date) -> float:

@@ -60,10 +60,38 @@ def build_dividend_coverage(ttm_dividends: float, annual_expenses: float, curren
     }
 
 
+def build_savings_rate_progress(
+    ttm_net_savings: float, annual_expenses: float, current_value: float, target: float,
+    expected_real_return: float | None, as_of: date,
+) -> dict:
+    """Savings rate = savings / (savings + expenses), the classic MMM
+    framing ("save 50% of income -> ~17 years to FI"), computed from
+    trailing-12-month net deposits rather than a lifetime average. Reuses
+    the Coast FIRE `expected_real_return` assumption (if set) to also
+    project a years-to-FI date; without it, only the ratio is shown -
+    no invented return assumption. Negative ttm_net_savings (net
+    withdrawals) yields a savings rate of 0, not a negative one."""
+    savings = max(0.0, ttm_net_savings)
+    denom = savings + annual_expenses
+    savings_rate = savings / denom if denom > 0 else None
+    proj_date = (
+        projected_achievement_date(current_value, target, expected_real_return, as_of, savings)
+        if expected_real_return is not None
+        else None
+    )
+    return {
+        "ttm_net_savings": ttm_net_savings,
+        "savings_rate": savings_rate,
+        "expected_real_return": expected_real_return,
+        "projected_achievement_date": proj_date,
+    }
+
+
 def build_fire_progress(
     current_value: float, annual_expenses: float, swr: float, current_annual_return: float | None, as_of: date,
     retirement_date: date | None = None, expected_real_return: float | None = None,
     ttm_dividends: float | None = None, annual_contribution: float = 0.0,
+    ttm_net_savings: float | None = None,
 ) -> dict:
     target = fire_number(annual_expenses, swr)
     progress_pct = min(1.0, current_value / target) if target else None
@@ -80,6 +108,11 @@ def build_fire_progress(
         if ttm_dividends is not None
         else None
     )
+    savings_rate = (
+        build_savings_rate_progress(ttm_net_savings, annual_expenses, current_value, target, expected_real_return, as_of)
+        if ttm_net_savings is not None
+        else None
+    )
     return {
         "annual_expenses": annual_expenses,
         "swr": swr,
@@ -93,4 +126,5 @@ def build_fire_progress(
         "projected_achievement_date": proj_date,
         "coast_fire": coast,
         "dividend_coverage": dividend_coverage,
+        "savings_rate": savings_rate,
     }
