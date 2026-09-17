@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sankey@0.14.0/dist/chartjs-chart-sankey.min.js"></script>
 <script>
   // Applied before body paints so there's no flash of the wrong theme.
   document.documentElement.setAttribute('data-theme',
@@ -351,6 +352,9 @@
   {% endif %}
   {% endif %}
 
+  <!-- Section: 資金流 Sankey 圖 -->
+  {% include "sections/cash_flow_sankey.html" %}
+
   {% if snapshots %}
   <!-- Section: 持股筆記 -->
   {% include "sections/notes.html" %}
@@ -452,6 +456,7 @@
           <li><a href="#section-overseas-income">海外所得試算</a></li>
           <li><a href="#section-tax-loss-harvesting">稅務效率分析</a></li>
           <li><a href="#section-dividends">股利追蹤</a></li>
+          <li><a href="#section-cash-flow-sankey">資金流</a></li>
           <li><a href="#section-dividend-calendar">配息月曆</a></li>
           <li><a href="#section-notes">持股筆記</a></li>
           <li><a href="#section-fire">FIRE 進度</a></li>
