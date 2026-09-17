@@ -330,6 +330,9 @@
   {% include "sections/realized.html" %}
   {% endif %}
 
+  <!-- Section: 批次比較（tax lot） -->
+  {% include "sections/tax_lots.html" %}
+
   {% if realized_summary %}
   <!-- Section: 海外所得試算 -->
   {% include "sections/overseas_income.html" %}
@@ -439,6 +442,7 @@
           <li><a href="#section-holdings">持股與配置</a></li>
           <li><a href="#section-rebalance">再平衡建議</a></li>
           <li><a href="#section-realized">已實現損益</a></li>
+          <li><a href="#section-tax-lots">批次比較</a></li>
           <li><a href="#section-overseas-income">海外所得試算</a></li>
           <li><a href="#section-tax-loss-harvesting">稅務效率分析</a></li>
           <li><a href="#section-dividends">股利追蹤</a></li>

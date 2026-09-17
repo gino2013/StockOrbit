@@ -16,6 +16,7 @@ from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.tax import overseas_income_report, tax_loss_report
+from app.application.tax_lots import tax_lot_report
 from app.infrastructure import github_actions, market_data
 from app.infrastructure.repositories import Repositories
 from app.infrastructure.db import (
@@ -902,6 +903,23 @@ def tax_loss_harvesting(year: int | None = None):
     if rate is None:
         return JSONResponse({"error": "無法取得今年的美元/台幣匯率資料"}, status_code=400)
     return JSONResponse(tax_loss_report(snapshots, transactions, year, rate, datetime.now().date()))
+
+
+@app.get("/api/tax-lot-comparison")
+def tax_lot_comparison(symbol: str, quantity: float):
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return JSONResponse({"error": "請輸入代號"}, status_code=400)
+    if quantity <= 0:
+        return JSONResponse({"error": "股數需大於 0"}, status_code=400)
+    with Repositories() as repo:
+        transactions = repo.all_transactions()
+    result = tax_lot_report(transactions, symbol, quantity)
+    if not result["lots"]:
+        return JSONResponse({"error": f"目前沒有 {symbol} 的未賣出批次"}, status_code=400)
+    if result["price"] is None:
+        return JSONResponse({"error": "目前抓不到即時價格，請稍後再試"}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/trending")
