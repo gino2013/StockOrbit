@@ -1,0 +1,80 @@
+  <h2 id="section-yield-curve" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>美債殖利率曲線
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <p class="text-xs opacity-60">
+          美國公債殖利率（13 週／5 年／10 年／30 年）目前水準，常拿來看「殖利率倒掛」（短天期利率高於長天期，歷史上經常、但不是每次都伴隨衰退）。純資訊呈現，不是預測。
+        </p>
+        <div class="flex items-end gap-2 shrink-0">
+          <label class="text-xs opacity-60">跟幾個月前比較（選填）<br>
+            <input id="yield-curve-compare-months" type="number" min="1" max="60" placeholder="6" class="input input-bordered input-sm w-24 mt-1">
+          </label>
+          <button type="button" onclick="loadYieldCurve()" class="btn btn-ghost btn-sm">查詢</button>
+        </div>
+      </div>
+      <div id="yield-curve-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="yield-curve-inverted" class="alert alert-warning text-sm hidden mt-2"></div>
+      <div class="h-72 mt-4"><canvas id="yieldCurveChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+// --- 美債殖利率曲線 ---
+let yieldCurveChart = null;
+
+async function loadYieldCurve() {
+  const errorBox = document.getElementById('yield-curve-error');
+  const invertedBox = document.getElementById('yield-curve-inverted');
+  errorBox.classList.add('hidden');
+  invertedBox.classList.add('hidden');
+
+  const months = document.getElementById('yield-curve-compare-months').value;
+  const url = months ? `/api/yield-curve?compare_months_ago=${encodeURIComponent(months)}` : '/api/yield-curve';
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (data.inverted) {
+    invertedBox.textContent = `⚠️ 目前殖利率曲線倒掛（13 週殖利率高於 30 年），as of ${data.as_of}`;
+    invertedBox.classList.remove('hidden');
+  }
+
+  const labels = data.current.map((p) => p.label);
+  const datasets = [
+    { label: `目前 (${data.as_of})`, data: data.current.map((p) => p.yield_pct), borderColor: '#4f46e5', backgroundColor: '#4f46e5', pointRadius: 4 },
+  ];
+  if (data.compare) {
+    datasets.push({
+      label: `${data.compare.as_of}`,
+      data: data.compare.values.map((p) => p.yield_pct),
+      borderColor: '#94a3b8', borderDash: [4, 4], pointRadius: 3,
+    });
+  }
+
+  if (yieldCurveChart) yieldCurveChart.destroy();
+  yieldCurveChart = new Chart(document.getElementById('yieldCurveChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`,
+          },
+        },
+      },
+      scales: { y: { title: { display: true, text: '殖利率 (%)' } } },
+    },
+  });
+}
+
+loadYieldCurve();
+</script>

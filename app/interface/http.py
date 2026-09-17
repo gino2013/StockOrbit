@@ -56,6 +56,7 @@ from app.domain.analytics.performance_report import build_performance_report
 from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
+from app.domain.analytics.yield_curve import build_yield_curve
 from app.domain.analytics.efficient_frontier import build_efficient_frontier
 from app.domain.analytics.monte_carlo import build_monte_carlo_projection
 from app.domain.analytics.scenario import simulate_market_drop
@@ -966,6 +967,17 @@ def fx_history(start: str, end: str, granularity: str = "D"):
         "points": resample_rate_series(series, granularity),
         "linebank": linebank.fetch_usd_spot(),
     })
+
+
+@app.get("/api/yield-curve")
+def yield_curve(compare_months_ago: int | None = None):
+    try:
+        result = build_yield_curve(compare_months_ago)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    if not result["current"]:
+        return JSONResponse({"error": "抓不到美債殖利率資料"}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/compound-curve")
