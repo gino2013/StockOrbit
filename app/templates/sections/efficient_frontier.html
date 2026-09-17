@@ -1,0 +1,72 @@
+  <h2 id="section-efficient-frontier" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>效率前緣
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between">
+        <p class="text-xs opacity-60">
+          用持股的歷史報酬/波動度隨機取樣大量權重組合（長期持有、不做空、不槓桿），畫出風險-報酬散點圖，藍點是目前實際配置。純資訊呈現，不是「應該調整成前緣上哪一點」的投資建議。
+        </p>
+        <button type="button" onclick="loadEfficientFrontier()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="efficient-frontier-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div class="h-80 mt-4"><canvas id="efficientFrontierChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+// --- 效率前緣 ---
+let efficientFrontierChart = null;
+
+async function loadEfficientFrontier() {
+  const errorBox = document.getElementById('efficient-frontier-error');
+  errorBox.classList.add('hidden');
+
+  const res = await fetch('/api/efficient-frontier');
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const datasets = [
+    {
+      label: '隨機權重組合',
+      data: data.points.map((p) => ({ x: p.volatility * 100, y: p.return * 100 })),
+      backgroundColor: 'rgba(148, 163, 184, 0.5)',
+      pointRadius: 2,
+    },
+  ];
+  if (data.current) {
+    datasets.push({
+      label: '目前配置',
+      data: [{ x: data.current.volatility * 100, y: data.current.return * 100 }],
+      backgroundColor: '#4f46e5',
+      pointRadius: 7,
+      pointHoverRadius: 8,
+    });
+  }
+
+  if (efficientFrontierChart) efficientFrontierChart.destroy();
+  efficientFrontierChart = new Chart(document.getElementById('efficientFrontierChart'), {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: 波動度 ${ctx.parsed.x.toFixed(1)}% / 年化報酬 ${ctx.parsed.y.toFixed(1)}%`,
+          },
+        },
+      },
+      scales: {
+        x: { title: { display: true, text: '年化波動度 (%)' } },
+        y: { title: { display: true, text: '年化報酬 (%)' } },
+      },
+    },
+  });
+}
+</script>

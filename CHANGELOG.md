@@ -6,6 +6,7 @@
 
 ## 2026-09-17
 
+- 新增效率前緣（Markowitz mean-variance）圖表（issue #292）：新檔 `app/domain/analytics/efficient_frontier.py`，用 Dirichlet 分布隨機取樣長期持有／不做空／不槓桿的權重組合（`np.random.default_rng` 固定 seed，方便測試重現），畫散點圖並標出目前實際配置的位置。新增 `numpy` 到 `requirements.txt`（原本只是 pandas 的間接依賴，現在直接 import 所以明確宣告）
 - 持股健康度總覽加上歷史模擬法 VaR / CVaR（issue #290）：`risk.historical_var()`／`historical_cvar()` 用組合每日報酬的經驗分布（不假設常態分布）算 95% 信心水準下的單日最大可能虧損跟超過該門檻時的平均虧損，跟 Sharpe/Sortino/Calmar 共用同一條已經重建好的組合報酬序列，不需要 transactions/as_of 也能算（不像 Sharpe 等需要 XIRR 年化報酬）
 - 持股健康度總覽加上 Sharpe / Sortino / Calmar 風險調整後報酬指標（issue #289）：年化報酬用 XIRR，年化波動度/最大回撤沿用 `risk.py`／`backtest.py` 既有邏輯，無風險利率先用固定假設值 4%（`risk.RISK_FREE_RATE`）。組合的每日報酬序列用「目前權重 x 過去 1 年個股報酬」重建，跟 holdings-history/backtest 一樣的「用目前部位回推過去」近似法，不用額外的網路請求
 
