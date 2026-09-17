@@ -55,6 +55,7 @@ from app.domain.analytics.performance_report import build_performance_report
 from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
+from app.domain.analytics.efficient_frontier import build_efficient_frontier
 from app.domain.analytics.scenario import simulate_market_drop
 from app.domain.analytics import stock_detail
 from app.domain.analytics.technical_indicators import compute_technical_indicators
@@ -1053,6 +1054,27 @@ def risk_parity():
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/efficient-frontier")
+def efficient_frontier():
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    value_by_symbol: dict[str, float] = {}
+    for s in snapshots:
+        if s["symbol"] == "CASH":
+            continue
+        value_by_symbol[s["symbol"]] = value_by_symbol.get(s["symbol"], 0.0) + s["market_value"]
+    symbols = list(value_by_symbol)
+    if len(symbols) < 2:
+        return JSONResponse({"error": "持股數量不足，至少需要 2 檔才能畫效率前緣"}, status_code=400)
+    try:
+        result = build_efficient_frontier(symbols, value_by_symbol)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/scenario")
