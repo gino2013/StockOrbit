@@ -381,6 +381,9 @@
 
   {% include "sections/stock_lookup.html" %}
 
+  <!-- Section: 機構持股／內部人交易 -->
+  {% include "sections/institutional_holders.html" %}
+
   {% if allocation_chart_data %}
   <!-- Section: 配置歷史走勢 -->
   {% include "sections/allocation_history.html" %}
@@ -466,6 +469,7 @@
           <li><a href="#section-fx-history">美元匯率歷史</a></li>
           <li><a href="#section-yield-curve">美債殖利率曲線</a></li>
           <li><a href="#section-stock-lookup">個股資訊查詢</a></li>
+          <li><a href="#section-institutional-holders">機構持股／內部人</a></li>
         </ul>
       </details>
     </li>

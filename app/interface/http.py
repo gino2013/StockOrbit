@@ -33,6 +33,7 @@ from app.infrastructure.csv_import import CsvImportError, parse_positions, parse
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
+from app.infrastructure.institutional import fetch_institutional_data
 from app.domain.portfolio.advice import build_advice
 from app.domain.portfolio.cash_deployment import suggest_cash_deployment
 from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
@@ -1056,6 +1057,14 @@ def api_stock_detail(symbol: str, period: str = "1y"):
                 if repo.register_fundamentals_symbol(symbol):
                     github_actions.trigger_fundamentals_refresh()
     return JSONResponse(stock_detail.build_stock_detail(symbol, fundamentals, quote, ohlc, history))
+
+
+@app.get("/api/institutional-holders")
+def institutional_holders(symbol: str):
+    symbol = symbol.strip().upper()
+    if not symbol:
+        return JSONResponse({"error": "請輸入股票代碼"}, status_code=400)
+    return JSONResponse(fetch_institutional_data(symbol))
 
 
 @app.get("/api/correlation")

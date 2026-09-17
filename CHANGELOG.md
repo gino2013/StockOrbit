@@ -6,6 +6,7 @@
 
 ## 2026-09-17
 
+- 新增機構持股／內部人交易查詢（issue #297）：新檔 `app/infrastructure/institutional.py`，用 yfinance 的 `institutional_holders`/`major_holders`/`insider_transactions`（先用真實股票直接驗證過欄位名稱跟資料形狀）。刻意沒有整合進既有的 `fundamentals_cache` 排程快取——ETF genuinely 沒有這類資料，跟 Yahoo 擋掉時回傳的空結果長得一模一樣，沒有像 `get_info()` 那樣「至少還有幾個欄位」的訊號可以拿來判斷要不要快取，所以做成即時查詢、查不到就顯示查無資料，不做成快取重試的機制
 - 新增美債殖利率曲線（issue #296）：新檔 `app/domain/analytics/yield_curve.py`，抓 `^IRX`（13 週）/`^FVX`（5 年）/`^TNX`（10 年）/`^TYX`（30 年）這四檔 yfinance Treasury 殖利率指數（先直接查證這幾檔在 Yahoo 上就是以「%」為單位報價，不是 x10，寫代碼前先驗證過），可選跟 N 個月前疊圖比較，短天期利率高於長天期（倒掛）時顯示提示。新區塊放在「美元匯率歷史」旁邊
 - 新增批次比較（Tax Lot，issue #295）：`realized_gains.py` 拆出共用的 `_match_fifo()`（`compute_realized_gains()` 跟新的 `open_lots_by_symbol()` 共用同一次 FIFO 掃描，後者額外回傳目前還沒賣掉的批次，帶買進日期），新檔 `tax_lot_comparison.py` 比較假設現在賣出時 FIFO vs HIFO（最高成本先賣）兩種批次挑法的已實現損益差異，用即時市價（重用 `stock_detail.today_ohlc()`）試算。新區塊放在已實現損益旁邊
 - 稅務效率分析補上 wash sale（洗售）偵測（issue #294）：`tax_loss_harvesting.py` 的 docstring 原本就明講這是已知範圍外的合規缺口——賣出虧損部位後前後 30 天內（61 天窗口）買回同一標的，該筆損失依美國稅法不能抵稅，之前完全沒擋。新增 `is_wash_sale()` 檢查賣出日前後 30 天內是否有同代號的 BUY 紀錄；`find_loss_candidates()` 新增可選的 `transactions`/`as_of` 參數，標記出「今天賣會構成 wash sale」的候選；`estimate_tax_savings()` 把這些候選從估計節稅金額排除（不會虛報一筆實際不能抵稅的損失）
