@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -57,6 +58,36 @@ def demo():
     assert result_empty["position_count"] == 0
     assert result_empty["avg_correlation"] is None
     assert result_empty["portfolio_beta"] is None
+
+    # --- Sharpe / Sortino / Calmar (issue #289) ---
+    # not passing transactions/as_of -> the three ratios stay None, same as
+    # every other caller that predates this (no crash, backward compatible).
+    with patch.object(hd.market_data, "download_close", return_value=prices), \
+         patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
+        no_txns = hd.build_health_overview(snapshots)
+    assert no_txns["sharpe_ratio"] is None
+    assert no_txns["sortino_ratio"] is None
+    assert no_txns["calmar_ratio"] is None
+
+    # a steadily-rising portfolio with one deposit -> positive Sharpe/Sortino
+    # (return comfortably above the risk-free rate), and a real (small)
+    # drawdown to divide by for Calmar.
+    as_of = date(2025, 1, 1) + pd.Timedelta(days=90)
+    transactions = [{"trans_type": "DEPOSIT", "report_date": date(2025, 1, 1), "amount": 10000}]
+    with patch.object(hd.market_data, "download_close", return_value=prices), \
+         patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
+        with_ratios = hd.build_health_overview(snapshots, transactions, as_of)
+    assert with_ratios["sharpe_ratio"] is not None
+    assert with_ratios["sortino_ratio"] is not None
+    assert with_ratios["calmar_ratio"] is not None
+
+    # too few price points to reconstruct a portfolio-return series -> the
+    # ratios stay None instead of a noisy/misleading number.
+    tiny_prices = prices.head(1)
+    with patch.object(hd.market_data, "download_close", return_value=tiny_prices), \
+         patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
+        too_few = hd.build_health_overview(snapshots, transactions, as_of)
+    assert too_few["sharpe_ratio"] is None
 
 
 if __name__ == "__main__":

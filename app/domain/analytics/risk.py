@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 from app.domain.analytics.backtest import max_drawdown_details
 
 TRADING_DAYS_PER_YEAR = 252
+# ponytail: fixed assumption rather than a live short-term Treasury quote -
+# good enough for a directional Sharpe/Sortino number, revisit if this drifts
+# far from reality for a long stretch.
+RISK_FREE_RATE = 0.04
 # ponytail: same reasoning as app/fundamentals.py's pool - Ticker.calendar is
 # a per-symbol blocking HTTP call with no batch equivalent, so a small
 # thread pool overlaps the network wait instead of doing one at a time.
@@ -31,6 +35,42 @@ def annualized_volatility(returns: pd.Series, window: int) -> float | None:
     if len(recent) < 2:
         return None
     return float(recent.std() * (TRADING_DAYS_PER_YEAR**0.5))
+
+
+def downside_deviation(returns: pd.Series, risk_free_rate: float = RISK_FREE_RATE) -> float | None:
+    """Annualized standard deviation of *below-target* daily returns only -
+    the Sortino ratio's denominator. Unlike plain volatility, upside swings
+    don't count as "risk" here. Target is the risk-free rate's daily
+    equivalent, not zero, so a return that merely underperforms cash still
+    counts as downside."""
+    daily_threshold = risk_free_rate / TRADING_DAYS_PER_YEAR
+    downside = returns[returns < daily_threshold]
+    if len(downside) < 2:
+        return None
+    return float(downside.std() * (TRADING_DAYS_PER_YEAR**0.5))
+
+
+def sharpe_ratio(annual_return: float | None, annual_volatility: float | None, risk_free_rate: float = RISK_FREE_RATE) -> float | None:
+    if annual_return is None or not annual_volatility:
+        return None
+    return (annual_return - risk_free_rate) / annual_volatility
+
+
+def sortino_ratio(annual_return: float | None, returns: pd.Series, risk_free_rate: float = RISK_FREE_RATE) -> float | None:
+    if annual_return is None:
+        return None
+    downside = downside_deviation(returns, risk_free_rate)
+    if not downside:
+        return None
+    return (annual_return - risk_free_rate) / downside
+
+
+def calmar_ratio(annual_return: float | None, max_drawdown: float | None) -> float | None:
+    """max_drawdown is the negative-fraction convention used throughout this
+    module (see max_drawdown_details) - e.g. -0.35 for a 35% drawdown."""
+    if annual_return is None or not max_drawdown:
+        return None
+    return annual_return / abs(max_drawdown)
 
 
 def beta_vs_benchmark(returns: pd.Series, benchmark_returns: pd.Series) -> float | None:
