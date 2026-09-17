@@ -1,0 +1,61 @@
+  <h2 id="section-cash-flow-sankey" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>資金流
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        入金＋股利收入，最後去了哪裡：提領出去，還是留在帳戶（現金或投資）。跟「目前市值」不同——市值還包含還沒實現的投資損益，這裡只算真的移動過的錢。提領無法追蹤是哪一筆錢（帳戶裡的現金是同一池子），這裡假設「先花股利、再動本金」的常見心態模型來分配，不代表真實的資金流向。
+      </p>
+      <div id="cash-flow-sankey-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div class="h-72 mt-4"><canvas id="cashFlowSankeyChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+// --- 資金流 Sankey 圖 ---
+let cashFlowSankeyChart = null;
+
+async function loadCashFlowSankey() {
+  const errorBox = document.getElementById('cash-flow-sankey-error');
+  errorBox.classList.add('hidden');
+
+  const res = await fetch('/api/cash-flow-sankey');
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  if (!data.flows.length) {
+    errorBox.textContent = '目前沒有入金/股利/提領紀錄可以畫。';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  if (cashFlowSankeyChart) cashFlowSankeyChart.destroy();
+  cashFlowSankeyChart = new Chart(document.getElementById('cashFlowSankeyChart'), {
+    type: 'sankey',
+    data: {
+      datasets: [{
+        label: '資金流',
+        data: data.flows,
+        colorFrom: () => '#4f46e5',
+        colorTo: () => '#10b981',
+        colorMode: 'gradient',
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.raw.from} → ${ctx.raw.to}: $${Math.round(ctx.raw.flow).toLocaleString('en-US')}`,
+          },
+        },
+      },
+    },
+  });
+}
+
+loadCashFlowSankey();
+</script>

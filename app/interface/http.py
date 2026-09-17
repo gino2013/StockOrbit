@@ -55,6 +55,7 @@ from app.domain.analytics.holdings_history import (
 from app.domain.analytics.market_moves import price_swings, recent_news
 from app.domain.analytics.performance_report import build_performance_report
 from app.domain.income.realized_gains import compute_realized_gains
+from app.domain.income.cash_flow_sankey import build_cash_flow_sankey
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
 from app.domain.analytics.yield_curve import build_yield_curve
@@ -1201,6 +1202,15 @@ def cash_deployment(amount: float, account: str | None = None):
         return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
     plan = suggest_cash_deployment(snapshots, targets, amount)
     return JSONResponse({"plan": plan})
+
+
+@app.get("/api/cash-flow-sankey")
+def cash_flow_sankey():
+    with Repositories() as repo:
+        transactions = repo.all_transactions()
+    if not transactions:
+        return JSONResponse({"error": "還沒有交易紀錄"}, status_code=400)
+    return JSONResponse(build_cash_flow_sankey(transactions))
 
 
 @app.post("/api/notes")
