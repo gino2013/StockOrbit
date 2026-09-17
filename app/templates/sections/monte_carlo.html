@@ -1,0 +1,67 @@
+  <h2 id="section-monte-carlo" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>蒙地卡羅模擬
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <p class="text-xs opacity-60">
+          「接下來預測」是假設固定報酬率的單一路徑；這裡改用歷史每日報酬隨機重抽（bootstrap，不假設常態分布），模擬大量條可能路徑，畫出 10%／50%／90% 分位數的區間，講清楚「這只是眾多可能之一」。一樣不是預測。
+        </p>
+        <div class="flex items-end gap-2 shrink-0">
+          <label class="text-xs opacity-60">模擬月數<br>
+            <input id="monte-carlo-months" type="number" min="1" max="240" value="12" class="input input-bordered input-sm w-20 mt-1">
+          </label>
+          <button type="button" onclick="loadMonteCarlo()" class="btn btn-ghost btn-sm">查詢</button>
+        </div>
+      </div>
+      <div id="monte-carlo-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div class="h-80 mt-4"><canvas id="monteCarloChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+// --- 蒙地卡羅模擬 ---
+let monteCarloChart = null;
+
+async function loadMonteCarlo() {
+  const errorBox = document.getElementById('monte-carlo-error');
+  errorBox.classList.add('hidden');
+
+  const months = parseInt(document.getElementById('monte-carlo-months').value, 10) || 12;
+  const res = await fetch(`/api/monte-carlo-projection?months=${months}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const labels = data.months.map((m) => `${m} 個月後`);
+  const datasets = [
+    { label: '90% 分位數', data: data.p90, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.15)', pointRadius: 0, fill: '+1' },
+    { label: '中位數 (50%)', data: data.p50, borderColor: '#4f46e5', backgroundColor: 'rgba(79,70,229,0.15)', pointRadius: 0, fill: '+1' },
+    { label: '10% 分位數', data: data.p10, borderColor: '#ef4444', pointRadius: 0, fill: false },
+  ];
+
+  if (monteCarloChart) monteCarloChart.destroy();
+  monteCarloChart = new Chart(document.getElementById('monteCarloChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: $${Math.round(ctx.parsed.y).toLocaleString('en-US')}`,
+          },
+        },
+      },
+      scales: { y: { ticks: { callback: (v) => '$' + v.toLocaleString() } } },
+    },
+  });
+}
+
+loadMonteCarlo();
+</script>
