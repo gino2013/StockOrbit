@@ -18,7 +18,15 @@ import pandas as pd
 from app.infrastructure import market_data
 
 from app.domain.analytics.backtest import max_drawdown_details
-from app.domain.analytics.risk import annualized_volatility, beta_vs_benchmark, calmar_ratio, sharpe_ratio, sortino_ratio
+from app.domain.analytics.risk import (
+    annualized_volatility,
+    beta_vs_benchmark,
+    calmar_ratio,
+    historical_cvar,
+    historical_var,
+    sharpe_ratio,
+    sortino_ratio,
+)
 from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 _BENCHMARK = "SPY"
@@ -69,22 +77,27 @@ def build_health_overview(snapshots: list[dict], transactions: list[dict] | None
             measurable_base = total - unmeasurable_value
             portfolio_beta = weighted / measurable_base if measurable_base else None
 
-    sharpe = sortino = calmar = None
-    if symbols and total and transactions is not None and as_of is not None:
+    sharpe = sortino = calmar = var_95 = cvar_95 = None
+    if symbols and total:
         # Reuse *today's* weights applied backward over the 1y price
         # history already downloaded above - same "current shares, past
         # prices" approximation the rest of the app uses (holdings-history,
         # backtest) - rather than a second network round-trip.
         weights = {s: value_by_symbol[s] / total for s in symbols}
         portfolio_returns = (returns[symbols] * pd.Series(weights)).sum(axis=1).dropna()
-        annual_return = xirr(portfolio_cashflows(transactions, total, as_of))
         if len(portfolio_returns) >= 2:
-            annual_vol = annualized_volatility(portfolio_returns, len(portfolio_returns))
-            portfolio_value = (1 + portfolio_returns).cumprod()
-            max_dd = max_drawdown_details(portfolio_value)[0]
-            sharpe = sharpe_ratio(annual_return, annual_vol)
-            sortino = sortino_ratio(annual_return, portfolio_returns)
-            calmar = calmar_ratio(annual_return, max_dd)
+            var_pct = historical_var(portfolio_returns)
+            cvar_pct = historical_cvar(portfolio_returns)
+            var_95 = {"pct": var_pct, "amount": var_pct * total} if var_pct is not None else None
+            cvar_95 = {"pct": cvar_pct, "amount": cvar_pct * total} if cvar_pct is not None else None
+            if transactions is not None and as_of is not None:
+                annual_return = xirr(portfolio_cashflows(transactions, total, as_of))
+                annual_vol = annualized_volatility(portfolio_returns, len(portfolio_returns))
+                portfolio_value = (1 + portfolio_returns).cumprod()
+                max_dd = max_drawdown_details(portfolio_value)[0]
+                sharpe = sharpe_ratio(annual_return, annual_vol)
+                sortino = sortino_ratio(annual_return, portfolio_returns)
+                calmar = calmar_ratio(annual_return, max_dd)
 
     return {
         "position_count": len(symbols),
@@ -94,4 +107,6 @@ def build_health_overview(snapshots: list[dict], transactions: list[dict] | None
         "sharpe_ratio": sharpe,
         "sortino_ratio": sortino,
         "calmar_ratio": calmar,
+        "var_95": var_95,
+        "cvar_95": cvar_95,
     }

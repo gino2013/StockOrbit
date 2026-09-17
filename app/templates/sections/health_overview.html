@@ -38,6 +38,8 @@ async function loadHealthOverview() {
     <div class="stat"><div class="stat-title">Sharpe 比率</div><div class="stat-value text-lg ${ratioClass(data.sharpe_ratio)}">${fmtRatio(data.sharpe_ratio)}</div></div>
     <div class="stat"><div class="stat-title">Sortino 比率</div><div class="stat-value text-lg ${ratioClass(data.sortino_ratio)}">${fmtRatio(data.sortino_ratio)}</div></div>
     <div class="stat"><div class="stat-title">Calmar 比率</div><div class="stat-value text-lg ${ratioClass(data.calmar_ratio)}">${fmtRatio(data.calmar_ratio)}</div></div>
+    <div class="stat"><div class="stat-title">單日 VaR（95%）</div><div class="stat-value text-lg">${data.var_95 == null ? '-' : fmtPctOrDash(data.var_95.pct) + ' / $' + Math.round(data.var_95.amount).toLocaleString('en-US')}</div><div class="stat-desc">歷史模擬法，95% 信心下單日最多虧這麼多</div></div>
+    <div class="stat"><div class="stat-title">單日 CVaR（95%）</div><div class="stat-value text-lg">${data.cvar_95 == null ? '-' : fmtPctOrDash(data.cvar_95.pct) + ' / $' + Math.round(data.cvar_95.amount).toLocaleString('en-US')}</div><div class="stat-desc">最壞 5% 情況下的平均虧損幅度</div></div>
   `;
 }
 loadHealthOverview();
