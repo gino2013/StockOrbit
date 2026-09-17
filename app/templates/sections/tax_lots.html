@@ -1,0 +1,85 @@
+  <h2 id="section-tax-lots" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>批次比較（Tax Lot）
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        已實現損益固定用 FIFO（最舊批次先賣）配對，但賣出時如果能挑「特定批次」，同一筆賣出的已實現損益可能差很多。這裡假設「現在」用目前市價賣出指定股數，比較 FIFO vs HIFO（挑成本最高的批次先賣，實現損益最小）兩種挑法的差異。純試算，不是「應該用哪種賣法」的稅務建議，也不代表 Firstrade 實際支援指定批次賣出。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="tax-lot-symbol" placeholder="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="tax-lot-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">股數</label>
+          <input id="tax-lot-quantity" type="number" min="0.0001" step="any" placeholder="10" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="loadTaxLotComparison()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+      <div id="tax-lot-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="tax-lot-content" class="mt-3 hidden"></div>
+    </div>
+  </div>
+
+<script>
+attachTickerAutocomplete('tax-lot-symbol', 'tax-lot-symbol-suggestions');
+// --- 批次比較（Tax Lot） ---
+async function loadTaxLotComparison() {
+  const errorBox = document.getElementById('tax-lot-error');
+  const content = document.getElementById('tax-lot-content');
+  errorBox.classList.add('hidden');
+  content.classList.add('hidden');
+
+  const symbol = document.getElementById('tax-lot-symbol').value.trim();
+  const quantity = document.getElementById('tax-lot-quantity').value;
+  if (!symbol || !quantity) {
+    errorBox.textContent = '請填標的跟股數';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const res = await fetch(`/api/tax-lot-comparison?symbol=${encodeURIComponent(symbol)}&quantity=${encodeURIComponent(quantity)}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const fmtMoney = (v) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  const gainClass = (v) => v >= 0 ? 'text-success' : 'text-error';
+  const c = data.comparison;
+
+  let lotsHtml = '<table class="table table-sm"><thead><tr><th>買進日期</th><th class="text-right">股數</th><th class="text-right">成本</th></tr></thead><tbody>';
+  for (const lot of data.lots) {
+    lotsHtml += `<tr><td>${lot.buy_date}</td><td class="text-right">${lot.quantity}</td><td class="text-right">$${lot.price}</td></tr>`;
+  }
+  lotsHtml += '</tbody></table>';
+
+  content.classList.remove('hidden');
+  content.innerHTML = `
+    <p class="text-xs opacity-50 mb-2">目前市價 $${data.price.toLocaleString('en-US')}，目前持有的未賣批次（舊到新）：</p>
+    ${lotsHtml}
+    <div class="stats stats-vertical sm:stats-horizontal shadow w-full bg-base-200 mt-3">
+      <div class="stat">
+        <div class="stat-title">FIFO（最舊批次先賣）已實現損益</div>
+        <div class="stat-value text-lg ${gainClass(c.fifo.gain)}">${fmtMoney(c.fifo.gain)}</div>
+        <div class="stat-desc">成本 ${fmtMoney(c.fifo.cost_basis)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">HIFO（最高成本批次先賣）已實現損益</div>
+        <div class="stat-value text-lg ${gainClass(c.hifo.gain)}">${fmtMoney(c.hifo.gain)}</div>
+        <div class="stat-desc">成本 ${fmtMoney(c.hifo.cost_basis)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">兩種挑法差異</div>
+        <div class="stat-value text-lg">${fmtMoney(Math.abs(c.gain_difference))}</div>
+        <div class="stat-desc">HIFO 比 FIFO ${c.gain_difference <= 0 ? '少實現' : '多實現'}這麼多損益</div>
+      </div>
+    </div>
+    ${c.fifo.unmatched_quantity > 0 ? `<p class="text-xs text-warning mt-2">要賣的股數比目前持有的還多，只能試算 ${c.fifo.matched_quantity} 股。</p>` : ''}
+  `;
+}
+</script>

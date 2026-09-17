@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
+from app.domain.income.realized_gains import compute_realized_gains, open_lots_by_symbol, summarize_realized_gains
 
 
 def demo():
@@ -60,6 +60,34 @@ def demo():
     assert r3[0]["unmatched_quantity"] == 0
     assert abs(r3[0]["cost_basis"] - 10 * 120) < 1e-6
     assert abs(r3[0]["gain"] - (10 * 130 - 10 * 120)) < 1e-6
+
+    # --- open_lots_by_symbol (issue #295): whatever's left after the same
+    # FIFO sweep, oldest-first, buy date carried through. ---
+    # AAPL: sold 15 of the 20 bought (10@$100 + 10@$150) -> 5 left over
+    # from the second ($150) lot, since FIFO consumed the $100 lot fully.
+    open_lots = open_lots_by_symbol(transactions)
+    assert list(open_lots.keys()) == ["AAPL"]  # MSFT/NVDA not in this transaction set
+    assert len(open_lots["AAPL"]) == 1
+    assert open_lots["AAPL"][0] == {"buy_date": date(2025, 6, 1), "quantity": 5, "price": 150}
+
+    # MSFT: sold more than bought (short_sale_history above) -> fully
+    # consumed, nothing left open, symbol doesn't appear at all.
+    assert "MSFT" not in open_lots_by_symbol(short_sale_history)
+
+    # multiple untouched lots -> all come back, oldest first, each with its
+    # own buy date/quantity/price intact.
+    untouched = [
+        {"trans_type": "BOUGHT", "symbol": "VOO", "report_date": date(2024, 1, 1), "quantity": 10, "trade_price": 380},
+        {"trans_type": "BOUGHT", "symbol": "VOO", "report_date": date(2025, 1, 1), "quantity": 5, "trade_price": 420},
+    ]
+    voo_lots = open_lots_by_symbol(untouched)["VOO"]
+    assert voo_lots == [
+        {"buy_date": date(2024, 1, 1), "quantity": 10, "price": 380},
+        {"buy_date": date(2025, 1, 1), "quantity": 5, "price": 420},
+    ]
+
+    # no transactions at all -> empty dict, not a crash.
+    assert open_lots_by_symbol([]) == {}
 
 
 if __name__ == "__main__":
