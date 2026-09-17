@@ -2,6 +2,8 @@
 capital gains + dividend income for a year, converted to TWD, then estimate
 reporting-threshold / tax-saving figures. Pure orchestration."""
 
+from datetime import date
+
 from app.domain.income.overseas_income import (
     dividend_income_for_year,
     estimate_overseas_income,
@@ -23,9 +25,9 @@ def overseas_income_report(transactions: list[dict], year: int, rate: float | No
 
 
 def tax_loss_report(
-    snapshots: list[dict], transactions: list[dict], year: int, rate: float
+    snapshots: list[dict], transactions: list[dict], year: int, rate: float, as_of: date | None = None
 ) -> dict:
-    candidates = find_loss_candidates(snapshots)
+    candidates = find_loss_candidates(snapshots, transactions, as_of)
     income = _income_for_year(transactions, year, rate)
     savings = estimate_tax_savings(candidates, income["total_twd"], rate)
     return {"year": year, "candidates": candidates, "income": income, **savings}

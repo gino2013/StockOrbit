@@ -901,7 +901,7 @@ def tax_loss_harvesting(year: int | None = None):
     rate = _average_usdtwd_rate(year)
     if rate is None:
         return JSONResponse({"error": "無法取得今年的美元/台幣匯率資料"}, status_code=400)
-    return JSONResponse(tax_loss_report(snapshots, transactions, year, rate))
+    return JSONResponse(tax_loss_report(snapshots, transactions, year, rate, datetime.now().date()))
 
 
 @app.get("/api/trending")

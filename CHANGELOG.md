@@ -6,6 +6,7 @@
 
 ## 2026-09-17
 
+- 稅務效率分析補上 wash sale（洗售）偵測（issue #294）：`tax_loss_harvesting.py` 的 docstring 原本就明講這是已知範圍外的合規缺口——賣出虧損部位後前後 30 天內（61 天窗口）買回同一標的，該筆損失依美國稅法不能抵稅，之前完全沒擋。新增 `is_wash_sale()` 檢查賣出日前後 30 天內是否有同代號的 BUY 紀錄；`find_loss_candidates()` 新增可選的 `transactions`/`as_of` 參數，標記出「今天賣會構成 wash sale」的候選；`estimate_tax_savings()` 把這些候選從估計節稅金額排除（不會虛報一筆實際不能抵稅的損失）
 - 新增蒙地卡羅模擬（issue #293）：新檔 `app/domain/analytics/monte_carlo.py`，用組合歷史每日報酬 bootstrap 重抽（不假設常態分布）模擬大量條未來路徑，畫出 10%／50%／90% 分位數的扇形圖，跟「接下來預測」的單一路徑並存、互補。抽出共用的 `app/domain/analytics/portfolio_returns.py`（用目前權重重建組合歷史報酬序列），供這個模組使用；沒有動既有的 `health_dashboard.py`／`efficient_frontier.py`（它們各自已經有自己的下載/計算脈絡，重構風險大於好處）
 - 新增效率前緣（Markowitz mean-variance）圖表（issue #292）：新檔 `app/domain/analytics/efficient_frontier.py`，用 Dirichlet 分布隨機取樣長期持有／不做空／不槓桿的權重組合（`np.random.default_rng` 固定 seed，方便測試重現），畫散點圖並標出目前實際配置的位置。新增 `numpy` 到 `requirements.txt`（原本只是 pandas 的間接依賴，現在直接 import 所以明確宣告）
 - 持股健康度總覽加上歷史模擬法 VaR / CVaR（issue #290）：`risk.historical_var()`／`historical_cvar()` 用組合每日報酬的經驗分布（不假設常態分布）算 95% 信心水準下的單日最大可能虧損跟超過該門檻時的平均虧損，跟 Sharpe/Sortino/Calmar 共用同一條已經重建好的組合報酬序列，不需要 transactions/as_of 也能算（不像 Sharpe 等需要 XIRR 年化報酬）
