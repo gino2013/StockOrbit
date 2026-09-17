@@ -1,0 +1,86 @@
+  <h2 id="section-institutional-holders" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>機構持股／內部人交易
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <p class="text-xs opacity-60">
+          機構最近是加碼還減碼、公司內部人（高層）有沒有申報買賣，純資訊呈現，不做買賣建議。ETF 通常沒有這類資料；Render 連不到 Yahoo 即時 API 時會顯示「-」。
+        </p>
+        <div class="flex items-end gap-2 shrink-0">
+          <div class="relative">
+            <input id="institutional-symbol" placeholder="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+            <ul id="institutional-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+          </div>
+          <button type="button" onclick="loadInstitutionalHolders()" class="btn btn-neutral btn-sm">查詢</button>
+        </div>
+      </div>
+      <div id="institutional-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="institutional-content" class="mt-3 hidden"></div>
+    </div>
+  </div>
+
+<script>
+attachTickerAutocomplete('institutional-symbol', 'institutional-symbol-suggestions');
+// --- 機構持股／內部人交易 ---
+async function loadInstitutionalHolders() {
+  const errorBox = document.getElementById('institutional-error');
+  const content = document.getElementById('institutional-content');
+  errorBox.classList.add('hidden');
+  content.classList.add('hidden');
+
+  const symbol = document.getElementById('institutional-symbol').value.trim();
+  if (!symbol) {
+    errorBox.textContent = '請輸入股票代碼';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const res = await fetch(`/api/institutional-holders?symbol=${encodeURIComponent(symbol)}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  let html = `<div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 mb-3">
+    <div class="stat"><div class="stat-title">機構持股比例</div><div class="stat-value text-lg">${fmtPctOrDash(data.institutions_pct_held)}</div></div>
+    <div class="stat"><div class="stat-title">內部人持股比例</div><div class="stat-value text-lg">${fmtPctOrDash(data.insiders_pct_held)}</div></div>
+  </div>`;
+
+  if (data.institutional_holders.length) {
+    html += '<p class="text-xs opacity-50 mb-1">主要機構持股人</p><table class="table table-sm mb-4"><thead><tr><th>機構</th><th class="text-right">持股比例</th><th class="text-right">股數</th><th class="text-right">申報日</th></tr></thead><tbody>';
+    for (const h of data.institutional_holders) {
+      html += `<tr>
+        <td>${escapeHtml(h.holder || '-')}</td>
+        <td class="text-right">${fmtPctOrDash(h.pct_held)}</td>
+        <td class="text-right">${h.shares == null ? '-' : h.shares.toLocaleString('en-US')}</td>
+        <td class="text-right">${h.date_reported || '-'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<p class="text-sm opacity-60 mb-4">查無機構持股資料。</p>';
+  }
+
+  if (data.insider_transactions.length) {
+    html += '<p class="text-xs opacity-50 mb-1">最近內部人交易</p><table class="table table-sm"><thead><tr><th>內部人</th><th>職位</th><th>說明</th><th class="text-right">股數</th><th class="text-right">日期</th></tr></thead><tbody>';
+    for (const t of data.insider_transactions) {
+      html += `<tr>
+        <td>${escapeHtml(t.insider || '-')}</td>
+        <td>${escapeHtml(t.position || '-')}</td>
+        <td>${escapeHtml(t.text || '-')}</td>
+        <td class="text-right">${t.shares == null ? '-' : t.shares.toLocaleString('en-US')}</td>
+        <td class="text-right">${t.start_date || '-'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  } else {
+    html += '<p class="text-sm opacity-60">查無內部人交易資料。</p>';
+  }
+
+  content.classList.remove('hidden');
+  content.innerHTML = html;
+}
+</script>
