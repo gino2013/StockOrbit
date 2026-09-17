@@ -65,6 +65,33 @@ def sortino_ratio(annual_return: float | None, returns: pd.Series, risk_free_rat
     return (annual_return - risk_free_rate) / downside
 
 
+_MIN_SAMPLE_FOR_TAIL_STATS = 30  # fewer daily observations than this and a 95th-percentile read is noise, not signal
+
+
+def historical_var(returns: pd.Series, confidence: float = 0.95) -> float | None:
+    """Historical-simulation Value at Risk: the loss at the `confidence`
+    quantile of the *empirical* return distribution - no normal-distribution
+    assumption, so fat tails show up as a bigger number instead of being
+    averaged away. Returned as a positive fraction (e.g. 0.03 for a 3% VaR),
+    not the raw (negative) quantile."""
+    if len(returns) < _MIN_SAMPLE_FOR_TAIL_STATS:
+        return None
+    return float(-returns.quantile(1 - confidence))
+
+
+def historical_cvar(returns: pd.Series, confidence: float = 0.95) -> float | None:
+    """Conditional VaR (Expected Shortfall): the average loss *beyond* the
+    VaR cutoff - "how bad, on average, when it's already bad" rather than
+    just the cutoff itself. Always >= VaR in magnitude."""
+    if len(returns) < _MIN_SAMPLE_FOR_TAIL_STATS:
+        return None
+    threshold = returns.quantile(1 - confidence)
+    tail = returns[returns <= threshold]
+    if tail.empty:
+        return None
+    return float(-tail.mean())
+
+
 def calmar_ratio(annual_return: float | None, max_drawdown: float | None) -> float | None:
     """max_drawdown is the negative-fraction convention used throughout this
     module (see max_drawdown_details) - e.g. -0.35 for a 35% drawdown."""

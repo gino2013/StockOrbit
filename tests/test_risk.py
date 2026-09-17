@@ -15,6 +15,8 @@ from app.domain.analytics.risk import (
     calmar_ratio,
     downside_deviation,
     fetch_next_earnings_date,
+    historical_cvar,
+    historical_var,
     sharpe_ratio,
     sortino_ratio,
 )
@@ -77,6 +79,30 @@ def demo():
     assert abs(calmar_ratio(0.12, -0.30) - 0.12 / 0.30) < 1e-9
     assert calmar_ratio(0.12, 0.0) is None  # no drawdown at all -> divide by zero avoided
     assert calmar_ratio(None, -0.30) is None
+
+    # --- VaR / CVaR (issue #290) ---
+    # 100 days: 90 calm/flat days plus a fat left tail of 10 "crash" days at
+    # two severities (-8% and -15%) - the worst 10% of days, so the 95%
+    # confidence (5th percentile) cutoff lands inside that cluster instead
+    # of picking up the calm days. CVaR (average of everything past the
+    # cutoff) should land on the *worse* of the two crash severities, since
+    # only the -15% days are extreme enough to clear the VaR threshold.
+    crash_returns = pd.Series([0.001] * 90 + [-0.15] * 5 + [-0.08] * 5)
+    var95 = historical_var(crash_returns, confidence=0.95)
+    cvar95 = historical_cvar(crash_returns, confidence=0.95)
+    assert var95 is not None and 0.05 < var95 < 0.15
+    assert cvar95 is not None
+    assert cvar95 >= var95  # CVaR (tail average) is always at least as bad as VaR (the cutoff)
+    assert abs(cvar95 - 0.15) < 1e-9  # only the -15% days are past the VaR cutoff
+
+    # too few observations -> no reading rather than a noisy one.
+    assert historical_var(pd.Series([0.01, -0.01, 0.02])) is None
+    assert historical_cvar(pd.Series([0.01, -0.01, 0.02])) is None
+
+    # an all-positive series -> VaR/CVaR still compute (a "loss" quantile
+    # that happens to be a small gain, i.e. a negative VaR), not a crash.
+    all_gains = pd.Series([0.01] * 40)
+    assert historical_var(all_gains) is not None
 
 
 if __name__ == "__main__":

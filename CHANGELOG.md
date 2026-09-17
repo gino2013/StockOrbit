@@ -6,6 +6,7 @@
 
 ## 2026-09-17
 
+- 持股健康度總覽加上歷史模擬法 VaR / CVaR（issue #290）：`risk.historical_var()`／`historical_cvar()` 用組合每日報酬的經驗分布（不假設常態分布）算 95% 信心水準下的單日最大可能虧損跟超過該門檻時的平均虧損，跟 Sharpe/Sortino/Calmar 共用同一條已經重建好的組合報酬序列，不需要 transactions/as_of 也能算（不像 Sharpe 等需要 XIRR 年化報酬）
 - 持股健康度總覽加上 Sharpe / Sortino / Calmar 風險調整後報酬指標（issue #289）：年化報酬用 XIRR，年化波動度/最大回撤沿用 `risk.py`／`backtest.py` 既有邏輯，無風險利率先用固定假設值 4%（`risk.RISK_FREE_RATE`）。組合的每日報酬序列用「目前權重 x 過去 1 年個股報酬」重建，跟 holdings-history/backtest 一樣的「用目前部位回推過去」近似法，不用額外的網路請求
 
 ## 2026-09-14

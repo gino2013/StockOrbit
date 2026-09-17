@@ -89,6 +89,26 @@ def demo():
         too_few = hd.build_health_overview(snapshots, transactions, as_of)
     assert too_few["sharpe_ratio"] is None
 
+    # --- VaR / CVaR (issue #290): computed even without transactions/as_of
+    # (doesn't need an annual-return figure), and expressed in both % and $.
+    with patch.object(hd.market_data, "download_close", return_value=prices), \
+         patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
+        no_txns_var = hd.build_health_overview(snapshots)
+    # only 60 days of history -> below historical_var's 30-day minimum is
+    # not the issue here (60 >= 30), so this should come back populated.
+    assert no_txns_var["var_95"] is not None
+    assert no_txns_var["cvar_95"] is not None
+    assert no_txns_var["var_95"]["pct"] is not None
+    assert abs(no_txns_var["var_95"]["amount"] - no_txns_var["var_95"]["pct"] * 10000) < 1e-6
+    assert no_txns_var["cvar_95"]["pct"] >= no_txns_var["var_95"]["pct"]
+
+    # too few price points -> None, not a noisy/misleading number.
+    with patch.object(hd.market_data, "download_close", return_value=tiny_prices), \
+         patch.object(hd, "beta_vs_benchmark", side_effect=[1.2, 0.6]):
+        too_few_var = hd.build_health_overview(snapshots)
+    assert too_few_var["var_95"] is None
+    assert too_few_var["cvar_95"] is None
+
 
 if __name__ == "__main__":
     demo()
