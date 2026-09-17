@@ -118,6 +118,30 @@ async function loadFire() {
     </div>`;
   }
 
+  let savingsHtml = '';
+  if (f.savings_rate && f.savings_rate.savings_rate != null) {
+    const s = f.savings_rate;
+    const rate = (s.savings_rate * 100).toFixed(1);
+    const etaLine = s.projected_achievement_date
+      ? `<div class="stat"><div class="stat-title">以此儲蓄率＋預期實質報酬率 ${fmtPct(s.expected_real_return)} 推估達成日期</div><div class="stat-value text-lg">${s.projected_achievement_date}</div></div>`
+      : `<div class="stat"><div class="stat-title">推估達成年數</div><div class="stat-value text-lg opacity-50">填上方「預期實質報酬率」即可估算</div></div>`;
+    savingsHtml = `
+    <div class="mt-4 pt-3 border-t border-base-300">
+      <div class="text-sm font-medium mb-2">儲蓄率</div>
+      <div class="stats stats-vertical sm:stats-horizontal shadow w-full bg-base-200">
+        <div class="stat">
+          <div class="stat-title">近 12 個月淨入金</div>
+          <div class="stat-value text-lg">$${s.ttm_net_savings.toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-title">儲蓄率（儲蓄 ÷ (儲蓄+年支出)）</div>
+          <div class="stat-value text-lg">${rate}%</div>
+        </div>${etaLine}
+      </div>
+      <p class="text-xs opacity-50 mt-1">「淨入金」不一定等於真正的儲蓄（可能含一次性大額入金/提領），僅供參考。</p>
+    </div>`;
+  }
+
   content.innerHTML = `
     <div class="flex justify-between text-sm mb-1">
       <span>FIRE 數字 $${f.fire_number.toLocaleString('en-US', { maximumFractionDigits: 0 })}（年支出 ÷ ${(f.swr * 100).toFixed(1)}%）</span>
@@ -138,7 +162,7 @@ async function loadFire() {
         <div class="stat-title">目前實際年化報酬率 (XIRR)</div>
         <div class="stat-value text-lg">${f.current_annual_return == null ? '-' : fmtPct(f.current_annual_return)}</div>
       </div>${etaStat}
-    </div>${coastHtml}${dividendHtml}`;
+    </div>${coastHtml}${dividendHtml}${savingsHtml}`;
 }
 
 document.getElementById('fire-form').addEventListener('submit', async (e) => {

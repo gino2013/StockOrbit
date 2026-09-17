@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-14
+
+- 儲蓄率 → 財務自由時間估計（issue #216）：FIRE 進度卡片新增「儲蓄率」——近 12 個月淨入金（`transactions` 裡 DEPOSIT 扣掉 WITHDRAWAL）算出的儲蓄率 = 儲蓄 ÷（儲蓄＋年支出）。新增 `xirr.trailing_twelve_month_net_savings()`（跟 `estimate_annual_contribution()` 的差別：這是近 12 個月的滾動窗口，不是全歷史平均，才會反映最近的收支變化），跟 `goals.fire.build_savings_rate_progress()`（複用既有 Coast FIRE 的「預期實質報酬率」輸入，套進 `projected_achievement_date()` 估算年數；沒填這個報酬率假設就只顯示比例，不生出沒根據的年數）。淨入金為負（近期淨提領）時儲蓄率顯示 0 而非負值
+
 ## 2026-09-09
 
 - `53b1382` 儀表板加上主題切換下拉選單，支援 daisyUI 全部 35 種主題（issue #286）：深色模式 icon 旁邊加調色盤 icon，點下去列出 daisyUI 5 內建的全部主題（不只 light/dark），選了存進 localStorage、跟原本的深色切換共用同一個 key。原本二選一的太陽/月亮圖示邏輯改成查一個 `DARK_THEMES` 名單，選其他深色系主題（synthwave、dracula 等）時圖示還是正確

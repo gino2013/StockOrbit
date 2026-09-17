@@ -4,7 +4,12 @@ application/goals.py."""
 
 from datetime import date
 
-from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
+from app.domain.analytics.xirr import (
+    estimate_annual_contribution,
+    portfolio_cashflows,
+    trailing_twelve_month_net_savings,
+    xirr,
+)
 from app.domain.goals.fire import build_fire_progress
 from app.domain.income.dividends import trailing_twelve_month_dividends
 
@@ -22,4 +27,5 @@ def fire_progress(
         retirement_date=retirement_date, expected_real_return=expected_real_return,
         ttm_dividends=ttm_dividends,
         annual_contribution=estimate_annual_contribution(transactions, as_of),
+        ttm_net_savings=trailing_twelve_month_net_savings(transactions, as_of),
     )

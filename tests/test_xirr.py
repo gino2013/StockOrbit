@@ -4,7 +4,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
+from app.domain.analytics.xirr import (
+    estimate_annual_contribution,
+    portfolio_cashflows,
+    trailing_twelve_month_net_savings,
+    xirr,
+)
 
 
 def demo():
@@ -78,6 +83,25 @@ def demo():
         {"trans_type": "WITHDRAWAL", "report_date": date(2025, 1, 1), "amount": 5000},
     ]
     assert estimate_annual_contribution(net_out, as_of) == 0.0
+
+    # --- trailing_twelve_month_net_savings (issue #216): unlike
+    # estimate_annual_contribution, this is a rolling window, not a
+    # lifetime average, and a deposit just outside the window doesn't count.
+    ttm_txns = [
+        {"trans_type": "DEPOSIT", "report_date": date(2023, 1, 1), "amount": 999999},  # outside window
+        {"trans_type": "DEPOSIT", "report_date": date(2025, 3, 1), "amount": 6000},
+        {"trans_type": "WITHDRAWAL", "report_date": date(2025, 9, 1), "amount": 1000},
+        {"trans_type": "BOUGHT", "report_date": date(2025, 9, 2), "amount": -1000},  # not external
+    ]
+    assert trailing_twelve_month_net_savings(ttm_txns, as_of) == 5000
+
+    # net withdrawals in the window -> negative, not floored (the FIRE
+    # savings-rate builder is the one that floors it at 0, not this helper).
+    assert trailing_twelve_month_net_savings(
+        [{"trans_type": "WITHDRAWAL", "report_date": date(2025, 6, 1), "amount": 500}], as_of
+    ) == -500
+
+    assert trailing_twelve_month_net_savings([], as_of) == 0.0
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from app.domain.goals.fire import (
     build_coast_fire,
     build_dividend_coverage,
     build_fire_progress,
+    build_savings_rate_progress,
     coast_fire_number,
     fire_number,
 )
@@ -124,6 +125,37 @@ def demo():
     d_far = date.fromisoformat(far_off["projected_achievement_date"])
     d_near = date.fromisoformat(with_savings["projected_achievement_date"])
     assert d_near < d_far
+
+    # --- savings rate (issue #216) ---
+    # $300k saved against $700k spent -> saved 30% of the $1M "income".
+    rate = build_savings_rate_progress(
+        ttm_net_savings=300_000, annual_expenses=700_000, current_value=400_000, target=1_000_000,
+        expected_real_return=0.05, as_of=as_of,
+    )
+    assert abs(rate["savings_rate"] - 0.3) < 1e-9
+    assert rate["projected_achievement_date"] is not None  # return assumption given -> can project
+
+    # no return assumption -> ratio still shown, no fabricated ETA.
+    no_assumption = build_savings_rate_progress(300_000, 700_000, 400_000, 1_000_000, None, as_of)
+    assert abs(no_assumption["savings_rate"] - 0.3) < 1e-9
+    assert no_assumption["projected_achievement_date"] is None
+
+    # net withdrawals over the trailing 12 months -> savings rate floors at
+    # 0, not negative (a negative "rate" isn't meaningful in this framing).
+    net_withdrawn = build_savings_rate_progress(-50_000, 700_000, 400_000, 1_000_000, 0.05, as_of)
+    assert net_withdrawn["savings_rate"] == 0.0
+
+    # no expenses and no savings -> undefined ratio, not a ZeroDivisionError.
+    assert build_savings_rate_progress(0, 0, 400_000, 1_000_000, 0.05, as_of)["savings_rate"] is None
+
+    # build_fire_progress wires it through end to end; omitting
+    # ttm_net_savings leaves it None like the other optional add-ons.
+    assert result["savings_rate"] is None
+    with_savings_rate = build_fire_progress(
+        current_value=400_000, annual_expenses=700_000, swr=0.04, current_annual_return=0.08, as_of=as_of,
+        ttm_net_savings=300_000,
+    )
+    assert abs(with_savings_rate["savings_rate"]["savings_rate"] - 0.3) < 1e-9
 
 
 if __name__ == "__main__":
