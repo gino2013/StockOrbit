@@ -829,10 +829,11 @@ def fundamentals(debug: bool = False):
 def health_overview():
     with Repositories() as repo:
         snapshots = repo.latest_snapshots()
+        transactions = repo.all_transactions()
     if not snapshots:
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     try:
-        result = build_health_overview(snapshots)
+        result = build_health_overview(snapshots, transactions, datetime.now().date())
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)

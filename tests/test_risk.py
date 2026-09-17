@@ -12,7 +12,11 @@ from app.domain.analytics.risk import (
     TRADING_DAYS_PER_YEAR,
     annualized_volatility,
     beta_vs_benchmark,
+    calmar_ratio,
+    downside_deviation,
     fetch_next_earnings_date,
+    sharpe_ratio,
+    sortino_ratio,
 )
 
 
@@ -47,6 +51,32 @@ def demo():
     with patch.object(risk.market_data, "earnings_calendar", return_value={"Earnings Date": [past]}):
         d, ok = fetch_next_earnings_date("AAA")
     assert d is None and ok is True
+
+    # --- Sharpe / Sortino / Calmar (issue #289) ---
+    # Sharpe: (annual_return - rf) / annual_vol, straight from the formula.
+    assert abs(sharpe_ratio(0.12, 0.20, risk_free_rate=0.04) - (0.12 - 0.04) / 0.20) < 1e-9
+    assert sharpe_ratio(None, 0.20) is None  # no return figure -> no ratio
+    assert sharpe_ratio(0.12, None) is None  # no vol figure -> no ratio
+    assert sharpe_ratio(0.12, 0.0) is None  # zero vol would divide by zero
+
+    # downside_deviation only counts days below the risk-free daily rate -
+    # an all-positive-and-above-target series has no downside days at all.
+    calm_mixed = pd.Series([0.001] * 300 + [-0.02, -0.03, -0.01, -0.025])
+    dd = downside_deviation(calm_mixed, risk_free_rate=0.04)
+    assert dd is not None and dd > 0
+    all_up = pd.Series([0.01] * 50)
+    assert downside_deviation(all_up, risk_free_rate=0.0) is None
+
+    sortino = sortino_ratio(0.12, calm_mixed, risk_free_rate=0.04)
+    assert sortino is not None
+    assert sortino_ratio(None, calm_mixed) is None
+    assert sortino_ratio(0.12, all_up, risk_free_rate=0.0) is None  # no downside days -> no ratio
+
+    # Calmar: annual_return / |max_drawdown| - drawdown is the module's
+    # existing negative-fraction convention (see max_drawdown_details).
+    assert abs(calmar_ratio(0.12, -0.30) - 0.12 / 0.30) < 1e-9
+    assert calmar_ratio(0.12, 0.0) is None  # no drawdown at all -> divide by zero avoided
+    assert calmar_ratio(None, -0.30) is None
 
 
 if __name__ == "__main__":

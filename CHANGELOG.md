@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-17
+
+- 持股健康度總覽加上 Sharpe / Sortino / Calmar 風險調整後報酬指標（issue #289）：年化報酬用 XIRR，年化波動度/最大回撤沿用 `risk.py`／`backtest.py` 既有邏輯，無風險利率先用固定假設值 4%（`risk.RISK_FREE_RATE`）。組合的每日報酬序列用「目前權重 x 過去 1 年個股報酬」重建，跟 holdings-history/backtest 一樣的「用目前部位回推過去」近似法，不用額外的網路請求
+
 ## 2026-09-14
 
 - 儲蓄率 → 財務自由時間估計（issue #216）：FIRE 進度卡片新增「儲蓄率」——近 12 個月淨入金（`transactions` 裡 DEPOSIT 扣掉 WITHDRAWAL）算出的儲蓄率 = 儲蓄 ÷（儲蓄＋年支出）。新增 `xirr.trailing_twelve_month_net_savings()`（跟 `estimate_annual_contribution()` 的差別：這是近 12 個月的滾動窗口，不是全歷史平均，才會反映最近的收支變化），跟 `goals.fire.build_savings_rate_progress()`（複用既有 Coast FIRE 的「預期實質報酬率」輸入，套進 `projected_achievement_date()` 估算年數；沒填這個報酬率假設就只顯示比例，不生出沒根據的年數）。淨入金為負（近期淨提領）時儲蓄率顯示 0 而非負值

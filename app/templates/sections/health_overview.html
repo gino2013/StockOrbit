@@ -28,11 +28,16 @@ async function loadHealthOverview() {
   const betaClass2 = v => v == null ? '' : v < 0.8 ? 'text-success' : v > 1.5 ? 'text-error' : 'text-warning';
   const concentrationClass = v => v == null ? '' : v < 0.2 ? 'text-success' : v > 0.4 ? 'text-error' : 'text-warning';
   const correlationClass2 = v => v == null ? '' : v < 0.3 ? 'text-success' : v > 0.7 ? 'text-error' : 'text-warning';
+  const ratioClass = v => v == null ? '' : v > 0 ? 'text-success' : 'text-error';
+  const fmtRatio = v => v == null ? '-' : v.toFixed(2);
   content.innerHTML = `
     <div class="stat"><div class="stat-title">持股數量</div><div class="stat-value text-lg">${data.position_count}</div></div>
     <div class="stat"><div class="stat-title">最大單一持股佔比</div><div class="stat-value text-lg ${concentrationClass(data.max_concentration)}">${fmtPctOrDash(data.max_concentration)}</div></div>
     <div class="stat"><div class="stat-title">平均相關係數</div><div class="stat-value text-lg ${correlationClass2(data.avg_correlation)}">${data.avg_correlation != null ? data.avg_correlation.toFixed(2) : '-'}</div></div>
     <div class="stat"><div class="stat-title">投組 Beta</div><div class="stat-value text-lg ${betaClass2(data.portfolio_beta)}">${data.portfolio_beta != null ? data.portfolio_beta.toFixed(2) : '-'}</div></div>
+    <div class="stat"><div class="stat-title">Sharpe 比率</div><div class="stat-value text-lg ${ratioClass(data.sharpe_ratio)}">${fmtRatio(data.sharpe_ratio)}</div></div>
+    <div class="stat"><div class="stat-title">Sortino 比率</div><div class="stat-value text-lg ${ratioClass(data.sortino_ratio)}">${fmtRatio(data.sortino_ratio)}</div></div>
+    <div class="stat"><div class="stat-title">Calmar 比率</div><div class="stat-value text-lg ${ratioClass(data.calmar_ratio)}">${fmtRatio(data.calmar_ratio)}</div></div>
   `;
 }
 loadHealthOverview();

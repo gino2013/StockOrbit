@@ -12,15 +12,19 @@ network round-tripping was the actual reason this endpoint felt slow.
 """
 
 from collections import defaultdict
+from datetime import date
 
+import pandas as pd
 from app.infrastructure import market_data
 
-from app.domain.analytics.risk import beta_vs_benchmark
+from app.domain.analytics.backtest import max_drawdown_details
+from app.domain.analytics.risk import annualized_volatility, beta_vs_benchmark, calmar_ratio, sharpe_ratio, sortino_ratio
+from app.domain.analytics.xirr import portfolio_cashflows, xirr
 
 _BENCHMARK = "SPY"
 
 
-def build_health_overview(snapshots: list[dict]) -> dict:
+def build_health_overview(snapshots: list[dict], transactions: list[dict] | None = None, as_of: date | None = None) -> dict:
     value_by_symbol: dict[str, float] = defaultdict(float)
     for s in snapshots:
         value_by_symbol[s["symbol"]] += s["market_value"]
@@ -65,9 +69,29 @@ def build_health_overview(snapshots: list[dict]) -> dict:
             measurable_base = total - unmeasurable_value
             portfolio_beta = weighted / measurable_base if measurable_base else None
 
+    sharpe = sortino = calmar = None
+    if symbols and total and transactions is not None and as_of is not None:
+        # Reuse *today's* weights applied backward over the 1y price
+        # history already downloaded above - same "current shares, past
+        # prices" approximation the rest of the app uses (holdings-history,
+        # backtest) - rather than a second network round-trip.
+        weights = {s: value_by_symbol[s] / total for s in symbols}
+        portfolio_returns = (returns[symbols] * pd.Series(weights)).sum(axis=1).dropna()
+        annual_return = xirr(portfolio_cashflows(transactions, total, as_of))
+        if len(portfolio_returns) >= 2:
+            annual_vol = annualized_volatility(portfolio_returns, len(portfolio_returns))
+            portfolio_value = (1 + portfolio_returns).cumprod()
+            max_dd = max_drawdown_details(portfolio_value)[0]
+            sharpe = sharpe_ratio(annual_return, annual_vol)
+            sortino = sortino_ratio(annual_return, portfolio_returns)
+            calmar = calmar_ratio(annual_return, max_dd)
+
     return {
         "position_count": len(symbols),
         "max_concentration": max_concentration,
         "avg_correlation": avg_correlation,
         "portfolio_beta": portfolio_beta,
+        "sharpe_ratio": sharpe,
+        "sortino_ratio": sortino,
+        "calmar_ratio": calmar,
     }
