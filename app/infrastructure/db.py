@@ -206,6 +206,26 @@ class TransactionNote(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PriceAlert(Base):
+    """A target price + direction to watch for a symbol (issue #18).
+    `triggered`/`triggered_at` are set once by the scheduled check
+    (scripts/check_price_alerts.py) the first time the price crosses the
+    threshold, so the same crossing never emails twice - a triggered alert
+    just sits there until the user deletes it (no auto-reset/re-arm, since
+    "did it cross again" needs a policy decision this issue doesn't make)."""
+
+    __tablename__ = "price_alerts"
+
+    id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    user_id = _user_id_col()
+    symbol = Column(String, nullable=False, index=True)
+    target_price = Column(Float, nullable=False)
+    direction = Column(String, nullable=False)  # "above" | "below"
+    triggered = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    triggered_at = Column(DateTime)
+
+
 class InvestmentGoal(Base):
     """One long-term target (amount + date) per user to track progress
     against. `user_id` is the primary key directly - one goal at a time per
@@ -317,7 +337,9 @@ def _infer_untracked_revision() -> str | None:
         return "0008_fundamentals_quote"
     if "priceToBook" not in fundamentals_cols:
         return "0009_dividend_fallback"
-    return "0010_price_to_book"  # structure already matches head
+    if not inspector.has_table("price_alerts"):
+        return "0010_price_to_book"
+    return "0011_price_alerts"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
