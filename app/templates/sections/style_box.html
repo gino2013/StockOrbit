@@ -17,15 +17,27 @@
 <script>
 // --- 持股風格箱 ---
 // 0 (白，沒配置) -> 最重的格子 (深紫)，跟 correlation.html 同一套「混色」手法
+function styleBoxMixedRgb(weight, maxWeight) {
+  const f = maxWeight ? Math.max(0, Math.min(1, weight / maxWeight)) : 0;
+  const mix = (from, to, t) => from + (to - from) * t;
+  const end = [124, 58, 237]; // violet-600
+  return [mix(255, end[0], f), mix(255, end[1], f), mix(255, end[2], f)];
+}
 function styleBoxColor(weight, maxWeight) {
   if (!maxWeight) return 'transparent';
-  const f = Math.max(0, Math.min(1, weight / maxWeight));
-  const mix = (from, to, t) => Math.round(from + (to - from) * t);
-  const end = [124, 58, 237]; // violet-600
-  return `rgb(${mix(255, end[0], f)}, ${mix(255, end[1], f)}, ${mix(255, end[2], f)})`;
+  const [r, g, b] = styleBoxMixedRgb(weight, maxWeight);
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
 }
+// The cell background always starts near-white at weight 0 (fixed gradient,
+// not theme-dependent), so text color can't just be "inherit" - the
+// current theme's default text is light in dark mode, which disappears on
+// that near-white cell. Pick black/white from the actual mixed background's
+// luminance instead of guessing a fixed weight threshold.
 function styleBoxTextColor(weight, maxWeight) {
-  return maxWeight && weight / maxWeight > 0.5 ? '#fff' : 'inherit';
+  if (!maxWeight) return 'inherit';
+  const [r, g, b] = styleBoxMixedRgb(weight, maxWeight);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? '#1e293b' : '#fff';
 }
 
 async function loadStyleBox() {

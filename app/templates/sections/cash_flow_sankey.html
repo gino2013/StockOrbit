@@ -42,6 +42,10 @@ async function loadCashFlowSankey() {
         colorFrom: () => '#4f46e5',
         colorTo: () => '#10b981',
         colorMode: 'gradient',
+        // chartjs-chart-sankey defaults its node-label color to black,
+        // ignoring Chart.defaults.color (_shared.html) - explicit per
+        // theme, or the labels are unreadable on the dark card background.
+        color: isDark ? '#e2e8f0' : '#1e293b',
       }],
     },
     options: {
