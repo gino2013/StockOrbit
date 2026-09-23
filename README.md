@@ -317,6 +317,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 - **台幣換算**：總市值、未實現損益都有台幣版，用即時 USD/TWD 參考匯率換算
 - **代號自動完成**：所有需要輸入股票代號的欄位都有自動完成建議
 - **儀表板**：單頁網頁介面，含深色模式，資料存在本機（開發）或 Postgres（正式環境）；頁首調色盤圖示可切換 daisyUI 全部 35 種主題（不只 light/dark），選擇存進瀏覽器 localStorage；側邊選單可以收合到最小，騰出畫面空間（記憶在瀏覽器 localStorage，重整後維持上次的收合狀態）；頁首（logo/匯出/使用者資訊）常駐置頂，往下捲動時也看得到
+- **每日摘要 Email**：GitHub Actions 排程（每天台北時間早上 7 點），內容跟「進階建議」卡片同一套邏輯——配置偏離目標提醒、近期大漲大跌、即將公布財報，寄到你註冊的信箱。當天沒有值得提醒的事就不寄信，不會每天洗版一封「一切正常」。需要在 repo 設定 `SMTP_*` secrets 才會真的寄出，見下方環境變數
 
 ## 技術棧
 
@@ -325,6 +326,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 - **市場資料**：[yfinance](https://github.com/ranaroussi/yfinance)
 - **持股資料來源**：[firstrade-api](https://github.com/MaxxRK/firstrade-api)（非官方，reverse-engineered）
 - **基本面資料快取**：Render 的對外 IP 會被 Yahoo Finance 的 quoteSummary API 擋掉（401 Invalid Crumb），改用 GitHub Actions 排程 job（`.github/workflows/refresh-fundamentals-cache.yml`，每 6 小時跑一次，不受此限制）把基本面/財報日資料寫進 `fundamentals_cache` 資料表，正式站即時抓取失敗時自動退回讀這份快取。個股資訊查詢查到一個從沒快取過的代號時，`app/infrastructure/github_actions.py` 會用 `GH_ACTIONS_TOKEN`（fine-grained PAT，只給這個 repo 的 Actions:write）立刻觸發這個 job 跑一次，不用等排程
+- **每日摘要排程**：另一個 GitHub Actions job（`.github/workflows/daily-summary.yml`，每天台北時間早上 7 點）幫每個已驗證信箱的使用者組一封摘要信寄出去，重用既有的 `mailer.py`（跟信箱驗證信、重設密碼信同一套 stdlib smtplib 寄信邏輯），不加新的通知管道依賴（LINE Notify／Telegram 都需要另外申請 token，Email 直接沿用站台本來就要接的 SMTP）
 
 ## 專案結構
 
@@ -381,6 +383,8 @@ app/
     goals/
       goal_tracking.py           # 目標達成進度追蹤
       fire.py                    # FIRE 進度（4% 法則）
+    notifications/
+      daily_digest.py            # 每日摘要 Email 內文組字（純函式，配置提醒/大漲大跌/近期財報）
   infrastructure/
     db.py                        # SQLAlchemy models
     repositories.py              # Repositories：所有 DB 讀寫的唯一入口（context manager，一個 session）
@@ -395,10 +399,11 @@ app/
     mailer.py                    # 寄信箱驗證信／重設密碼信（stdlib smtplib）
   templates/
     dashboard.html               # 首頁外殼，依序 include sections/ 底下的區塊
-    sections/                    # 27 個功能區塊 partial（HTML + 對應 JS），_shared.html 放跨區塊共用工具
+    sections/                    # 38 個功能區塊 partial（HTML + 對應 JS），_shared.html 放跨區塊共用工具
     login.html / register.html / forgot.html / reset.html / settings.html / terms.html / privacy.html
 scripts/
   refresh_fundamentals_cache.py  # 排程更新基本面快取（GitHub Actions 執行）
+  send_daily_summary.py          # 排程寄每日摘要 Email（GitHub Actions 執行）
   seed_demo_data.py              # 產生截圖用的假資料（拋棄式 DB）
 tests/                           # 純函式的 assert-based 自我檢查（無需啟動伺服器）
 render.yaml                      # Render 部署設定
@@ -437,7 +442,7 @@ cp .env.example .env   # 填入下面的環境變數
 | `FT_USERNAME` / `FT_PASSWORD` | 站台擁有者的 Firstrade 登入帳密 |
 | `FT_MFA_SECRET` | 2FA 的 TOTP 密鑰（**不是**簡訊/email 收到的驗證碼，也不是備用代碼）。在 Firstrade 網站設定「驗證應用程式」2FA 時，QR code 旁邊「無法掃描/手動輸入」連結會顯示這組字串。留空的話，帳號若開了 2FA，自動抓取會直接失敗 |
 | `FT_CREDENTIAL_KEY` | Fernet 金鑰，用來加密其他使用者存進來的 Firstrade 憑證（`python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"`）。不設的話「連結 Firstrade」功能停用。**跟 `APP_SECRET_KEY` 分開，只放環境變數** |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS）。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結）。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER`。Gmail：`SMTP_HOST=smtp.gmail.com`、`SMTP_PORT=587`、`SMTP_USER` 是 Gmail 位址、`SMTP_PASSWORD` 用 [應用程式密碼](https://myaccount.google.com/apppasswords)（需先開兩步驟驗證），不是帳號密碼 |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM` | 寄信箱驗證信與重設密碼信用（stdlib `smtplib`，走 STARTTLS），也是「每日摘要 Email」（見下方技術棧）唯一依賴的寄信管道。`SMTP_HOST` 不設的話，寄信會改成把內容寫進 log（本機開發／還沒接好寄信服務時不會卡住註冊，擁有者可以直接從 log 看驗證連結），每日摘要 job 也會直接跳過不寄。`SMTP_PORT` 預設 587，`SMTP_FROM` 預設等於 `SMTP_USER`。Gmail：`SMTP_HOST=smtp.gmail.com`、`SMTP_PORT=587`、`SMTP_USER` 是 Gmail 位址、`SMTP_PASSWORD` 用 [應用程式密碼](https://myaccount.google.com/apppasswords)（需先開兩步驟驗證），不是帳號密碼。**這五個環境變數也要另外設成這個 repo 的 [Actions secrets](https://github.com/gino2013/StockOrbit/settings/secrets/actions)**（`Settings → Secrets and variables → Actions`），才會讓 `daily-summary.yml` 排程真的寄出信——Render 上的環境變數跟 GitHub Actions 的 secrets 是兩個獨立的地方，要各自設定一次 |
 | `REQUIRE_EMAIL_VERIFICATION` | 預設 `true`：Firstrade 連結表單跟 CSV 匯入都要先驗證信箱。沒有要接 SMTP 的話設成 `false` 拿掉這道 gate，任何註冊的人直接能用——代價是少了開放註冊的濫用防線（見下方安全性段落） |
 | `GH_ACTIONS_TOKEN` | 細粒度 GitHub PAT，只給這個 repo 的 `Actions: write` 權限。個股資訊查詢第一次查一個沒人持有過的代號時，會用它立刻觸發一次 `refresh-fundamentals-cache.yml`，不用等排程（見下方技術棧）。不設的話一樣能用，只是要等排程跑到才會有真資料 |
 | `DATABASE_URL` | 資料庫連線字串，本機預設 `sqlite:///./stockorbit.db`，正式環境填 Postgres 連線字串 |
