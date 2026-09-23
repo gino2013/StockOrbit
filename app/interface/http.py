@@ -54,6 +54,7 @@ from app.domain.analytics.holdings_history import (
 )
 from app.domain.analytics.market_moves import price_swings, recent_news
 from app.domain.analytics.performance_report import build_performance_report
+from app.domain.analytics.attribution import compute_attribution
 from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.income.cash_flow_sankey import build_cash_flow_sankey
 from app.domain.analytics.risk import compute_risk_metrics
@@ -1382,6 +1383,23 @@ def performance_report(
         {**t, "report_date": t["report_date"].isoformat(), "note": notes_by_id.get(t["id"], "")}
         for t in result["transactions"]
     ]
+    return JSONResponse(result)
+
+
+@app.post("/api/attribution")
+def attribution(start: str = Form(...), end: str = Form(...), account: str | None = Form(None)):
+    with Repositories() as repo:
+        account = repo.resolve_account(account, repo.account_numbers())
+        snapshots = repo.latest_snapshots(account)
+        targets = repo.targets()
+    if not snapshots:
+        return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+    if not targets:
+        return JSONResponse({"error": "還沒有設定目標配置，請先到「目標配置」新增"}, status_code=400)
+    try:
+        result = compute_attribution(snapshots, targets, start, end)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
 
 
