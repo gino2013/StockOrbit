@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-23（bugfix）
+
+- 修正夜間模式下兩個圖表的文字看不清楚：持股風格箱九宮格的文字色固定用 `weight/maxWeight > 0.5` 猜門檻、其餘一律 `inherit`——但格子背景是固定的白→紫漸層（跟目前是深色或淺色主題無關），淺色格子在夜間模式套用淺色系「inherit」文字就整個看不見。改成直接算混色後背景的實際亮度（luminance）來選黑/白字，不用猜的。資金流 Sankey 圖同一批問題：`chartjs-chart-sankey` 的節點標籤預設黑色文字，沒有吃到 `_shared.html` 裡全域設的 `Chart.defaults.color`，一樣在深色卡片背景上看不見，補上明確的 `color` dataset 選項
+
 ## 2026-09-23
 
 - 新增每日摘要 Email（issue #17）：管道選 Email，因為站台已經接了 `mailer.py`（stdlib smtplib）寄驗證信/重設密碼信，不需要像 LINE Notify／Telegram 那樣另外申請 token 才能動工。新檔 `app/domain/notifications/daily_digest.py`（純函式組信件內文）、`scripts/send_daily_summary.py`（排程腳本：對每個已驗證信箱的使用者重用既有 `advice.build_advice()`／`market_moves.price_swings()`／`risk.compute_risk_metrics()`，內容跟「進階建議」卡片同一套邏輯）、`.github/workflows/daily-summary.yml`（每天台北時間早上 7 點跑）。當天沒有值得提醒的事就跳過不寄信。需要另外在 GitHub repo 設定 `SMTP_*` secrets 才會真的寄出——這五個目前只在 Render 的環境變數有設，repo secrets 是空的，要使用者自己去 `Settings → Secrets and variables → Actions` 補上（不是我能代為設定的東西）
