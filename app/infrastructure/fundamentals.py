@@ -26,6 +26,7 @@ FIELDS = [
     "trailingPE",
     "forwardPE",
     "pegRatio",
+    "priceToBook",
     "returnOnEquity",
     "profitMargins",
     "revenueGrowth",

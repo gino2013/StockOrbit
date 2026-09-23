@@ -1,0 +1,78 @@
+  <h2 id="section-style-box" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>持股風格箱
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <p class="text-xs opacity-60">
+          市值加權配置在「規模（大型/中型/小型）× 風格（價值/平衡/成長）」九宮格的哪裡，一眼看出整體持股的風格傾向。分類用固定門檻（市值 100 億/20 億美元；本益比 15/25，缺本益比才退回股價淨值比 2/4），不是跟持股自己比排名，也不是投資建議。ETF 橫跨多種風格、缺資料的標的都不勉強塞進格子，列在下面「未分類」。
+        </p>
+        <button type="button" onclick="loadStyleBox()" class="btn btn-ghost btn-xs shrink-0">查詢</button>
+      </div>
+      <div id="style-box-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="style-box-content" class="mt-3"></div>
+    </div>
+  </div>
+
+<script>
+// --- 持股風格箱 ---
+// 0 (白，沒配置) -> 最重的格子 (深紫)，跟 correlation.html 同一套「混色」手法
+function styleBoxColor(weight, maxWeight) {
+  if (!maxWeight) return 'transparent';
+  const f = Math.max(0, Math.min(1, weight / maxWeight));
+  const mix = (from, to, t) => Math.round(from + (to - from) * t);
+  const end = [124, 58, 237]; // violet-600
+  return `rgb(${mix(255, end[0], f)}, ${mix(255, end[1], f)}, ${mix(255, end[2], f)})`;
+}
+function styleBoxTextColor(weight, maxWeight) {
+  return maxWeight && weight / maxWeight > 0.5 ? '#fff' : 'inherit';
+}
+
+async function loadStyleBox() {
+  const errorBox = document.getElementById('style-box-error');
+  const content = document.getElementById('style-box-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  const res = await fetch('/api/style-box');
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const sizes = ['Large', 'Mid', 'Small'];
+  const sizeLabels = { Large: '大型', Mid: '中型', Small: '小型' };
+  const styles = ['Value', 'Blend', 'Growth'];
+  const styleLabels = { Value: '價值', Blend: '平衡', Growth: '成長' };
+  const byCell = {};
+  data.grid.forEach(g => { byCell[`${g.size}|${g.style}`] = g.weight; });
+  const maxWeight = Math.max(...data.grid.map(g => g.weight), 0);
+
+  let html = '<table class="table table-sm table-fixed max-w-xl"><thead><tr><th></th>';
+  styles.forEach(st => { html += `<th class="text-center">${styleLabels[st]}</th>`; });
+  html += '</tr></thead><tbody>';
+  sizes.forEach(sz => {
+    html += `<tr><th>${sizeLabels[sz]}</th>`;
+    styles.forEach(st => {
+      const w = byCell[`${sz}|${st}`] || 0;
+      html += `<td class="text-center" style="background-color:${styleBoxColor(w, maxWeight)};color:${styleBoxTextColor(w, maxWeight)}">${fmtPctOrDash(w)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  if (data.unclassified.length) {
+    html += '<p class="text-xs opacity-60 mt-3 mb-1">未分類（不勉強塞進格子）：</p>';
+    html += '<table class="table table-sm max-w-xl"><thead><tr><th>代號</th><th class="text-right">佔比</th><th>原因</th></tr></thead><tbody>';
+    for (const u of data.unclassified) {
+      html += `<tr><td class="font-medium">${escapeHtml(u.symbol)}</td><td class="text-right">${fmtPctOrDash(u.weight)}</td><td>${escapeHtml(u.reason)}</td></tr>`;
+    }
+    html += '</tbody></table>';
+  }
+
+  content.innerHTML = html;
+}
+</script>
