@@ -83,6 +83,7 @@ with engine.begin() as conn:
     # colliding with an already-present table.
     conn.execute(text("DROP TABLE position_note_history"))
     conn.execute(text("DROP TABLE fire_settings"))
+    conn.execute(text("DROP TABLE price_alerts"))  # introduced by 0011, same reasoning
     # position_snapshots/transactions/target_allocations/position_notes/
     # transaction_notes only differ (current models vs this historical
     # shape) in their PK *constraint*, not their columns, so stripping

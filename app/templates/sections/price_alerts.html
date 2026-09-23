@@ -1,0 +1,105 @@
+  <h2 id="section-price-alerts" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>價格提醒
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        針對任一標的設一個目標價，漲過/跌破時排程 job（每小時檢查一次）會寄一封信提醒。同一次觸發只會通知一次，不會每小時重複寄；已觸發的提醒要自己刪除後重新設定，不會自動重置。需要設定好每日摘要 Email 那組 <code>SMTP_*</code> secrets 才會真的收到信，純資訊提醒，不是投資建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="price-alert-symbol" placeholder="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="price-alert-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">方向</label>
+          <select id="price-alert-direction" class="select select-bordered select-sm">
+            <option value="above">漲過</option>
+            <option value="below">跌破</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">目標價</label>
+          <input id="price-alert-price" type="number" min="0.01" step="any" placeholder="200" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="addPriceAlert()" class="btn btn-neutral btn-sm">新增</button>
+      </div>
+      <div id="price-alert-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="price-alert-content" class="mt-3"></div>
+    </div>
+  </div>
+
+<script>
+// --- 價格提醒 ---
+attachTickerAutocomplete('price-alert-symbol', 'price-alert-symbol-suggestions');
+
+function renderPriceAlerts(alerts) {
+  const content = document.getElementById('price-alert-content');
+  if (!alerts.length) {
+    content.innerHTML = '<p class="text-xs opacity-60">還沒有設定任何價格提醒。</p>';
+    return;
+  }
+  let html = '<table class="table table-sm"><thead><tr><th>代號</th><th>方向</th><th class="text-right">目標價</th><th>狀態</th><th></th></tr></thead><tbody>';
+  for (const a of alerts) {
+    const directionText = a.direction === 'above' ? '漲過' : '跌破';
+    const status = a.triggered
+      ? `<span class="badge badge-warning badge-sm">已觸發 ${a.triggered_at ? escapeHtml(a.triggered_at.slice(0, 10)) : ''}</span>`
+      : '<span class="badge badge-ghost badge-sm">待觸發</span>';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(a.symbol)}</td>
+      <td>${directionText}</td>
+      <td class="text-right">$${a.target_price.toLocaleString('en-US')}</td>
+      <td>${status}</td>
+      <td class="text-right"><button type="button" onclick="deletePriceAlert('${escapeHtml(a.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+async function loadPriceAlerts() {
+  const res = await fetch('/api/price-alerts');
+  const data = await res.json();
+  renderPriceAlerts(data.alerts || []);
+}
+
+async function addPriceAlert() {
+  const errorBox = document.getElementById('price-alert-error');
+  errorBox.classList.add('hidden');
+
+  const symbol = document.getElementById('price-alert-symbol').value.trim();
+  const direction = document.getElementById('price-alert-direction').value;
+  const targetPrice = document.getElementById('price-alert-price').value;
+  if (!symbol || !targetPrice) {
+    errorBox.textContent = '請填標的跟目標價';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const body = new FormData();
+  body.set('symbol', symbol);
+  body.set('target_price', targetPrice);
+  body.set('direction', direction);
+  const res = await fetch('/api/price-alerts', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('price-alert-symbol').value = '';
+  document.getElementById('price-alert-price').value = '';
+  renderPriceAlerts(data.alerts);
+}
+
+async function deletePriceAlert(id) {
+  const body = new FormData();
+  body.set('alert_id', id);
+  const res = await fetch('/api/price-alerts/delete', { method: 'POST', body });
+  const data = await res.json();
+  renderPriceAlerts(data.alerts || []);
+}
+
+loadPriceAlerts();
+</script>

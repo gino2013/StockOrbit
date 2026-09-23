@@ -1260,6 +1260,28 @@ def delete_target(symbol: str = Form(...)):
     return RedirectResponse("/", status_code=303)
 
 
+@app.get("/api/price-alerts")
+def list_price_alerts():
+    with Repositories() as repo:
+        return JSONResponse({"alerts": repo.price_alerts()})
+
+
+@app.post("/api/price-alerts")
+def add_price_alert(symbol: str = Form(...), target_price: float = Form(...), direction: str = Form(...)):
+    if direction not in ("above", "below"):
+        return JSONResponse({"error": "方向只能是 above 或 below"}, status_code=400)
+    with Repositories() as repo:
+        repo.add_price_alert(symbol, target_price, direction)
+        return JSONResponse({"alerts": repo.price_alerts()})
+
+
+@app.post("/api/price-alerts/delete")
+def delete_price_alert(alert_id: str = Form(...)):
+    with Repositories() as repo:
+        repo.delete_price_alert(alert_id)
+        return JSONResponse({"alerts": repo.price_alerts()})
+
+
 @app.get("/api/goal")
 def get_goal(account: str | None = None):
     with Repositories() as repo:

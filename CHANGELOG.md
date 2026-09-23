@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-23（晚間）
+
+- 新增價格提醒（issue #18）：新表 `price_alerts`（migration `0011_price_alerts`），畫面可以新增/刪除「標的 + 方向（漲過/跌破）+ 目標價」。新檔 `app/domain/notifications/price_alerts.py`（純函式 `alerts_to_trigger`，靠 `triggered` 欄位去重，同一次觸發不會重複通知）、`scripts/check_price_alerts.py`（排程腳本：抓所有使用者未觸發提醒對應的標的，同一檔標的不管幾個人設了提醒都只抓一次價格，觸發後標記＋寄信）、`.github/workflows/check-price-alerts.yml`（每小時跑一次）。沿用 issue #17 已經接好的 `mailer.py`/`SMTP_*` secrets，不需要新的通知管道
+
 ## 2026-09-23（bugfix）
 
 - 修正夜間模式下兩個圖表的文字看不清楚：持股風格箱九宮格的文字色固定用 `weight/maxWeight > 0.5` 猜門檻、其餘一律 `inherit`——但格子背景是固定的白→紫漸層（跟目前是深色或淺色主題無關），淺色格子在夜間模式套用淺色系「inherit」文字就整個看不見。改成直接算混色後背景的實際亮度（luminance）來選黑/白字，不用猜的。資金流 Sankey 圖同一批問題：`chartjs-chart-sankey` 的節點標籤預設黑色文字，沒有吃到 `_shared.html` 裡全域設的 `Chart.defaults.color`，一樣在深色卡片背景上看不見，補上明確的 `color` dataset 選項

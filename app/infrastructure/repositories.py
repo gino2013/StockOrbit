@@ -29,6 +29,7 @@ from app.infrastructure.db import (
     PositionNote,
     PositionNoteHistory,
     PositionSnapshot,
+    PriceAlert,
     SessionLocal,
     TargetAllocation,
     Transaction,
@@ -204,6 +205,39 @@ class Repositories:
         existing = self._mine(TargetAllocation).filter(
             TargetAllocation.symbol == symbol.upper()
         ).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
+
+    # --- price alerts (issue #18) ---------------------------------------------
+
+    def price_alerts(self) -> list[dict]:
+        rows = self._mine(PriceAlert).order_by(desc(PriceAlert.created_at)).all()
+        return [
+            {
+                "id": r.id,
+                "symbol": r.symbol,
+                "target_price": r.target_price,
+                "direction": r.direction,
+                "triggered": r.triggered,
+                "triggered_at": r.triggered_at.isoformat() if r.triggered_at else None,
+            }
+            for r in rows
+        ]
+
+    def add_price_alert(self, symbol: str, target_price: float, direction: str) -> None:
+        self._db.add(
+            PriceAlert(
+                user_id=self._user_id,
+                symbol=symbol.upper(),
+                target_price=target_price,
+                direction=direction,
+            )
+        )
+        self._db.commit()
+
+    def delete_price_alert(self, alert_id: str) -> None:
+        existing = self._mine(PriceAlert).filter(PriceAlert.id == alert_id).first()
         if existing:
             self._db.delete(existing)
             self._db.commit()
