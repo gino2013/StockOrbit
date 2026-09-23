@@ -6,6 +6,8 @@
 
 ## 2026-09-23
 
+- 新增每日摘要 Email（issue #17）：管道選 Email，因為站台已經接了 `mailer.py`（stdlib smtplib）寄驗證信/重設密碼信，不需要像 LINE Notify／Telegram 那樣另外申請 token 才能動工。新檔 `app/domain/notifications/daily_digest.py`（純函式組信件內文）、`scripts/send_daily_summary.py`（排程腳本：對每個已驗證信箱的使用者重用既有 `advice.build_advice()`／`market_moves.price_swings()`／`risk.compute_risk_metrics()`，內容跟「進階建議」卡片同一套邏輯）、`.github/workflows/daily-summary.yml`（每天台北時間早上 7 點跑）。當天沒有值得提醒的事就跳過不寄信。需要另外在 GitHub repo 設定 `SMTP_*` secrets 才會真的寄出——這五個目前只在 Render 的環境變數有設，repo secrets 是空的，要使用者自己去 `Settings → Secrets and variables → Actions` 補上（不是我能代為設定的東西）
+
 - 新增持股風格箱（issue #298）：新檔 `app/domain/analytics/style_box.py`，把持股分類到「規模（大型/中型/小型）× 風格（價值/平衡/成長）」九宮格，市值加權顯示每格佔比。規模用市值固定門檻（$100億/$20億）分三段；風格用本益比固定門檻（15/25）分三段，本益比缺值或 ≤ 0（虧損公司）才退回股價淨值比（門檻 2/4）——用固定門檻而非跟持股池自己比百分位，因為 5-15 檔的小樣本排名不穩定，全大型股的組合會被硬拆成大中小三段。ETF 橫跨多種風格，跟缺資料的標的一樣不勉強塞格子，改列進「未分類」。`fundamentals.FIELDS`／`FundamentalsCache` 新增 `priceToBook` 欄位（migration `0010_price_to_book`）
 - 新增績效歸因（issue #291）：新檔 `app/domain/analytics/attribution.py`。issue 本身已經先解決了基準定義的爭議——用「目前配置 vs 你自己的目標配置（`TargetAllocation`）」當基準，而不是大盤，因為大盤沒有「配置」這個維度可比。實作時發現一個推論：因為比較的兩邊是同一批標的（只有權重不同，不是不同的選股），該標的的報酬 ri 在兩邊算出來是同一個數字，這讓經典 Brinson 模型裡的選股效果／交互效果在數學上恆為 0，差異全部收斂到配置效果——docstring 裡完整記錄這個推導，UI 也附上「恆為 0」的說明，不留一個看起來像 bug 的零
 
