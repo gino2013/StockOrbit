@@ -58,6 +58,7 @@ from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.income.cash_flow_sankey import build_cash_flow_sankey
 from app.domain.analytics.risk import compute_risk_metrics
 from app.domain.analytics.risk_parity import suggest_risk_parity
+from app.domain.analytics.style_box import classify_style_box
 from app.domain.analytics.yield_curve import build_yield_curve
 from app.domain.analytics.efficient_frontier import build_efficient_frontier
 from app.domain.analytics.monte_carlo import build_monte_carlo_projection
@@ -1095,6 +1096,30 @@ def risk_parity():
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"items": items})
+
+
+@app.get("/api/style-box")
+def style_box():
+    with Repositories() as repo:
+        snapshots = repo.latest_snapshots()
+        if not snapshots:
+            return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
+        symbols = [s["symbol"] for s in snapshots if s["symbol"] != "CASH"]
+        try:
+            data = fetch_fundamentals(symbols)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        # Same Render-can't-reach-Yahoo fallback as /api/fundamentals (issue #9).
+        stale_symbols = [s for s in symbols if not data.get(s, {}).get("_fetch_ok")]
+        if stale_symbols:
+            cached = repo.fundamentals_cache(stale_symbols)
+            for symbol, cached_fields in cached.items():
+                data[symbol] = {**data[symbol], **cached_fields}
+    try:
+        result = classify_style_box(snapshots, data)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse(result)
 
 
 @app.get("/api/efficient-frontier")

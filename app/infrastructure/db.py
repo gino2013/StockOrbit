@@ -103,6 +103,7 @@ class FundamentalsCache(Base):
     trailingPE = Column(Float)
     forwardPE = Column(Float)
     pegRatio = Column(Float)
+    priceToBook = Column(Float)
     returnOnEquity = Column(Float)
     profitMargins = Column(Float)
     revenueGrowth = Column(Float)
@@ -314,7 +315,9 @@ def _infer_untracked_revision() -> str | None:
         return "0007_coast_fire"
     if "trailingAnnualDividendRate" not in fundamentals_cols:
         return "0008_fundamentals_quote"
-    return "0009_dividend_fallback"  # structure already matches head
+    if "priceToBook" not in fundamentals_cols:
+        return "0009_dividend_fallback"
+    return "0010_price_to_book"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
