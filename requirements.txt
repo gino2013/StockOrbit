@@ -3,6 +3,7 @@ python-dotenv
 uvicorn[standard]
 sqlalchemy
 psycopg2-binary
+psycopg[binary]
 jinja2
 python-multipart
 firstrade==0.0.39
