@@ -1,0 +1,94 @@
+  <h2 id="section-allocation-alerts" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>配置偏離提醒
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        針對任一標的設一個偏離門檻，目前佔比跟目標佔比差距（不論超配或低配）超過門檻時，排程 job（每小時檢查一次）會寄一封信提醒——比等每日摘要 Email 更即時。跟「價格提醒」不同：偏離回到門檻內會靜默重置，不會寄信，之後再超標會重新通知一次，不是一次性、永遠不重置的提醒。需要設定好 <code>SMTP_*</code> secrets 才會真的收到信，純資訊提醒，不是投資建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="allocation-alert-symbol" placeholder="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="allocation-alert-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">偏離門檻 (%)</label>
+          <input id="allocation-alert-threshold" type="number" min="0.1" max="99" step="any" placeholder="5" class="input input-bordered input-sm w-24">
+        </div>
+        <button type="button" onclick="addAllocationAlert()" class="btn btn-neutral btn-sm">新增</button>
+      </div>
+      <div id="allocation-alert-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="allocation-alert-content" class="mt-3"></div>
+    </div>
+  </div>
+
+<script>
+// --- 配置偏離提醒 ---
+attachTickerAutocomplete('allocation-alert-symbol', 'allocation-alert-symbol-suggestions');
+
+function renderAllocationAlerts(alerts) {
+  const content = document.getElementById('allocation-alert-content');
+  if (!alerts.length) {
+    content.innerHTML = '<p class="text-xs opacity-60">還沒有設定任何配置偏離提醒。</p>';
+    return;
+  }
+  let html = '<table class="table table-sm"><thead><tr><th>代號</th><th class="text-right">偏離門檻</th><th>狀態</th><th></th></tr></thead><tbody>';
+  for (const a of alerts) {
+    const status = a.triggered
+      ? `<span class="badge badge-warning badge-sm">超標中 ${a.triggered_at ? escapeHtml(a.triggered_at.slice(0, 10)) : ''}</span>`
+      : '<span class="badge badge-ghost badge-sm">正常</span>';
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(a.symbol)}</td>
+      <td class="text-right">${(a.threshold * 100).toFixed(1)}%</td>
+      <td>${status}</td>
+      <td class="text-right"><button type="button" onclick="deleteAllocationAlert('${escapeHtml(a.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+async function loadAllocationAlerts() {
+  const res = await fetch('/api/allocation-alerts');
+  const data = await res.json();
+  renderAllocationAlerts(data.alerts || []);
+}
+
+async function addAllocationAlert() {
+  const errorBox = document.getElementById('allocation-alert-error');
+  errorBox.classList.add('hidden');
+
+  const symbol = document.getElementById('allocation-alert-symbol').value.trim();
+  const thresholdPct = document.getElementById('allocation-alert-threshold').value;
+  if (!symbol || !thresholdPct) {
+    errorBox.textContent = '請填標的跟偏離門檻';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const body = new FormData();
+  body.set('symbol', symbol);
+  body.set('threshold', thresholdPct / 100);
+  const res = await fetch('/api/allocation-alerts', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('allocation-alert-symbol').value = '';
+  document.getElementById('allocation-alert-threshold').value = '';
+  renderAllocationAlerts(data.alerts);
+}
+
+async function deleteAllocationAlert(id) {
+  const body = new FormData();
+  body.set('alert_id', id);
+  const res = await fetch('/api/allocation-alerts/delete', { method: 'POST', body });
+  const data = await res.json();
+  renderAllocationAlerts(data.alerts || []);
+}
+
+loadAllocationAlerts();
+</script>

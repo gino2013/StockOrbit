@@ -21,6 +21,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import desc
 
 from app.infrastructure.db import (
+    AllocationAlert,
     ExchangeRateSnapshot,
     FireSettings,
     FirestradeCredential,
@@ -238,6 +239,37 @@ class Repositories:
 
     def delete_price_alert(self, alert_id: str) -> None:
         existing = self._mine(PriceAlert).filter(PriceAlert.id == alert_id).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
+
+    # --- allocation drift alerts (issue #320) ----------------------------------
+
+    def allocation_alerts(self) -> list[dict]:
+        rows = self._mine(AllocationAlert).order_by(desc(AllocationAlert.created_at)).all()
+        return [
+            {
+                "id": r.id,
+                "symbol": r.symbol,
+                "threshold": r.threshold,
+                "triggered": r.triggered,
+                "triggered_at": r.triggered_at.isoformat() if r.triggered_at else None,
+            }
+            for r in rows
+        ]
+
+    def add_allocation_alert(self, symbol: str, threshold: float) -> None:
+        self._db.add(
+            AllocationAlert(
+                user_id=self._user_id,
+                symbol=symbol.upper(),
+                threshold=threshold,
+            )
+        )
+        self._db.commit()
+
+    def delete_allocation_alert(self, alert_id: str) -> None:
+        existing = self._mine(AllocationAlert).filter(AllocationAlert.id == alert_id).first()
         if existing:
             self._db.delete(existing)
             self._db.commit()
