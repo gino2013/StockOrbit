@@ -3,7 +3,7 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">設定一個長期目標金額跟日期，追蹤目前進度、跟達標所需的年化報酬率。</p>
+      <p class="text-xs opacity-60">設定一個長期目標金額跟日期，追蹤目前進度、跟達標所需的年化報酬率。「蒙地卡羅達標機率」用歷史每日報酬隨機重抽模擬大量路徑，回答「照歷史波動，到目標日期有幾成機率達標」，比單一固定報酬率推算更能反映報酬本身的不確定性，一樣不是預測。</p>
       <form id="goal-form" class="flex flex-wrap gap-3 items-end mt-2">
         <label class="text-sm">目標金額<br>
           <input name="target_amount" type="number" min="1" step="any" placeholder="1000000" required class="input input-bordered input-sm mt-1 w-40">
@@ -62,6 +62,18 @@ async function loadGoal() {
     }
   }
 
+  let monteCarloStat = '';
+  if (g.monte_carlo_probability != null) {
+    const pct = g.monte_carlo_probability * 100;
+    const cls = pct >= 70 ? 'text-success' : pct >= 40 ? 'text-warning' : 'text-error';
+    monteCarloStat = `
+      <div class="stat">
+        <div class="stat-title">蒙地卡羅達標機率</div>
+        <div class="stat-value text-lg ${cls}">${pct.toFixed(0)}%</div>
+        <div class="stat-desc">歷史報酬隨機重抽模擬，不是預測</div>
+      </div>`;
+  }
+
   let html = `
     <div class="flex justify-between text-sm mb-1">
       <span>${g.target_date} 前達到 $${g.target_amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
@@ -91,7 +103,7 @@ async function loadGoal() {
       <div class="stat">
         <div class="stat-title">目前實際年化報酬率 (XIRR)</div>
         <div class="stat-value text-lg">${g.current_annual_return == null ? '-' : fmtPct(g.current_annual_return)}${onTrackBadge}</div>
-      </div>${projectedStat}
+      </div>${projectedStat}${monteCarloStat}
     </div>`;
   if (g.already_past_target_date) {
     html += '<div class="alert alert-warning text-sm py-2 mt-2">目標日期已過，考慮更新目標。</div>';

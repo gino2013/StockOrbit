@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-29
+
+- 目標達成進度追蹤補上蒙地卡羅達標機率（issue #318）：`app/domain/analytics/monte_carlo.py` 抽出共用的 `_bootstrap_values()`，`simulate_paths()`（既有的月度分位數扇形圖）跟新的 `probability_of_reaching_target()` 共用同一套重抽機制，行為完全沒變（`tests/test_monte_carlo.py` 的既有斷言含 determinism 都原封不動通過）。新函式支援可選的 `monthly_contribution`，模擬時把定期定額也算進去——不然對有持續入金習慣的人，機率會比實際情況悲觀。`app/application/goals.py` 串接：從 snapshots 算出 symbols/weights 餵給模擬，結果併入 `/api/goal` 回應的 `monte_carlo_probability` 欄位，`goal.html` 新增一張 stat 卡片顯示
+
 ## 2026-09-23（晚間）
 
 - 新增價格提醒（issue #18）：新表 `price_alerts`（migration `0011_price_alerts`），畫面可以新增/刪除「標的 + 方向（漲過/跌破）+ 目標價」。新檔 `app/domain/notifications/price_alerts.py`（純函式 `alerts_to_trigger`，靠 `triggered` 欄位去重，同一次觸發不會重複通知）、`scripts/check_price_alerts.py`（排程腳本：抓所有使用者未觸發提醒對應的標的，同一檔標的不管幾個人設了提醒都只抓一次價格，觸發後標記＋寄信）、`.github/workflows/check-price-alerts.yml`（每小時跑一次）。沿用 issue #17 已經接好的 `mailer.py`/`SMTP_*` secrets，不需要新的通知管道
