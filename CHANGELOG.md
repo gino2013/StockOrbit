@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-29（Render 部署修復）
+
+- 修正 Render 部署持續失敗（issue #324）：`requirements.txt` 補上 `psycopg[binary]`（v3）。Deploy log 顯示 `ModuleNotFoundError: No module named 'psycopg'`——SQLAlchemy 載入的是 `dialects/postgresql/psycopg.py`（v3 dialect），代表 Render 的 `DATABASE_URL` secret 是 `postgresql+psycopg://...` 格式，但 `requirements.txt` 從 multi-user step 1（#139）以來只裝了 `psycopg2-binary`（v2），兩者對不上。服務因此卡在 5 天前最後一次成功部署的舊版本，完全沒吃到後續合併的所有功能（含這次的目標達成機率、配置偏離提醒）。不是這次功能 PR 造成的——`requirements.txt` 最後一次改動是 #302，這個 mismatch 已經存在超過 5 天，只是沒人重新部署過才沒被發現
+
 ## 2026-09-29（bugfix）
 
 - 修正「只有一筆閒置現金，該加碼哪些？」表格的「加碼後佔比」顏色邏輯（issue #322，使用者截圖回報）：原本用「加碼後佔比是否幾乎等於目標佔比」決定要不要上綠色，沒有反映「比目前佔比是漲還是跌」——沒分到這筆加碼的標的（因為已經在目標之上被算法跳過），會因為總市值變大而被稀釋、佔比實際下降，卻顯示白色看不出來。改成重用既有的 `posNegClass` 共用函式（`new_weight - current_weight`），漲用綠色、跌用紅色、打平用白色
