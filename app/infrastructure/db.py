@@ -226,6 +226,28 @@ class PriceAlert(Base):
     triggered_at = Column(DateTime)
 
 
+class AllocationAlert(Base):
+    """A drift threshold to watch for a symbol's current-vs-target
+    allocation weight (issue #320). Unlike PriceAlert, this monitors an
+    ongoing *state* rather than a one-time crossing: drift can exceed the
+    threshold, get corrected by rebalancing, then drift again later, and
+    the user should hear about each new crossing - so the scheduled check
+    (scripts/check_allocation_alerts.py) resets `triggered` back to False
+    (silently, no email) once drift falls back under the threshold, letting
+    a future re-crossing notify again instead of staying permanently
+    silenced like a fired PriceAlert."""
+
+    __tablename__ = "allocation_alerts"
+
+    id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    user_id = _user_id_col()
+    symbol = Column(String, nullable=False, index=True)
+    threshold = Column(Float, nullable=False)  # fraction, e.g. 0.05 = 5 percentage points
+    triggered = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    triggered_at = Column(DateTime)
+
+
 class InvestmentGoal(Base):
     """One long-term target (amount + date) per user to track progress
     against. `user_id` is the primary key directly - one goal at a time per
@@ -339,7 +361,9 @@ def _infer_untracked_revision() -> str | None:
         return "0009_dividend_fallback"
     if not inspector.has_table("price_alerts"):
         return "0010_price_to_book"
-    return "0011_price_alerts"  # structure already matches head
+    if not inspector.has_table("allocation_alerts"):
+        return "0011_price_alerts"
+    return "0012_allocation_alerts"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

@@ -1282,6 +1282,28 @@ def delete_price_alert(alert_id: str = Form(...)):
         return JSONResponse({"alerts": repo.price_alerts()})
 
 
+@app.get("/api/allocation-alerts")
+def list_allocation_alerts():
+    with Repositories() as repo:
+        return JSONResponse({"alerts": repo.allocation_alerts()})
+
+
+@app.post("/api/allocation-alerts")
+def add_allocation_alert(symbol: str = Form(...), threshold: float = Form(...)):
+    if not 0 < threshold < 1:
+        return JSONResponse({"error": "門檻需介於 0~1 之間（例如 0.05 代表 5 個百分點）"}, status_code=400)
+    with Repositories() as repo:
+        repo.add_allocation_alert(symbol, threshold)
+        return JSONResponse({"alerts": repo.allocation_alerts()})
+
+
+@app.post("/api/allocation-alerts/delete")
+def delete_allocation_alert(alert_id: str = Form(...)):
+    with Repositories() as repo:
+        repo.delete_allocation_alert(alert_id)
+        return JSONResponse({"alerts": repo.allocation_alerts()})
+
+
 @app.get("/api/goal")
 def get_goal(account: str | None = None):
     with Repositories() as repo:
