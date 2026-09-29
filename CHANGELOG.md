@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-29（bugfix）
+
+- 修正「只有一筆閒置現金，該加碼哪些？」表格的「加碼後佔比」顏色邏輯（issue #322，使用者截圖回報）：原本用「加碼後佔比是否幾乎等於目標佔比」決定要不要上綠色，沒有反映「比目前佔比是漲還是跌」——沒分到這筆加碼的標的（因為已經在目標之上被算法跳過），會因為總市值變大而被稀釋、佔比實際下降，卻顯示白色看不出來。改成重用既有的 `posNegClass` 共用函式（`new_weight - current_weight`），漲用綠色、跌用紅色、打平用白色
+
 ## 2026-09-29（配置偏離提醒）
 
 - 新增配置偏離提醒（issue #320）：重用「價格提醒」（issue #18）已經接好的排程機制，但改成監控「目前配置 vs 目標配置」偏離超標。跟價格提醒的關鍵差異——價格提醒是一次性事件（漲過/跌破一次通知就永遠不再觸發），配置偏離是持續狀態（超標、被再平衡修正、之後可能再偏離），沿用「觸發後永遠不重置」的設計會讓這張單子在第一次再平衡之後就失效。新表 `allocation_alerts`（migration `0012_allocation_alerts`），新檔 `app/domain/notifications/allocation_alerts.py`（純函式 `alerts_to_check`，同時回傳「要觸發的」跟「要重置的」兩個清單）、`scripts/check_allocation_alerts.py`（排程：重用 `advice.compute_allocation()` 純計算，不用打 yfinance，比價格提醒的排程便宜）、`.github/workflows/check-allocation-alerts.yml`（每小時跑一次，同一組 SMTP secrets）
