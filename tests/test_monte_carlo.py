@@ -56,6 +56,39 @@ def demo():
     assert built["months"] == [1, 2, 3, 4, 5, 6]
     assert all(p10 <= p50 <= p90 for p10, p50, p90 in zip(built["p10"], built["p50"], built["p90"]))
 
+    # --- probability_of_reaching_target: a target far below the zero-
+    # variance path's guaranteed value -> probability 1.0, exactly. ---
+    prob = mc.probability_of_reaching_target(10000, flat_returns, target_amount=10001, months=3, n_simulations=200, seed=1)
+    assert prob == 1.0
+
+    # --- an unreachable target with no growth possible -> probability 0.0. ---
+    zero_returns = np.zeros(252)
+    prob = mc.probability_of_reaching_target(10000, zero_returns, target_amount=50000, months=3, n_simulations=200, seed=1)
+    assert prob == 0.0
+
+    # --- with real variance, probability lands strictly between 0 and 1
+    # for a target near the median outcome (some paths clear it, some
+    # don't), and determinism holds under a fixed seed. ---
+    near_median_target = wide["p50"][-1]
+    prob_a = mc.probability_of_reaching_target(10000, volatile_returns, near_median_target, months=12, n_simulations=2000, seed=2)
+    prob_b = mc.probability_of_reaching_target(10000, volatile_returns, near_median_target, months=12, n_simulations=2000, seed=2)
+    assert prob_a == prob_b
+    assert 0.0 < prob_a < 1.0
+
+    # --- a monthly contribution must raise the probability of reaching a
+    # fixed target versus no contribution at all, same seed/returns. ---
+    no_contribution = mc.probability_of_reaching_target(10000, volatile_returns, near_median_target, months=12, n_simulations=2000, seed=2)
+    with_contribution = mc.probability_of_reaching_target(
+        10000, volatile_returns, near_median_target, months=12, n_simulations=2000, seed=2, monthly_contribution=500,
+    )
+    assert with_contribution >= no_contribution
+
+    # --- edge cases: no crash, just None. ---
+    assert mc.probability_of_reaching_target(0, volatile_returns, 10000, months=12) is None
+    assert mc.probability_of_reaching_target(10000, volatile_returns, 10000, months=0) is None
+    assert mc.probability_of_reaching_target(10000, volatile_returns, 0, months=12) is None
+    assert mc.probability_of_reaching_target(10000, np.array([0.01, -0.01]), 20000, months=12) is None
+
 
 if __name__ == "__main__":
     demo()
