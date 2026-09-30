@@ -92,14 +92,23 @@ def build_advice(
     return {"allocation": allocation, "total_value": total_value, "advice": notes}
 
 
-def build_rebalance_plan(snapshots: list[dict], targets: dict[str, float]) -> list[dict]:
+def build_rebalance_plan(
+    snapshots: list[dict], targets: dict[str, float], extra_cash: float = 0.0
+) -> list[dict]:
     """For every symbol that's either currently held or has a target weight
     (excluding CASH, which is funding source/destination, not a position),
     work out how many dollars to buy or sell to hit the target allocation.
     A held symbol with no target is treated as target 0% (full sell) -
     it's not part of the plan, so rebalancing it out is the correct call.
+
+    `extra_cash` folds new money (e.g. "只有一筆閒置現金" - issue #340) into
+    the total before computing targets, so the plan lands exactly on target
+    including the new cash - not just buy-only. `current_weight` still uses
+    the pre-cash total (today's actual allocation), everything else uses
+    the post-cash total.
     """
     total_value = sum(s["market_value"] for s in snapshots)
+    new_total = total_value + extra_cash
     current_value_by_symbol: dict[str, float] = defaultdict(float)
     for s in snapshots:
         if s["symbol"] != "CASH":
@@ -110,7 +119,7 @@ def build_rebalance_plan(snapshots: list[dict], targets: dict[str, float]) -> li
     for symbol in symbols:
         current_value = current_value_by_symbol.get(symbol, 0.0)
         target_weight = targets.get(symbol, 0.0)
-        target_value = target_weight * total_value
+        target_value = target_weight * new_total
         plan.append({
             "symbol": symbol,
             "current_value": current_value,
