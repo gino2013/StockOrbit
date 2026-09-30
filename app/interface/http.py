@@ -78,6 +78,12 @@ async def _bind_request_user(request: Request) -> None:
 
 app = FastAPI(title="StockOrbit", dependencies=[Depends(_bind_request_user)])
 templates = Jinja2Templates(directory="app/templates")
+# Jinja2's `tojson` filter alphabetizes dict keys by default (its
+# json.dumps_kwargs policy is {"sort_keys": True}) - that silently discarded
+# `targets`' DB sort_order (issue #336: drag-to-reorder) on every page
+# render, since `{{ targets | tojson }}` re-sorted it back to alphabetical
+# regardless of what order repo.targets() returned.
+templates.env.policies["json.dumps_kwargs"] = {"sort_keys": False}
 
 _TAIPEI = ZoneInfo("Asia/Taipei")
 
@@ -1260,6 +1266,13 @@ def delete_target(symbol: str = Form(...)):
     with Repositories() as repo:
         repo.delete_target(symbol)
     return RedirectResponse("/", status_code=303)
+
+
+@app.post("/api/targets/reorder")
+def reorder_targets(symbols: str = Form(...)):
+    with Repositories() as repo:
+        repo.reorder_targets(symbols.split(","))
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/price-alerts")

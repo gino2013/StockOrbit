@@ -72,6 +72,7 @@ class TargetAllocation(Base):
     user_id = _user_id_col(primary_key=True)
     symbol = Column(String, primary_key=True)
     target_weight = Column(Float, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
 
 
 class ExchangeRateSnapshot(Base):
@@ -385,7 +386,10 @@ def _infer_untracked_revision() -> str | None:
         return "0011_price_alerts"
     if not inspector.has_table("liabilities"):
         return "0012_allocation_alerts"
-    return "0013_liabilities"  # structure already matches head
+    target_cols = {c["name"] for c in inspector.get_columns("target_allocations")}
+    if "sort_order" not in target_cols:
+        return "0013_liabilities"
+    return "0014_target_sort_order"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
