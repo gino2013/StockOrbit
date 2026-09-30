@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from app.infrastructure.db import (
     AllocationAlert,
@@ -188,7 +188,8 @@ class Repositories:
     # --- target allocations ----------------------------------------------------
 
     def targets(self) -> dict[str, float]:
-        return {t.symbol: t.target_weight for t in self._mine(TargetAllocation).all()}
+        rows = self._mine(TargetAllocation).order_by(TargetAllocation.sort_order).all()
+        return {t.symbol: t.target_weight for t in rows}
 
     def upsert_target(self, symbol: str, weight: float) -> None:
         symbol = symbol.upper()
@@ -198,8 +199,18 @@ class Repositories:
         if existing:
             existing.target_weight = weight
         else:
+            # New rows go to the end of the drag-to-reorder order (issue
+            # #336) - max()+1 rather than count(), so a row left mid-list
+            # after deletions doesn't get a colliding sort_order.
+            max_order = self._db.query(func.max(TargetAllocation.sort_order)).filter(
+                TargetAllocation.user_id == self._user_id
+            ).scalar()
+            next_order = 0 if max_order is None else max_order + 1
             self._db.add(
-                TargetAllocation(symbol=symbol, target_weight=weight, user_id=self._user_id)
+                TargetAllocation(
+                    symbol=symbol, target_weight=weight, user_id=self._user_id,
+                    sort_order=next_order,
+                )
             )
         self._db.commit()
 
@@ -210,6 +221,20 @@ class Repositories:
         if existing:
             self._db.delete(existing)
             self._db.commit()
+
+    def reorder_targets(self, symbols: list[str]) -> None:
+        """Persist a drag-to-reorder drop (issue #336). Silently ignores any
+        symbol that isn't actually one of this user's targets, rather than
+        raising - the frontend always sends its own current DOM order, which
+        should already match, but a stale/edited-elsewhere client is not
+        worth a 500 over.
+        """
+        rows = {t.symbol: t for t in self._mine(TargetAllocation).all()}
+        for idx, symbol in enumerate(symbols):
+            row = rows.get(symbol.upper())
+            if row:
+                row.sort_order = idx
+        self._db.commit()
 
     # --- price alerts (issue #18) ---------------------------------------------
 

@@ -122,6 +122,7 @@
             <table class="table table-sm">
               <thead>
                 <tr>
+                  <th></th>
                   <th>代號</th>
                   <th class="text-right">目前</th>
                   <th class="text-right">目標</th>
@@ -277,12 +278,15 @@ function renderTargetsTable() {
     return;
   }
   if (!document.getElementById('targets-tbody')) {
-    wrap.innerHTML = '<table class="table table-sm"><thead><tr><th>代號</th><th class="text-right">目前</th><th class="text-right">目標</th><th></th></tr></thead><tbody id="targets-tbody"></tbody></table>';
+    wrap.innerHTML = '<table class="table table-sm"><thead><tr><th></th><th>代號</th><th class="text-right">目前</th><th class="text-right">目標</th><th></th></tr></thead><tbody id="targets-tbody"></tbody></table>';
   }
   document.getElementById('targets-tbody').innerHTML = symbols.map((symbol) => {
     const current = allocation[symbol] || 0;
     const weight = targets[symbol];
-    return `<tr>
+    return `<tr data-symbol="${escapeHtml(symbol)}">
+      <td class="cursor-grab select-none opacity-40" style="touch-action:none"
+        onpointerdown="onTargetRowDragStart(event)" onpointermove="onTargetRowDragMove(event)"
+        onpointerup="onTargetRowDragEnd(event)" onpointercancel="onTargetRowDragEnd(event)">⠿</td>
       <td class="font-medium">${escapeHtml(symbol)}</td>
       <td class="text-right opacity-70">${(current * 100).toFixed(1)}%</td>
       <td class="text-right">${(weight * 100).toFixed(0)}%</td>
@@ -292,6 +296,51 @@ function renderTargetsTable() {
       </td>
     </tr>`;
   }).join('');
+}
+
+// Pointer Events (not HTML5 draggable) so the same handler drags with mouse
+// or touch - this table is used from phones, and native drag-and-drop
+// doesn't fire from a touchscreen. setPointerCapture on the handle routes
+// every subsequent move/up back to it regardless of where the finger/cursor
+// physically is, so no document-level listeners are needed.
+let draggedTargetRow = null;
+
+function onTargetRowDragStart(event) {
+  draggedTargetRow = event.currentTarget.closest('tr');
+  event.currentTarget.setPointerCapture(event.pointerId);
+  draggedTargetRow.classList.add('opacity-50');
+}
+
+function onTargetRowDragMove(event) {
+  if (!draggedTargetRow) return;
+  event.preventDefault();
+  const tbody = document.getElementById('targets-tbody');
+  for (const row of tbody.children) {
+    if (row === draggedTargetRow) continue;
+    const rect = row.getBoundingClientRect();
+    if (event.clientY >= rect.top && event.clientY <= rect.bottom) {
+      const before = event.clientY < rect.top + rect.height / 2;
+      tbody.insertBefore(draggedTargetRow, before ? row : row.nextSibling);
+      break;
+    }
+  }
+}
+
+function onTargetRowDragEnd() {
+  if (!draggedTargetRow) return;
+  draggedTargetRow.classList.remove('opacity-50');
+  draggedTargetRow = null;
+  const newOrder = [...document.getElementById('targets-tbody').children].map((tr) => tr.dataset.symbol);
+  const reordered = {};
+  for (const symbol of newOrder) reordered[symbol] = targets[symbol];
+  targets = reordered;
+  fetch('/api/targets/reorder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ symbols: newOrder.join(',') }),
+  })
+    .then(rerunBacktestIfPresent)
+    .catch(() => alert('儲存排序失敗，請重新整理頁面確認。'));
 }
 
 function renderTargetsWarning() {

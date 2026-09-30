@@ -93,6 +93,7 @@ with engine.begin() as conn:
     for table, cols in [
         ("position_snapshots", "id,account_number,symbol,quantity,cost_basis,market_value,price,raw_json,snapshot_at"),
         ("transactions", "id,account_number,symbol,trans_type,report_date,quantity,trade_price,amount,description,raw_json,fetched_at"),
+        # sort_order is added later by 0014, same reasoning.
         ("target_allocations", "symbol,target_weight"),
         ("position_notes", "symbol,note,updated_at"),
         ("transaction_notes", "transaction_id,note,updated_at"),
