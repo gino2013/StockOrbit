@@ -86,6 +86,22 @@ def demo():
     by_symbol2 = {p["symbol"]: p for p in plan2}
     assert abs(by_symbol2["MSFT"]["diff"] - -4000) < 1e-6
 
+    # extra_cash (issue #340: "只有一筆閒置現金" should also sell overweight
+    # holdings, not just buy) folds new money into the total before hitting
+    # target - not a partial buy-only fill. snapshots = AAPL 6000/MSFT 4000
+    # (10000 total); +1000 cash -> new_total 11000, target 50/50 -> AAPL
+    # target 5500 (sell 500), MSFT target 5500 (buy 1500). Net of buys/sells
+    # is exactly the 1000 injected, and every symbol lands exactly on target.
+    plan3 = build_rebalance_plan(snapshots, targets={"AAPL": 0.5, "MSFT": 0.5}, extra_cash=1000)
+    by_symbol3 = {p["symbol"]: p for p in plan3}
+    assert abs(by_symbol3["AAPL"]["diff"] - -500) < 1e-6
+    assert abs(by_symbol3["MSFT"]["diff"] - 1500) < 1e-6
+    assert abs(sum(p["diff"] for p in plan3) - 1000) < 1e-6
+    for p in plan3:
+        assert abs((p["current_value"] + p["diff"]) / 11000 - p["target_weight"]) < 1e-9
+    # current_weight still reflects today's actual allocation (pre-cash).
+    assert abs(by_symbol3["AAPL"]["current_weight"] - 0.6) < 1e-9
+
 
 if __name__ == "__main__":
     demo()

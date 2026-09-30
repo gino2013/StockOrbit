@@ -35,8 +35,7 @@ from app.infrastructure.export import build_holdings_csv, build_transactions_csv
 from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.infrastructure.institutional import fetch_institutional_data
-from app.domain.portfolio.advice import build_advice
-from app.domain.portfolio.cash_deployment import suggest_cash_deployment
+from app.domain.portfolio.advice import build_advice, build_rebalance_plan
 from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.domain.analytics.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
 from app.domain.analytics.compounder_checklist import build_compounder_checklist
@@ -1234,7 +1233,7 @@ def cash_deployment(amount: float, account: str | None = None):
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     if not targets:
         return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
-    plan = suggest_cash_deployment(snapshots, targets, amount)
+    plan = build_rebalance_plan(snapshots, targets, extra_cash=amount)
     return JSONResponse({"plan": plan})
 
 

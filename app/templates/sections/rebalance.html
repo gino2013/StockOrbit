@@ -42,7 +42,7 @@
         </table>
       </div>
 
-      <div class="divider text-xs opacity-50">或者：只有一筆閒置現金，不想賣出任何持股</div>
+      <div class="divider text-xs opacity-50">或者：算一筆新資金投入後的最佳配置</div>
       <div class="flex items-center gap-2 flex-wrap">
         <span class="text-sm opacity-70">我有</span>
         <input id="cash-deployment-amount" type="number" min="0" step="100" placeholder="10000" class="input input-bordered input-sm w-32">
@@ -50,7 +50,7 @@
           <option value="USD">USD</option>
           <option value="TWD">TWD</option>
         </select>
-        <span class="text-sm opacity-70">，該加碼哪些？</span>
+        <span class="text-sm opacity-70">，該怎麼調整？</span>
         <button type="button" onclick="loadCashDeployment()" class="btn btn-neutral btn-sm">查詢</button>
       </div>
       <div id="cash-deployment-converted" class="text-xs opacity-50 mt-1 hidden"></div>
@@ -110,23 +110,21 @@ async function loadCashDeployment() {
     content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
     return;
   }
-  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標-現金不夠補滿全部落差時，只會盡量按落差比例分配。目標設為 0% 的持股會建議全數賣出，賣出的錢併入這筆現金一起分配給其他標的。</p>';
+  let html = '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額——不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
-    '<th class="text-right">加碼後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
+    '<th class="text-right">目標佔比</th></tr></thead><tbody>';
   for (const p of data.plan) {
-    let buyLabel = '<span class="opacity-40">-</span>';
-    if (p.buy_amount > 0.5) {
-      buyLabel = `<span class="text-success font-medium">+$${p.buy_amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`;
-    } else if (p.buy_amount < -0.5) {
-      buyLabel = `<span class="text-error font-medium">-$${(-p.buy_amount).toLocaleString('en-US', {maximumFractionDigits: 0})} 賣出</span>`;
+    let buyLabel = '<span class="opacity-40">已達標</span>';
+    if (p.diff > 0.5) {
+      buyLabel = `<span class="text-success font-medium">+$${p.diff.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`;
+    } else if (p.diff < -0.5) {
+      buyLabel = `<span class="text-error font-medium">-$${(-p.diff).toLocaleString('en-US', {maximumFractionDigits: 0})} 賣出</span>`;
     }
-    const newWeightClass = posNegClass(p.new_weight - p.current_weight);
     html += `<tr>
       <td class="font-medium">${escapeHtml(p.symbol)}</td>
       <td class="text-right">${buyLabel}</td>
       <td class="text-right opacity-70">${(p.current_weight * 100).toFixed(1)}%</td>
-      <td class="text-right ${newWeightClass}">${(p.new_weight * 100).toFixed(1)}%</td>
       <td class="text-right opacity-70">${(p.target_weight * 100).toFixed(1)}%</td>
     </tr>`;
   }
