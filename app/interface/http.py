@@ -15,6 +15,7 @@ load_dotenv()
 from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
+from app.application.liabilities import liability_summary
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.application.tax_lots import tax_lot_report
 from app.infrastructure import github_actions, market_data
@@ -35,7 +36,6 @@ from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.infrastructure.institutional import fetch_institutional_data
 from app.domain.portfolio.advice import build_advice
-from app.domain.liabilities.amortization import remaining_balance
 from app.domain.portfolio.cash_deployment import suggest_cash_deployment
 from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.domain.analytics.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
@@ -1306,20 +1306,19 @@ def delete_allocation_alert(alert_id: str = Form(...)):
         return JSONResponse({"alerts": repo.allocation_alerts()})
 
 
-def _liabilities_with_balance(repo) -> list[dict]:
-    as_of = datetime.now().date()
-    rows = repo.liabilities()
-    for row in rows:
-        row["remaining_balance"] = remaining_balance(
-            row["principal"], row["annual_rate"], row["monthly_payment"], date.fromisoformat(row["start_date"]), as_of
-        )
-    return rows
+def _liability_context(repo) -> dict:
+    return liability_summary(
+        liabilities=repo.liabilities(),
+        snapshots=repo.latest_snapshots(),
+        transactions=repo.all_transactions(),
+        as_of=datetime.now().date(),
+    )
 
 
 @app.get("/api/liabilities")
 def list_liabilities():
     with Repositories() as repo:
-        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
+        return JSONResponse(_liability_context(repo))
 
 
 @app.post("/api/liabilities")
@@ -1342,14 +1341,14 @@ def add_liability(
         return JSONResponse({"error": "起貸日格式錯誤"}, status_code=400)
     with Repositories() as repo:
         repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start)
-        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
+        return JSONResponse(_liability_context(repo))
 
 
 @app.post("/api/liabilities/delete")
 def delete_liability(liability_id: str = Form(...)):
     with Repositories() as repo:
         repo.delete_liability(liability_id)
-        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
+        return JSONResponse(_liability_context(repo))
 
 
 @app.get("/api/goal")
