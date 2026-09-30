@@ -43,12 +43,17 @@
       </div>
 
       <div class="divider text-xs opacity-50">或者：只有一筆閒置現金，不想賣出任何持股</div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <span class="text-sm opacity-70">我有</span>
         <input id="cash-deployment-amount" type="number" min="0" step="100" placeholder="10000" class="input input-bordered input-sm w-32">
-        <span class="text-sm opacity-70">元現金，該加碼哪些？</span>
+        <select id="cash-deployment-currency" class="select select-bordered select-sm w-24">
+          <option value="USD">USD</option>
+          <option value="TWD">TWD</option>
+        </select>
+        <span class="text-sm opacity-70">，該加碼哪些？</span>
         <button type="button" onclick="loadCashDeployment()" class="btn btn-neutral btn-sm">查詢</button>
       </div>
+      <div id="cash-deployment-converted" class="text-xs opacity-50 mt-1 hidden"></div>
       <div id="cash-deployment-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="cash-deployment-content" class="mt-2"></div>
     </div>
@@ -56,18 +61,39 @@
 
 <script>
 makeSortable(document.getElementById('rebalance-table'));
+// 用最近一次同步時存的 USD/TWD 參考匯率（跟頁首「總市值 (TWD)」卡片同一個
+// 來源），不是即時再打一次匯率 API - 選 TWD 加碼時直接除這個匯率換算成
+// USD 再送給 /api/cash-deployment（組合內部一律用 USD 追蹤）。
+const usdTwdRate = {{ stats.usd_twd_rate | default(none) | tojson }};
+
 async function loadCashDeployment() {
   const errorBox = document.getElementById('cash-deployment-error');
   const content = document.getElementById('cash-deployment-content');
+  const convertedBox = document.getElementById('cash-deployment-converted');
   const amountInput = document.getElementById('cash-deployment-amount');
+  const currency = document.getElementById('cash-deployment-currency').value;
   errorBox.classList.add('hidden');
+  convertedBox.classList.add('hidden');
 
-  const amount = parseFloat(amountInput.value);
-  if (!amount || amount <= 0) {
+  const entered = parseFloat(amountInput.value);
+  if (!entered || entered <= 0) {
     content.innerHTML = '';
     errorBox.textContent = '請輸入大於 0 的金額';
     errorBox.classList.remove('hidden');
     return;
+  }
+
+  let amount = entered;
+  if (currency === 'TWD') {
+    if (!usdTwdRate) {
+      content.innerHTML = '';
+      errorBox.textContent = '目前沒有可用的參考匯率，換算不了，請改用 USD 輸入';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    amount = entered / usdTwdRate;
+    convertedBox.textContent = `NT$${entered.toLocaleString('en-US', {maximumFractionDigits: 0})} ÷ 參考匯率 ${usdTwdRate.toFixed(4)} ≈ $${amount.toLocaleString('en-US', {maximumFractionDigits: 2})} USD`;
+    convertedBox.classList.remove('hidden');
   }
   content.innerHTML = '<p class="opacity-60">查詢中…</p>';
 
