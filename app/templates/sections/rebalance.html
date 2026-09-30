@@ -110,7 +110,19 @@ async function loadCashDeployment() {
     content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
     return;
   }
-  let html = `<p class="text-sm mb-1">加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span></p>`;
+  // 台股代號是數字開頭（0050、2330、00631L...），美股是純英文 - 目標配置
+  // 裡沒有持有過、只是手動輸入的代號（像 00631LTW）從沒被 yfinance 查過，
+  // FundamentalsCache 不會有 currency 可用，用代號本身的命名慣例判斷，
+  // 不是查真正的幣別資料。
+  const isTwStock = (symbol) => /^\d/.test(symbol);
+  const twUsd = data.plan.filter((p) => isTwStock(p.symbol)).reduce((sum, p) => sum + p.target_value, 0);
+  const usUsd = data.new_total - twUsd;
+  let html = '<p class="text-sm mb-1">';
+  html += usdTwdRate
+    ? `台股：<span class="font-medium">NT$${(twUsd * usdTwdRate).toLocaleString('en-US', {maximumFractionDigits: 0})}</span>　`
+    : `台股：<span class="font-medium">$${twUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（沒有可用參考匯率，先以 USD 顯示）　`;
+  html += `美股：<span class="font-medium">$${usUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>　`;
+  html += `加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（合計，USD）</p>`;
   html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
