@@ -27,6 +27,7 @@ from app.infrastructure.db import (
     FirestradeCredential,
     FundamentalsCache,
     InvestmentGoal,
+    Liability,
     PositionNote,
     PositionNoteHistory,
     PositionSnapshot,
@@ -270,6 +271,41 @@ class Repositories:
 
     def delete_allocation_alert(self, alert_id: str) -> None:
         existing = self._mine(AllocationAlert).filter(AllocationAlert.id == alert_id).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
+
+    # --- liabilities (issue #326) -----------------------------------------------
+
+    def liabilities(self) -> list[dict]:
+        rows = self._mine(Liability).order_by(desc(Liability.created_at)).all()
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "principal": r.principal,
+                "annual_rate": r.annual_rate,
+                "monthly_payment": r.monthly_payment,
+                "start_date": r.start_date.isoformat(),
+            }
+            for r in rows
+        ]
+
+    def add_liability(self, name: str, principal: float, annual_rate: float, monthly_payment: float, start_date: date) -> None:
+        self._db.add(
+            Liability(
+                user_id=self._user_id,
+                name=name,
+                principal=principal,
+                annual_rate=annual_rate,
+                monthly_payment=monthly_payment,
+                start_date=start_date,
+            )
+        )
+        self._db.commit()
+
+    def delete_liability(self, liability_id: str) -> None:
+        existing = self._mine(Liability).filter(Liability.id == liability_id).first()
         if existing:
             self._db.delete(existing)
             self._db.commit()

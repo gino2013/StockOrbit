@@ -226,6 +226,13 @@
       <div class="stat-title">總市值</div>
       <div class="stat-value text-2xl">${{ "{:,.0f}".format(stats.total_value) }}</div>
     </div>
+    {% if stats.net_worth is not none %}
+    <div class="stat">
+      <div class="stat-title">淨資產</div>
+      <div class="stat-value text-2xl {{ 'text-success' if stats.net_worth >= 0 else 'text-error' }}">${{ "{:,.0f}".format(stats.net_worth) }}</div>
+      <div class="stat-desc">總市值 － 未償還負債 ${{ "{:,.0f}".format(stats.total_liabilities) }}</div>
+    </div>
+    {% endif %}
     <div class="stat">
       <div class="stat-title">未實現損益</div>
       <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain >= 0 else 'text-error' }}">
@@ -365,6 +372,9 @@
   <!-- Section: 配置偏離提醒 -->
   {% include "sections/allocation_alerts.html" %}
 
+  <!-- Section: 負債（信貸） -->
+  {% include "sections/liabilities.html" %}
+
   <!-- Section: FIRE 進度 -->
   {% include "sections/fire.html" %}
   {% endif %}
@@ -472,6 +482,8 @@
           <li><a href="#section-dividend-calendar">配息月曆</a></li>
           <li><a href="#section-notes">持股筆記</a></li>
           <li><a href="#section-price-alerts">價格提醒</a></li>
+          <li><a href="#section-allocation-alerts">配置偏離提醒</a></li>
+          <li><a href="#section-liabilities">負債（信貸）</a></li>
           <li><a href="#section-fire">FIRE 進度</a></li>
         </ul>
       </details>

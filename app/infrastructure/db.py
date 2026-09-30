@@ -248,6 +248,26 @@ class AllocationAlert(Base):
     triggered_at = Column(DateTime)
 
 
+class Liability(Base):
+    """A fixed-payment loan (issue #326) - e.g. a personal loan (信貸) used
+    to fund investing. Not tied to any brokerage/account; just enough
+    (principal, rate, payment, start date) for standard amortization math
+    (app/domain/liabilities/amortization.py) to derive the remaining
+    balance at any date, so nobody has to manually update a balance field
+    every month."""
+
+    __tablename__ = "liabilities"
+
+    id = Column(String, primary_key=True, default=lambda: os.urandom(8).hex())
+    user_id = _user_id_col()
+    name = Column(String, nullable=False)
+    principal = Column(Float, nullable=False)
+    annual_rate = Column(Float, nullable=False)
+    monthly_payment = Column(Float, nullable=False)
+    start_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class InvestmentGoal(Base):
     """One long-term target (amount + date) per user to track progress
     against. `user_id` is the primary key directly - one goal at a time per
@@ -363,7 +383,9 @@ def _infer_untracked_revision() -> str | None:
         return "0010_price_to_book"
     if not inspector.has_table("allocation_alerts"):
         return "0011_price_alerts"
-    return "0012_allocation_alerts"  # structure already matches head
+    if not inspector.has_table("liabilities"):
+        return "0012_allocation_alerts"
+    return "0013_liabilities"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

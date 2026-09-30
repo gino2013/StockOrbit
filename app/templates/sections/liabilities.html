@@ -1,0 +1,113 @@
+  <h2 id="section-liabilities" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>負債（信貸）
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        記錄用來投入投資的信貸（本金／年利率／月付款／起貸日），未償還餘額用標準攤還公式自動算，不用每月手動更新。填好之後，頁首會多一張「淨資產」卡片（總市值 － 所有未償還負債）。純記錄工具，不是貸款建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div>
+          <label class="text-xs opacity-60 block mb-1">名稱</label>
+          <input id="liability-name" placeholder="信貸-A銀行" class="input input-bordered input-sm w-32">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">本金</label>
+          <input id="liability-principal" type="number" min="1" step="any" placeholder="500000" class="input input-bordered input-sm w-28">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">年利率 (%)</label>
+          <input id="liability-rate" type="number" min="0" max="99" step="any" placeholder="3" class="input input-bordered input-sm w-20">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">月付款</label>
+          <input id="liability-payment" type="number" min="1" step="any" placeholder="5000" class="input input-bordered input-sm w-24">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">起貸日</label>
+          <input id="liability-start" type="date" class="input input-bordered input-sm w-36">
+        </div>
+        <button type="button" onclick="addLiability()" class="btn btn-neutral btn-sm">新增</button>
+      </div>
+      <div id="liability-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="liability-content" class="mt-3"></div>
+    </div>
+  </div>
+
+<script>
+// --- 負債（信貸） ---
+function renderLiabilities(liabilities) {
+  const content = document.getElementById('liability-content');
+  if (!liabilities.length) {
+    content.innerHTML = '<p class="text-xs opacity-60">還沒有記錄任何負債。</p>';
+    return;
+  }
+  let html = '<table class="table table-sm"><thead><tr><th>名稱</th><th class="text-right">本金</th><th class="text-right">年利率</th>' +
+    '<th class="text-right">月付款</th><th>起貸日</th><th class="text-right">未償還餘額</th><th></th></tr></thead><tbody>';
+  for (const l of liabilities) {
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(l.name)}</td>
+      <td class="text-right opacity-70">$${l.principal.toLocaleString('en-US')}</td>
+      <td class="text-right opacity-70">${(l.annual_rate * 100).toFixed(2)}%</td>
+      <td class="text-right opacity-70">$${l.monthly_payment.toLocaleString('en-US')}</td>
+      <td class="opacity-70">${escapeHtml(l.start_date)}</td>
+      <td class="text-right font-medium">$${l.remaining_balance.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
+      <td class="text-right"><button type="button" onclick="deleteLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+}
+
+async function loadLiabilities() {
+  const res = await fetch('/api/liabilities');
+  const data = await res.json();
+  renderLiabilities(data.liabilities || []);
+}
+
+async function addLiability() {
+  const errorBox = document.getElementById('liability-error');
+  errorBox.classList.add('hidden');
+
+  const name = document.getElementById('liability-name').value.trim();
+  const principal = document.getElementById('liability-principal').value;
+  const ratePct = document.getElementById('liability-rate').value;
+  const payment = document.getElementById('liability-payment').value;
+  const startDate = document.getElementById('liability-start').value;
+  if (!name || !principal || ratePct === '' || !payment || !startDate) {
+    errorBox.textContent = '請填完整資訊';
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const body = new FormData();
+  body.set('name', name);
+  body.set('principal', principal);
+  body.set('annual_rate', ratePct / 100);
+  body.set('monthly_payment', payment);
+  body.set('start_date', startDate);
+  const res = await fetch('/api/liabilities', { method: 'POST', body });
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('liability-name').value = '';
+  document.getElementById('liability-principal').value = '';
+  document.getElementById('liability-rate').value = '';
+  document.getElementById('liability-payment').value = '';
+  document.getElementById('liability-start').value = '';
+  renderLiabilities(data.liabilities);
+}
+
+async function deleteLiability(id) {
+  const body = new FormData();
+  body.set('liability_id', id);
+  const res = await fetch('/api/liabilities/delete', { method: 'POST', body });
+  const data = await res.json();
+  renderLiabilities(data.liabilities || []);
+}
+
+loadLiabilities();
+</script>

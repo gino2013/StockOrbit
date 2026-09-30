@@ -35,6 +35,7 @@ from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.infrastructure.institutional import fetch_institutional_data
 from app.domain.portfolio.advice import build_advice
+from app.domain.liabilities.amortization import remaining_balance
 from app.domain.portfolio.cash_deployment import suggest_cash_deployment
 from app.domain.analytics.backtest import max_drawdown_details, run_backtest, run_benchmarks_only
 from app.domain.analytics.compound_curve import build_compound_curve, build_portfolio_compound_curve, fetch_annual_returns
@@ -735,6 +736,7 @@ def dashboard(request: Request, account: str | None = None):
             snapshot_points=repo.all_snapshot_points(selected_account),
             notes=repo.notes(),
             note_history=repo.note_history(),
+            liabilities=repo.liabilities(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
             flex_mode=flex_mode,
             flex_basis=flex_basis,
@@ -1302,6 +1304,52 @@ def delete_allocation_alert(alert_id: str = Form(...)):
     with Repositories() as repo:
         repo.delete_allocation_alert(alert_id)
         return JSONResponse({"alerts": repo.allocation_alerts()})
+
+
+def _liabilities_with_balance(repo) -> list[dict]:
+    as_of = datetime.now().date()
+    rows = repo.liabilities()
+    for row in rows:
+        row["remaining_balance"] = remaining_balance(
+            row["principal"], row["annual_rate"], row["monthly_payment"], date.fromisoformat(row["start_date"]), as_of
+        )
+    return rows
+
+
+@app.get("/api/liabilities")
+def list_liabilities():
+    with Repositories() as repo:
+        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
+
+
+@app.post("/api/liabilities")
+def add_liability(
+    name: str = Form(...),
+    principal: float = Form(...),
+    annual_rate: float = Form(...),
+    monthly_payment: float = Form(...),
+    start_date: str = Form(...),
+):
+    if not name.strip():
+        return JSONResponse({"error": "請填名稱"}, status_code=400)
+    if principal <= 0 or monthly_payment <= 0:
+        return JSONResponse({"error": "本金跟月付款需大於 0"}, status_code=400)
+    if not 0 <= annual_rate < 1:
+        return JSONResponse({"error": "年利率請填小數（例如 0.03 代表 3%），需介於 0~1 之間"}, status_code=400)
+    try:
+        parsed_start = date.fromisoformat(start_date)
+    except ValueError:
+        return JSONResponse({"error": "起貸日格式錯誤"}, status_code=400)
+    with Repositories() as repo:
+        repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start)
+        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
+
+
+@app.post("/api/liabilities/delete")
+def delete_liability(liability_id: str = Form(...)):
+    with Repositories() as repo:
+        repo.delete_liability(liability_id)
+        return JSONResponse({"liabilities": _liabilities_with_balance(repo)})
 
 
 @app.get("/api/goal")
