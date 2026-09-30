@@ -49,10 +49,29 @@ def demo():
         assert abs(p["new_weight"] - p["target_weight"]) < 1e-9
     assert abs(sum(p["buy_amount"] for p in plan3) - 9000) < 1e-6
 
-    # Never suggests a negative (sell) amount, and $0 / no targets -> empty.
+    # Never suggests a negative (sell) amount for a symbol with a positive
+    # target, and $0 / no targets -> empty.
     assert all(p["buy_amount"] >= 0 for p in plan3)
     assert suggest_cash_deployment(snapshots, {"AAPL": 0.5}, cash_amount=0) == []
     assert suggest_cash_deployment(snapshots, {}, cash_amount=1000) == []
+
+    # A target of exactly 0 means "sell this entirely" (issue #336
+    # followup) - VT is fully sold, and its $3000 proceeds fold into the
+    # $1000 of new cash so QQQ (the only positive-weight target) gets $4000
+    # total, landing exactly on its 100% target of the resulting $9000.
+    sell_snapshots = [
+        {"symbol": "QQQ", "market_value": 5000},
+        {"symbol": "VT", "market_value": 3000},
+    ]
+    plan4 = suggest_cash_deployment(sell_snapshots, {"QQQ": 1.0, "VT": 0.0}, cash_amount=1000)
+    by_symbol4 = {p["symbol"]: p for p in plan4}
+    assert abs(by_symbol4["VT"]["buy_amount"] - (-3000)) < 1e-6
+    assert abs(by_symbol4["VT"]["new_value"]) < 1e-6
+    assert abs(by_symbol4["VT"]["new_weight"]) < 1e-9
+    assert abs(by_symbol4["QQQ"]["buy_amount"] - 4000) < 1e-6
+    assert abs(by_symbol4["QQQ"]["new_weight"] - 1.0) < 1e-9
+    # current_value/current_weight still reflect real (pre-sell) holdings.
+    assert by_symbol4["VT"]["current_value"] == 3000
 
 
 if __name__ == "__main__":

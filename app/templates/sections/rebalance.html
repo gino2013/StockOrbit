@@ -110,14 +110,17 @@ async function loadCashDeployment() {
     content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
     return;
   }
-  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標-現金不夠補滿全部落差時，只會盡量按落差比例分配。</p>';
+  let html = '<p class="text-xs opacity-50 mb-1">「加碼後佔比」是投入這筆現金、總市值變大之後重新算的比例，不一定會剛好等於目標-現金不夠補滿全部落差時，只會盡量按落差比例分配。目標設為 0% 的持股會建議全數賣出，賣出的錢併入這筆現金一起分配給其他標的。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
-    '<th>代號</th><th class="text-right">建議買入</th><th class="text-right">目前佔比</th>' +
+    '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
     '<th class="text-right">加碼後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
   for (const p of data.plan) {
-    const buyLabel = p.buy_amount > 0.5
-      ? `<span class="text-success font-medium">+$${p.buy_amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`
-      : '<span class="opacity-40">-</span>';
+    let buyLabel = '<span class="opacity-40">-</span>';
+    if (p.buy_amount > 0.5) {
+      buyLabel = `<span class="text-success font-medium">+$${p.buy_amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`;
+    } else if (p.buy_amount < -0.5) {
+      buyLabel = `<span class="text-error font-medium">-$${(-p.buy_amount).toLocaleString('en-US', {maximumFractionDigits: 0})} 賣出</span>`;
+    }
     const newWeightClass = posNegClass(p.new_weight - p.current_weight);
     html += `<tr>
       <td class="font-medium">${escapeHtml(p.symbol)}</td>
