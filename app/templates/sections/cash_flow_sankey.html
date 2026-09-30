@@ -7,6 +7,7 @@
         入金＋股利收入，最後去了哪裡：提領出去，還是留在帳戶（現金或投資）。跟「目前市值」不同——市值還包含還沒實現的投資損益，這裡只算真的移動過的錢。提領無法追蹤是哪一筆錢（帳戶裡的現金是同一池子），這裡假設「先花股利、再動本金」的常見心態模型來分配，不代表真實的資金流向。
       </p>
       <div id="cash-flow-sankey-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="cash-flow-stats"></div>
       <div class="h-72 mt-4"><canvas id="cashFlowSankeyChart"></canvas></div>
     </div>
   </div>
@@ -17,7 +18,9 @@ let cashFlowSankeyChart = null;
 
 async function loadCashFlowSankey() {
   const errorBox = document.getElementById('cash-flow-sankey-error');
+  const statsBox = document.getElementById('cash-flow-stats');
   errorBox.classList.add('hidden');
+  statsBox.innerHTML = '';
 
   const res = await fetch('/api/cash-flow-sankey');
   const data = await res.json();
@@ -31,6 +34,30 @@ async function loadCashFlowSankey() {
     errorBox.classList.remove('hidden');
     return;
   }
+
+  // 流向圖只有一兩條線時（例如還沒提領過、股利也很少）幾乎看不出資訊，
+  // 數字用文字直接列出來，不用靠 hover 才看得到。
+  const fmt = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
+  const remaining = data.total_deposits + data.total_dividends - data.total_withdrawals;
+  statsBox.innerHTML = `
+    <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 w-full mt-3">
+      <div class="stat">
+        <div class="stat-title">總入金</div>
+        <div class="stat-value text-lg">${fmt(data.total_deposits)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">累計股利</div>
+        <div class="stat-value text-lg">${fmt(data.total_dividends)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">已提領</div>
+        <div class="stat-value text-lg">${fmt(data.total_withdrawals)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">留在帳戶</div>
+        <div class="stat-value text-lg">${fmt(remaining)}</div>
+      </div>
+    </div>`;
 
   if (cashFlowSankeyChart) cashFlowSankeyChart.destroy();
   cashFlowSankeyChart = new Chart(document.getElementById('cashFlowSankeyChart'), {
