@@ -4,7 +4,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        記錄用來投入投資的信貸（本金／年利率／月付款／起貸日），未償還餘額用標準攤還公式自動算，不用每月手動更新。填好之後，頁首會多一張「淨資產」卡片（總市值 － 所有未償還負債）。純記錄工具，不是貸款建議。
+        記錄用來投入投資的信貸（本金／年利率／月付款／起貸日），未償還餘額用標準攤還公式自動算，不用每月手動更新。填好之後，頁首會多一張「淨資產」卡片（總市值 － 所有未償還負債），下面也會多一組「加權平均信貸利率 vs 目前投組 XIRR」的利差比較——借錢投資到底划不划算，一個數字看完。純記錄工具，不是貸款建議。
       </p>
       <div class="flex flex-wrap items-end gap-2 mt-2">
         <div>
@@ -30,6 +30,7 @@
         <button type="button" onclick="addLiability()" class="btn btn-neutral btn-sm">新增</button>
       </div>
       <div id="liability-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="leverage-spread-content"></div>
       <div id="liability-content" class="mt-3"></div>
     </div>
   </div>
@@ -59,10 +60,44 @@ function renderLiabilities(liabilities) {
   content.innerHTML = html;
 }
 
+// 「槓桿成本 vs 報酬比較」（issue #330）：加權平均信貸利率 vs 目前投組
+// XIRR，利差 = XIRR － 加權平均利率。三個數字缺一個就不顯示這組卡片
+// （例如還沒登記負債，或還沒有持股資料算不出 XIRR）。
+function renderLeverageSpread(data) {
+  const el = document.getElementById('leverage-spread-content');
+  if (data.weighted_average_rate == null || data.leverage_spread == null) {
+    el.innerHTML = '';
+    return;
+  }
+  const spreadClass = posNegClass(data.leverage_spread);
+  el.innerHTML = `
+    <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-200 w-full mt-2">
+      <div class="stat">
+        <div class="stat-title">加權平均信貸利率</div>
+        <div class="stat-value text-lg">${fmtPctOrDash(data.weighted_average_rate)}</div>
+        <div class="stat-desc">依未償還餘額加權</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">目前投組 XIRR</div>
+        <div class="stat-value text-lg">${fmtPctOrDash(data.portfolio_return)}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">利差</div>
+        <div class="stat-value text-lg ${spreadClass}">${fmtPct(data.leverage_spread)}</div>
+        <div class="stat-desc">${data.leverage_spread >= 0 ? '槓桿目前在賺' : '槓桿成本高於報酬'}，純資訊呈現</div>
+      </div>
+    </div>`;
+}
+
+function renderLiabilityContext(data) {
+  renderLiabilities(data.liabilities || []);
+  renderLeverageSpread(data);
+}
+
 async function loadLiabilities() {
   const res = await fetch('/api/liabilities');
   const data = await res.json();
-  renderLiabilities(data.liabilities || []);
+  renderLiabilityContext(data);
 }
 
 async function addLiability() {
@@ -98,7 +133,7 @@ async function addLiability() {
   document.getElementById('liability-rate').value = '';
   document.getElementById('liability-payment').value = '';
   document.getElementById('liability-start').value = '';
-  renderLiabilities(data.liabilities);
+  renderLiabilityContext(data);
 }
 
 async function deleteLiability(id) {
@@ -106,7 +141,7 @@ async function deleteLiability(id) {
   body.set('liability_id', id);
   const res = await fetch('/api/liabilities/delete', { method: 'POST', body });
   const data = await res.json();
-  renderLiabilities(data.liabilities || []);
+  renderLiabilityContext(data);
 }
 
 loadLiabilities();
