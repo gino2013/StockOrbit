@@ -110,10 +110,11 @@ async function loadCashDeployment() {
     content.innerHTML = '<p class="text-sm opacity-60">還沒有設定目標配置。</p>';
     return;
   }
-  let html = '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額——不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
+  let html = `<p class="text-sm mb-1">加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span></p>`;
+  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額——不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
-    '<th class="text-right">目標佔比</th></tr></thead><tbody>';
+    '<th class="text-right">做完後市值</th><th class="text-right">做完後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
   for (const p of data.plan) {
     let buyLabel = '<span class="opacity-40">已達標</span>';
     if (p.diff > 0.5) {
@@ -121,10 +122,17 @@ async function loadCashDeployment() {
     } else if (p.diff < -0.5) {
       buyLabel = `<span class="text-error font-medium">-$${(-p.diff).toLocaleString('en-US', {maximumFractionDigits: 0})} 賣出</span>`;
     }
+    // 這個算法保證做完後一定剛好等於目標（見 build_rebalance_plan 的
+    // extra_cash 參數），不是只是盡量接近 - target_value/target_weight
+    // 就是做完後的市值/佔比，不用另外算，但欄位還是明講「做完後」，
+    // 不用使用者自己去推。
+    const newWeightClass = posNegClass(p.target_weight - p.current_weight);
     html += `<tr>
       <td class="font-medium">${escapeHtml(p.symbol)}</td>
       <td class="text-right">${buyLabel}</td>
       <td class="text-right opacity-70">${(p.current_weight * 100).toFixed(1)}%</td>
+      <td class="text-right opacity-70">$${p.target_value.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
+      <td class="text-right ${newWeightClass}">${(p.target_weight * 100).toFixed(1)}%</td>
       <td class="text-right opacity-70">${(p.target_weight * 100).toFixed(1)}%</td>
     </tr>`;
   }

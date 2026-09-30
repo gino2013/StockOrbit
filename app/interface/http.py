@@ -1234,7 +1234,8 @@ def cash_deployment(amount: float, account: str | None = None):
     if not targets:
         return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
     plan = build_rebalance_plan(snapshots, targets, extra_cash=amount)
-    return JSONResponse({"plan": plan})
+    new_total = sum(s["market_value"] for s in snapshots) + amount
+    return JSONResponse({"plan": plan, "new_total": new_total})
 
 
 @app.get("/api/cash-flow-sankey")
