@@ -111,7 +111,7 @@ async function loadCashDeployment() {
     return;
   }
   let html = `<p class="text-sm mb-1">加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span></p>`;
-  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額——不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
+  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
     '<th class="text-right">做完後市值</th><th class="text-right">做完後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
