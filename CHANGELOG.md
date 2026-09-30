@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-01（閒置現金加碼支援賣出歸零標的）
+
+- 「只有一筆閒置現金」加碼查詢：目標設為 0% 但仍持有的標的，現在會建議全數賣出，賣出的錢併入這次要分配的現金一起分配給其他標的（issue #338）。之前這個輕量版本只會買不會賣，目標歸零的標的只會顯示「-」被晾在一邊，跟上面完整版「再平衡建議金額」表格（早就支援目標 0% 全數賣出）不一致——`app/domain/portfolio/cash_deployment.py` 補上同樣的邏輯
+
 ## 2026-10-01（目標配置支援拖曳排序）
 
 - 目標配置新增拖曳調整順序（issue #336，使用者截圖回報）：`target_allocations` 新增 `sort_order` 欄位（migration `0014`，backfill 既有資料），每列左側加拖曳手把，用 Pointer Events 實作（不是 HTML5 native drag-and-drop）滑鼠/觸控都能拖，`POST /api/targets/reorder` 寫回順序。過程中意外抓到一個既有 bug：Jinja2 的 `tojson` filter 預設 `sort_keys=True`，會把所有 `| tojson` 的 dict 都強制字母排序，導致 `sort_order` 存進 DB 也沒用——每次重新整理頁面都被排回字母順序。全域關掉這個 policy 修正（`templates.env.policies["json.dumps_kwargs"]`）
