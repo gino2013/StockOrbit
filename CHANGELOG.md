@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-09-30
+
+- 新增負債（信貸）追蹤 + 淨資產卡片（issue #326）：這是信貸投資追蹤系列功能的地基，後續槓桿成本比較、還款攤還表、淨資產歷史走勢會重用同一套攤還數學。新表 `liabilities`（migration `0013_liabilities`），新檔 `app/domain/liabilities/amortization.py`（純函式：`remaining_balance()` 用標準攤還公式算某天的未償餘額、`amortization_schedule()` 算完整月付款明細，兩者交叉驗證過一致；月付款不夠付當期利息的負攤還邊界情況會停止並標記，不會無限循環或算出負本金）。頁首「淨資產」卡片 = 總市值 － 所有負債未償餘額加總，只在有登記負債時顯示，沒有負債的人畫面不變。順便補上 #321（配置偏離提醒）漏掉的側邊選單連結——功能本身一直是好的，只是選單點不進去
+
 ## 2026-09-29（Render 部署修復）
 
 - 修正 Render 部署持續失敗（issue #324）：`requirements.txt` 補上 `psycopg[binary]`（v3）。Deploy log 顯示 `ModuleNotFoundError: No module named 'psycopg'`——SQLAlchemy 載入的是 `dialects/postgresql/psycopg.py`（v3 dialect），代表 Render 的 `DATABASE_URL` secret 是 `postgresql+psycopg://...` 格式，但 `requirements.txt` 從 multi-user step 1（#139）以來只裝了 `psycopg2-binary`（v2），兩者對不上。服務因此卡在 5 天前最後一次成功部署的舊版本，完全沒吃到後續合併的所有功能（含這次的目標達成機率、配置偏離提醒）。不是這次功能 PR 造成的——`requirements.txt` 最後一次改動是 #302，這個 mismatch 已經存在超過 5 天，只是沒人重新部署過才沒被發現

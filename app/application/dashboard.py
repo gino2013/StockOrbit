@@ -7,6 +7,7 @@ mode from the cookie, and hands the raw data here.
 from datetime import date
 from itertools import groupby
 
+from app.domain.liabilities.amortization import remaining_balance
 from app.domain.portfolio.advice import build_advice, build_rebalance_plan
 from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
 from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
@@ -78,6 +79,7 @@ def build_dashboard_context(
     snapshot_points: list[dict],
     notes: dict[str, str],
     note_history: dict[str, list[dict]],
+    liabilities: list[dict],
     usd_twd_rate: float | None,
     flex_mode: bool,
     flex_basis: dict[str, tuple] | None = None,
@@ -151,6 +153,22 @@ def build_dashboard_context(
         )
     ]
 
+    # Net worth (issue #326): assets (total_value) minus every liability's
+    # amortized remaining balance as of today - only shown once the user
+    # has actually logged a liability, so someone with no debt keeps seeing
+    # the plain 總市值 card they always had, not a redundant duplicate.
+    total_liabilities = (
+        sum(
+            remaining_balance(
+                liability["principal"], liability["annual_rate"], liability["monthly_payment"],
+                date.fromisoformat(liability["start_date"]), as_of,
+            )
+            for liability in liabilities
+        )
+        if liabilities
+        else None
+    )
+
     stats = {
         "total_value": total_value,
         "total_gain": total_gain,
@@ -160,6 +178,8 @@ def build_dashboard_context(
         "usd_twd_rate": usd_twd_rate,
         "total_value_twd": (total_value * usd_twd_rate) if usd_twd_rate else None,
         "total_gain_twd": (total_gain * usd_twd_rate) if usd_twd_rate else None,
+        "total_liabilities": total_liabilities,
+        "net_worth": (total_value - total_liabilities) if total_liabilities is not None else None,
     }
     # Flex mode ("held since 2017, never touched it") has no future deposits
     # by premise; otherwise assume the investor keeps contributing at their
