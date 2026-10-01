@@ -78,3 +78,29 @@ def rank_moonshot_candidates(fundamentals_by_symbol: dict[str, dict]) -> list[di
     """幫一批代號評分，依分數高到低排序（同分用代號字母序，排序穩定）。"""
     results = [{"symbol": symbol, **score_moonshot(f)} for symbol, f in fundamentals_by_symbol.items()]
     return sorted(results, key=lambda r: (-r["score"], r["symbol"]))
+
+
+def market_screen_symbols(limit: int = 30) -> list[str]:
+    """掃全市場找出真的通過全部四項門檻的代號（issue #356），不是只能評分
+    使用者自己清單裡的代號 - 直接把這裡的門檻常數套進 yfinance 的
+    EquityQuery，Yahoo 自己的伺服器端做篩選（不是抓全市場報價回來自己算），
+    一次撈出真正的候選名單，依市值大到小排序。
+
+    Yahoo screener 的數值欄位用的是百分比整數（40 代表 40%），跟這個檔案
+    其他地方用小數（0.4）不同，這裡轉換一次。拿到的代號清單還是要再走一次
+    fetch_fundamentals()/快取（跟清單篩選共用同一條路徑）才能顯示實際數字
+    - Yahoo screener 回傳的 quote 物件本身不含 grossMargins/pegRatio 這些
+    用來篩選的欄位。
+    """
+    from app.infrastructure import market_data
+
+    quotes = market_data.screen_equities(
+        filters=[
+            ("grossprofitmargin.lasttwelvemonths", "gt", GROSS_MARGIN_THRESHOLD * 100),
+            ("intradaymarketcap", "lt", SMALL_CAP_THRESHOLD),
+            ("totalrevenues1yrgrowth.lasttwelvemonths", "gt", GROWTH_THRESHOLD * 100),
+            ("pegratio_5y", "btwn", (0, PEG_MAX)),
+        ],
+        count=limit,
+    )
+    return [q["symbol"] for q in quotes if q.get("symbol")]

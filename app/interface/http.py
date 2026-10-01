@@ -74,7 +74,7 @@ from app.domain.analytics.scenario import simulate_market_drop
 from app.domain.analytics import stock_detail
 from app.domain.analytics.technical_indicators import compute_technical_indicators
 from app.domain.analytics.trending import SCREENERS, trending_tickers
-from app.domain.screening.moonshot import rank_moonshot_candidates
+from app.domain.screening.moonshot import market_screen_symbols, rank_moonshot_candidates
 
 async def _bind_request_user(request: Request) -> None:
     """App-level dependency: publish the middleware-loaded user into the
@@ -1339,11 +1339,11 @@ def get_firstrade_watchlist_symbols(list_id: int, request: Request):
     return JSONResponse({"symbols": symbols})
 
 
-@app.get("/api/moonshot-screen")
-def moonshot_screen(symbols: str):
-    symbol_list = sorted({s.strip().upper() for s in symbols.split(",") if s.strip()})
-    if not symbol_list:
-        return JSONResponse({"error": "請至少提供一個代號"}, status_code=400)
+def _score_symbols_with_fundamentals(symbol_list: list[str]) -> list[dict]:
+    """Shared by /api/moonshot-screen and /api/moonshot-market-screen: live
+    fetch with cache fallback (same pattern as every other fundamentals-
+    driven endpoint), then score. Registers never-seen symbols for the
+    scheduled cache refresh rather than leaving them permanently blank."""
     live = fetch_fundamentals(symbol_list)
     with Repositories() as repo:
         fundamentals_by_symbol = {}
@@ -1359,7 +1359,26 @@ def moonshot_screen(symbols: str):
             fundamentals_by_symbol[symbol] = fields
         if newly_registered:
             github_actions.trigger_fundamentals_refresh()
-    return JSONResponse({"results": rank_moonshot_candidates(fundamentals_by_symbol)})
+    return rank_moonshot_candidates(fundamentals_by_symbol)
+
+
+@app.get("/api/moonshot-screen")
+def moonshot_screen(symbols: str):
+    symbol_list = sorted({s.strip().upper() for s in symbols.split(",") if s.strip()})
+    if not symbol_list:
+        return JSONResponse({"error": "請至少提供一個代號"}, status_code=400)
+    return JSONResponse({"results": _score_symbols_with_fundamentals(symbol_list)})
+
+
+@app.get("/api/moonshot-market-screen")
+def moonshot_market_screen():
+    try:
+        symbol_list = market_screen_symbols(limit=30)
+    except Exception as e:
+        return JSONResponse({"error": f"全市場篩選失敗：{e}"}, status_code=400)
+    if not symbol_list:
+        return JSONResponse({"results": []})
+    return JSONResponse({"results": _score_symbols_with_fundamentals(symbol_list)})
 
 
 @app.get("/api/price-alerts")

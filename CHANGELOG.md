@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-01（千倍股篩選新增「全市場搜尋」）
+
+- 使用者回報（issue #356）：千倍股篩選只能評分自己整理的清單（自選股/持股/Firstrade 清單），但原本的需求是「根據最新的狀況找到所有股票裡符合條件的」，應該要能掃全市場，不是只能套在自己的清單上。查了 yfinance 的 `EquityQuery` screener，發現它實際支援這次篩選用到的所有欄位（`grossprofitmargin.lasttwelvemonths`、`intradaymarketcap`、`totalrevenues1yrgrowth.lasttwelvemonths`、`pegratio_5y`），可以把四項門檻直接組成一個查詢丟給 Yahoo 的伺服器端篩選，不用自己抓全市場報價回來算。新增 `market_data.screen_equities()`（唯一 import yfinance 的地方，同既有慣例）跟 `moonshot.market_screen_symbols()`，新增 `/api/moonshot-market-screen` 端點，清單下拉選單多一個「全市場搜尋（符合全部 4 項）」選項。實測：3 秒內掃出真實的 4/4 候選名單（DHT、HASI、SEZL 等），確認可行
+
 ## 2026-10-01（千金股篩選改名千倍股；分清楚「沒資料」跟「0 分」）
 
 - 使用者回報兩點（issue #354）：① 改叫「千倍股」，不要用「千金股」（台股特定用語）；② 查詢結果一片「－」看不懂是怎麼回事——這其實是 Render 連不到 Yahoo 即時 API，又剛好是第一次查這些代號（還沒被任何人查過、沒有快取可退回）時會出現的正常狀況，之前完全沒有說明，看起來就像功能壞掉。改名全站生效（`千金股` → `千倍股`）；表格補上「尚無資料」跟真的 0 分（四項都套進去算出來未通過）的視覺區分，沒資料的列加上提示文字說明原因（已排入排程重新整理，稍後再查通常就有）；說明段落的 ①②③④ 改成每項各自一行，不要擠在同一段落裡
