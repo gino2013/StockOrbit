@@ -1284,7 +1284,7 @@ def reorder_targets(symbols: str = Form(...)):
     return JSONResponse({"ok": True})
 
 
-# --- 自選股清單 + 千金股篩選 (issue #348) -------------------------------------
+# --- 自選股清單 + 千倍股篩選 (issue #348) -------------------------------------
 
 
 @app.get("/api/watchlist")

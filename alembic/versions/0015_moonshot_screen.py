@@ -1,6 +1,6 @@
 """fundamentals_cache: add grossMargins; new watchlist_symbols table
 
-Supports the 千金股 (moonshot stock) screener (issue #348): grossMargins
+Supports the 千倍股 (moonshot stock) screener (issue #348): grossMargins
 is the Novy-Marx gross-profitability metric used by the screen's
 profitability criterion. watchlist_symbols is the app-local 自選股
 list - deliberately separate from Firstrade's own watchlists, which are
