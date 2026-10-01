@@ -18,11 +18,15 @@
       <p class="text-xs opacity-50 mt-1">
         「－」是真的沒抓到任何基本面資料（還沒被任何人查過、剛加進排程，或 yfinance 本身就查不到這個代號），不等於 0 分（真的套進四個維度、算出來全部未通過），兩者在表格上刻意分開顯示，不要混在一起看。Render 連不到 Yahoo 即時 API 時，沒資料的代號會自動排入排程重新整理，最晚 6 小時後再查一次通常就有。
       </p>
+      <p class="text-xs opacity-50 mt-1">
+        「我的自選股」「目前持股」「Firstrade 清單」是幫你手上/想追蹤的代號評分；「全市場搜尋」不一樣，是直接在 Yahoo 的伺服器上套這四項門檻掃整個美股市場，回傳真的同時符合全部 4 項的候選名單（依市值大到小排序，最多 30 檔），不是只能從你自己整理的名單裡挑。
+      </p>
 
       <div class="flex items-center gap-2 flex-wrap mt-3">
         <select id="moonshot-list-select" class="select select-bordered select-sm">
           <option value="watchlist">我的自選股</option>
           <option value="holdings">目前持股</option>
+          <option value="market">全市場搜尋（符合全部 4 項）</option>
         </select>
         <button type="button" onclick="loadFirstradeWatchlistOptions()" class="btn btn-ghost btn-sm">載入 Firstrade 清單</button>
         <button type="button" onclick="runMoonshotScreen()" class="btn btn-neutral btn-sm">查詢</button>
@@ -126,29 +130,44 @@ async function resolveMoonshotSymbols() {
 async function runMoonshotScreen() {
   const errorBox = document.getElementById('moonshot-error');
   const content = document.getElementById('moonshot-content');
+  const isMarket = document.getElementById('moonshot-list-select').value === 'market';
   errorBox.classList.add('hidden');
-  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+  content.innerHTML = isMarket
+    ? '<p class="opacity-60">掃全市場中，Yahoo 伺服器端篩選，通常幾秒內會回來…</p>'
+    : '<p class="opacity-60">查詢中…</p>';
 
-  let symbols;
-  try {
-    symbols = await resolveMoonshotSymbols();
-  } catch (e) {
-    content.innerHTML = '';
-    errorBox.textContent = e.message;
-    errorBox.classList.remove('hidden');
-    return;
+  let data;
+  if (isMarket) {
+    // 全市場：/api/moonshot-market-screen 自己用 yfinance 的 EquityQuery 在
+    // Yahoo 伺服器端篩出通過全部 4 項門檻的代號，再走跟清單查詢一樣的評分
+    // 流程，一次呼叫就有完整結果，不用像清單查詢那樣先解析代號清單。
+    const res = await fetch('/api/moonshot-market-screen');
+    data = await res.json();
+  } else {
+    let symbols;
+    try {
+      symbols = await resolveMoonshotSymbols();
+    } catch (e) {
+      content.innerHTML = '';
+      errorBox.textContent = e.message;
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    if (!symbols.length) {
+      content.innerHTML = '<p class="text-sm opacity-60">這份清單目前沒有代號。</p>';
+      return;
+    }
+    const res = await fetch('/api/moonshot-screen?' + new URLSearchParams({ symbols: symbols.join(',') }));
+    data = await res.json();
   }
-  if (!symbols.length) {
-    content.innerHTML = '<p class="text-sm opacity-60">這份清單目前沒有代號。</p>';
-    return;
-  }
-
-  const res = await fetch('/api/moonshot-screen?' + new URLSearchParams({ symbols: symbols.join(',') }));
-  const data = await res.json();
   if (data.error) {
     content.innerHTML = '';
     errorBox.textContent = data.error;
     errorBox.classList.remove('hidden');
+    return;
+  }
+  if (!data.results.length) {
+    content.innerHTML = '<p class="text-sm opacity-60">目前市場上沒有同時符合全部 4 項門檻的代號。</p>';
     return;
   }
 

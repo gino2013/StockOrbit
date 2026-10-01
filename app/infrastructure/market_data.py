@@ -73,3 +73,27 @@ def search_symbols(query: str, max_results: int = 8) -> list:
 
 def screen(screener: str, count: int = 10) -> list:
     return yf.screen(screener, count=count).get("quotes", [])
+
+
+# Major US listing venues only (excludes OTC/pink-sheet codes like PNK/OQB/
+# OQX/BTS/YHD/NAE/CXI/OEM) - this app is a US-broker (Firstrade) tracker, so
+# thinly-traded OTC names aren't useful screen candidates.
+_US_EXCHANGES = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX"]
+
+
+def screen_equities(filters: list[tuple[str, str, object]], count: int = 30) -> list:
+    """Server-side equity screen via yfinance's EquityQuery (issue #356) -
+    Yahoo filters across its whole market itself, not "fetch everything and
+    filter locally". `filters` is `[(field, operator, value), ...]`, ANDed
+    together; operator is 'gt'/'lt'/'btwn' (value is a tuple for btwn).
+    Returns the raw quote dicts (caller picks what it needs, e.g. `symbol`).
+    """
+    from yfinance import EquityQuery
+
+    clauses = [EquityQuery("is-in", ["exchange", *_US_EXCHANGES])]
+    for field, operator, value in filters:
+        operand = [field, *value] if operator == "btwn" else [field, value]
+        clauses.append(EquityQuery(operator, operand))
+    query = EquityQuery("and", clauses)
+    result = yf.screen(query, count=count, sortField="intradaymarketcap", sortAsc=False)
+    return result.get("quotes", [])

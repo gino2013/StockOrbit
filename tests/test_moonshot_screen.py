@@ -1,9 +1,18 @@
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.domain.screening.moonshot import rank_moonshot_candidates, score_moonshot
+from app.domain.screening.moonshot import (
+    GROSS_MARGIN_THRESHOLD,
+    GROWTH_THRESHOLD,
+    PEG_MAX,
+    SMALL_CAP_THRESHOLD,
+    market_screen_symbols,
+    rank_moonshot_candidates,
+    score_moonshot,
+)
 
 
 def demo():
@@ -55,6 +64,25 @@ def demo():
     })
     assert [r["symbol"] for r in ranked] == ["BBB", "ZZZ", "AAA"]
     assert ranked[0]["score"] == 4 and ranked[-1]["score"] == 3
+
+    # market_screen_symbols (issue #356): delegates to the infrastructure
+    # layer's yfinance EquityQuery wrapper, converting this module's decimal
+    # thresholds (0.4) to the percentage scale Yahoo's screener expects (40).
+    with patch("app.infrastructure.market_data.screen_equities") as mock_screen:
+        mock_screen.return_value = [{"symbol": "INOD"}, {"symbol": "RDW"}, {"symbol": None}]
+        symbols = market_screen_symbols(limit=15)
+    assert symbols == ["INOD", "RDW"]  # a quote with no symbol is dropped, not crashed on
+    call_kwargs = mock_screen.call_args.kwargs
+    assert call_kwargs["count"] == 15
+    filters = dict((f[0], f) for f in call_kwargs["filters"])
+    assert filters["grossprofitmargin.lasttwelvemonths"] == (
+        "grossprofitmargin.lasttwelvemonths", "gt", GROSS_MARGIN_THRESHOLD * 100,
+    )
+    assert filters["intradaymarketcap"] == ("intradaymarketcap", "lt", SMALL_CAP_THRESHOLD)
+    assert filters["totalrevenues1yrgrowth.lasttwelvemonths"] == (
+        "totalrevenues1yrgrowth.lasttwelvemonths", "gt", GROWTH_THRESHOLD * 100,
+    )
+    assert filters["pegratio_5y"] == ("pegratio_5y", "btwn", (0, PEG_MAX))
 
 
 if __name__ == "__main__":
