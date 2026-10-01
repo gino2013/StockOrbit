@@ -14,7 +14,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime
 
-from firstrade import account
+from firstrade import account, watchlist
 
 
 @dataclass(frozen=True)
@@ -128,3 +128,23 @@ def fetch_transactions(session: account.FTSession | None = None) -> list[dict]:
                 }
             )
     return rows
+
+
+def fetch_watchlists(session: account.FTSession | None = None) -> list[dict]:
+    """This user's Firstrade watchlists (issue #348) - read-only, fetched
+    live on demand rather than cached/auto-refreshed with positions, since
+    they're just a list of symbols the user wants to glance at, not
+    something the rest of the app depends on."""
+    session = session or _login()
+    data = watchlist.Watchlist(session).get_watchlists()
+    return [
+        {"list_id": w["list_id"], "name": w["name"], "is_default": bool(w.get("isDefault"))}
+        for w in data.get("items", [])
+    ]
+
+
+def fetch_watchlist_symbols(list_id: int, session: account.FTSession | None = None) -> list[str]:
+    session = session or _login()
+    data = watchlist.Watchlist(session).get_watchlist(list_id)
+    items = data.get("result", {}).get("list_items", [])
+    return [item["symbol"] for item in items if item.get("symbol")]

@@ -32,7 +32,14 @@ from app.interface.auth import COOKIE_NAME, check_app_secret_key, ensure_owner
 from app.infrastructure import crypto, linebank, mailer
 from app.infrastructure.csv_import import CsvImportError, parse_positions, parse_transactions
 from app.infrastructure.export import build_holdings_csv, build_transactions_csv
-from app.infrastructure.firstrade_client import FtCreds, _login, fetch_positions, fetch_transactions
+from app.infrastructure.firstrade_client import (
+    FtCreds,
+    _login,
+    fetch_positions,
+    fetch_transactions,
+    fetch_watchlist_symbols,
+    fetch_watchlists,
+)
 from app.infrastructure.fundamentals import fetch_fundamentals
 from app.infrastructure.institutional import fetch_institutional_data
 from app.domain.portfolio.advice import build_advice, build_rebalance_plan
@@ -67,6 +74,7 @@ from app.domain.analytics.scenario import simulate_market_drop
 from app.domain.analytics import stock_detail
 from app.domain.analytics.technical_indicators import compute_technical_indicators
 from app.domain.analytics.trending import SCREENERS, trending_tickers
+from app.domain.screening.moonshot import rank_moonshot_candidates
 
 async def _bind_request_user(request: Request) -> None:
     """App-level dependency: publish the middleware-loaded user into the
@@ -742,6 +750,7 @@ def dashboard(request: Request, account: str | None = None):
             notes=repo.notes(),
             note_history=repo.note_history(),
             liabilities=repo.liabilities(),
+            watchlist_symbols=repo.watchlist_symbols(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
             flex_mode=flex_mode,
             flex_basis=flex_basis,
@@ -1273,6 +1282,84 @@ def reorder_targets(symbols: str = Form(...)):
     with Repositories() as repo:
         repo.reorder_targets(symbols.split(","))
     return JSONResponse({"ok": True})
+
+
+# --- 自選股清單 + 千金股篩選 (issue #348) -------------------------------------
+
+
+@app.get("/api/watchlist")
+def get_watchlist():
+    with Repositories() as repo:
+        return JSONResponse({"symbols": repo.watchlist_symbols()})
+
+
+@app.post("/api/watchlist")
+def add_watchlist_symbol(symbol: str = Form(...)):
+    with Repositories() as repo:
+        repo.add_watchlist_symbol(symbol)
+        symbols = repo.watchlist_symbols()
+    return JSONResponse({"symbols": symbols})
+
+
+@app.post("/api/watchlist/delete")
+def delete_watchlist_symbol(symbol: str = Form(...)):
+    with Repositories() as repo:
+        repo.remove_watchlist_symbol(symbol)
+        symbols = repo.watchlist_symbols()
+    return JSONResponse({"symbols": symbols})
+
+
+@app.get("/api/firstrade-watchlists")
+def get_firstrade_watchlists(request: Request):
+    user = _current_user(request)
+    with Repositories() as repo:
+        creds, _ = _stored_creds(repo)
+    if creds is None and not user.is_owner:
+        return JSONResponse({"error": "尚未連結 Firstrade 帳號，請先到「設定」頁輸入帳密"}, status_code=400)
+    try:
+        session = _login(creds)
+        lists = fetch_watchlists(session)
+    except Exception as e:
+        return JSONResponse({"error": f"抓取 Firstrade 清單失敗：{e}"}, status_code=400)
+    return JSONResponse({"lists": lists})
+
+
+@app.get("/api/firstrade-watchlists/{list_id}/symbols")
+def get_firstrade_watchlist_symbols(list_id: int, request: Request):
+    user = _current_user(request)
+    with Repositories() as repo:
+        creds, _ = _stored_creds(repo)
+    if creds is None and not user.is_owner:
+        return JSONResponse({"error": "尚未連結 Firstrade 帳號，請先到「設定」頁輸入帳密"}, status_code=400)
+    try:
+        session = _login(creds)
+        symbols = fetch_watchlist_symbols(list_id, session)
+    except Exception as e:
+        return JSONResponse({"error": f"抓取 Firstrade 清單內容失敗：{e}"}, status_code=400)
+    return JSONResponse({"symbols": symbols})
+
+
+@app.get("/api/moonshot-screen")
+def moonshot_screen(symbols: str):
+    symbol_list = sorted({s.strip().upper() for s in symbols.split(",") if s.strip()})
+    if not symbol_list:
+        return JSONResponse({"error": "請至少提供一個代號"}, status_code=400)
+    live = fetch_fundamentals(symbol_list)
+    with Repositories() as repo:
+        fundamentals_by_symbol = {}
+        newly_registered = False
+        for symbol in symbol_list:
+            fields = live.get(symbol, {})
+            if not fields.get("_fetch_ok"):
+                cached = repo.fundamentals_cache([symbol]).get(symbol)
+                if cached:
+                    fields = {**fields, **cached}
+                elif repo.register_fundamentals_symbol(symbol):
+                    newly_registered = True
+            fundamentals_by_symbol[symbol] = fields
+        if newly_registered:
+            github_actions.trigger_fundamentals_refresh()
+    return JSONResponse({"results": rank_moonshot_candidates(fundamentals_by_symbol)})
 
 
 @app.get("/api/price-alerts")

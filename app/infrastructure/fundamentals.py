@@ -29,6 +29,7 @@ FIELDS = [
     "priceToBook",
     "returnOnEquity",
     "profitMargins",
+    "grossMargins",  # gross profitability (Novy-Marx) - used by the 千金股 screen
     "revenueGrowth",
     "earningsGrowth",
     "debtToEquity",
