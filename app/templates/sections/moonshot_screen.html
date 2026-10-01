@@ -1,15 +1,22 @@
   <h2 id="section-moonshot-screen" class="flex items-center gap-2 text-lg font-bold mb-3">
-    <span class="w-1.5 h-5 bg-primary rounded-full"></span>千金股篩選
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>千倍股篩選
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
         套用實證資產定價／企業金融學文獻裡，被證實跟長期超額報酬相關的四個維度做二元篩選，不是技術分析也不是題材追蹤：
-        ① 獲利能力護城河（毛利率 &gt; 40%，對應 Novy-Marx 的 gross profitability／Fama-French 五因子的 RMW 因子）、
-        ② 盈餘/營收動能（YoY 成長 &gt; 20%，原文獻用 3~5 年 CAGR，這裡用 yfinance 能拿到的 YoY 當代理指標，不是真正的多年 CAGR）、
-        ③ 輕資產小股本（市值 &lt; 50 億美元，原文獻的「股本 &lt; 20 億台幣」換成美股市值的代理門檻）、
-        ④ 估值溢價（PEG 介於 0~2，原文獻同時要求高研發費用佔比，這裡沒有這份資料所以省略）。
-        分數是通過幾項（0~4），不是連續分數，缺資料的維度一律算未通過。純資訊呈現，不是選股建議，更不保證下一檔千金股。
+      </p>
+      <ul class="text-xs opacity-60 list-none space-y-0.5 mt-1">
+        <li>① 獲利能力護城河（毛利率 &gt; 40%，對應 Novy-Marx 的 gross profitability／Fama-French 五因子的 RMW 因子）</li>
+        <li>② 盈餘/營收動能（YoY 成長 &gt; 20%，原文獻用 3~5 年 CAGR，這裡用 yfinance 能拿到的 YoY 當代理指標，不是真正的多年 CAGR）</li>
+        <li>③ 輕資產小股本（市值 &lt; 50 億美元，原文獻的「股本 &lt; 20 億台幣」換成美股市值的代理門檻）</li>
+        <li>④ 估值溢價（PEG 介於 0~2，原文獻同時要求高研發費用佔比，這裡沒有這份資料所以省略）</li>
+      </ul>
+      <p class="text-xs opacity-60 mt-1">
+        分數是通過幾項（0~4），不是連續分數，缺資料的維度一律算未通過。純資訊呈現，不是選股建議，更不保證下一檔千倍股。
+      </p>
+      <p class="text-xs opacity-50 mt-1">
+        「－」是真的沒抓到任何基本面資料（還沒被任何人查過、剛加進排程，或 yfinance 本身就查不到這個代號），不等於 0 分（真的套進四個維度、算出來全部未通過），兩者在表格上刻意分開顯示，不要混在一起看。Render 連不到 Yahoo 即時 API 時，沒資料的代號會自動排入排程重新整理，最晚 6 小時後再查一次通常就有。
       </p>
 
       <div class="flex items-center gap-2 flex-wrap mt-3">
@@ -154,11 +161,17 @@ async function runMoonshotScreen() {
     '<th>代號</th><th class="text-right">分數</th><th class="text-right">毛利率</th>' +
     '<th class="text-right">成長動能（YoY）</th><th class="text-right">市值</th><th class="text-right">PEG（本益成長比）</th>' +
     '</tr></thead><tbody>';
+  const noDataSymbols = [];
   for (const r of data.results) {
     const [profitability, growth, smallCap, valuation] = r.criteria;
-    html += `<tr>
+    const hasData = r.criteria.some((c) => c.value != null);
+    if (!hasData) noDataSymbols.push(r.symbol);
+    const scoreCell = hasData
+      ? `${r.score} / 4`
+      : '<span class="opacity-40" title="還沒抓到任何基本面資料，不是真的 0 分">尚無資料</span>';
+    html += `<tr${hasData ? '' : ' class="opacity-50"'}>
       <td class="font-medium">${escapeHtml(r.symbol)}</td>
-      <td class="text-right font-medium">${r.score} / 4</td>
+      <td class="text-right font-medium">${scoreCell}</td>
       <td class="text-right ${cellClass(profitability.passed)}">${fmtPct(profitability.value)}</td>
       <td class="text-right ${cellClass(growth.passed)}">${fmtPct(growth.value)}</td>
       <td class="text-right ${cellClass(smallCap.passed)}">${fmtCap(smallCap.value)}</td>
@@ -166,6 +179,9 @@ async function runMoonshotScreen() {
     </tr>`;
   }
   html += '</tbody></table>';
+  if (noDataSymbols.length) {
+    html += `<p class="text-xs opacity-50 mt-1">${escapeHtml(noDataSymbols.join('、'))} 還沒抓到任何基本面資料（第一次查這些代號，已排入排程重新整理），稍後再查一次通常就有，不代表這些標的真的四項都不符合。</p>`;
+  }
   content.innerHTML = html;
   makeSortable(document.getElementById('moonshot-table'));
 }
