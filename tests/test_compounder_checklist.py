@@ -40,7 +40,7 @@ def demo():
     with patch.object(cc, "compute_risk_metrics", return_value=[]), \
          patch.object(cc, "fetch_annual_returns", return_value=[]):
         result = cc.build_compounder_checklist("CCC", {})
-    profit_check = next(c for c in result["checks"] if "毛利率" in c["label"])
+    profit_check = next(c for c in result["checks"] if "淨利率" in c["label"])
     assert profit_check["passed"] is False
     assert profit_check["value"] == "無資料"
 

@@ -60,7 +60,7 @@ def build_compounder_checklist(symbol: str, fundamentals: dict, min_years: int =
 
     checks = [
         {
-            "label": "獲利能力：毛利率為正",
+            "label": "獲利能力：淨利率為正",
             "passed": profit_margin is not None and profit_margin > 0,
             "value": f"{profit_margin:.1%}" if profit_margin is not None else "無資料",
         },
