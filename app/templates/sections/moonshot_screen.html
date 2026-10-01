@@ -1,0 +1,172 @@
+  <h2 id="section-moonshot-screen" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>千金股篩選
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        套用實證資產定價／企業金融學文獻裡，被證實跟長期超額報酬相關的四個維度做二元篩選，不是技術分析也不是題材追蹤：
+        ① 獲利能力護城河（毛利率 &gt; 40%，對應 Novy-Marx 的 gross profitability／Fama-French 五因子的 RMW 因子）、
+        ② 盈餘/營收動能（YoY 成長 &gt; 20%，原文獻用 3~5 年 CAGR，這裡用 yfinance 能拿到的 YoY 當代理指標，不是真正的多年 CAGR）、
+        ③ 輕資產小股本（市值 &lt; 50 億美元，原文獻的「股本 &lt; 20 億台幣」換成美股市值的代理門檻）、
+        ④ 估值溢價（PEG 介於 0~2，原文獻同時要求高研發費用佔比，這裡沒有這份資料所以省略）。
+        分數是通過幾項（0~4），不是連續分數，缺資料的維度一律算未通過。純資訊呈現，不是選股建議，更不保證下一檔千金股。
+      </p>
+
+      <div class="flex items-center gap-2 flex-wrap mt-3">
+        <select id="moonshot-list-select" class="select select-bordered select-sm">
+          <option value="watchlist">我的自選股</option>
+          <option value="holdings">目前持股</option>
+        </select>
+        <button type="button" onclick="loadFirstradeWatchlistOptions()" class="btn btn-ghost btn-sm">載入 Firstrade 清單</button>
+        <button type="button" onclick="runMoonshotScreen()" class="btn btn-neutral btn-sm">查詢</button>
+      </div>
+
+      <div id="moonshot-watchlist-manage" class="flex items-center gap-2 flex-wrap mt-2">
+        <div class="relative">
+          <input id="moonshot-add-symbol" placeholder="AAPL" autocomplete="off" class="input input-bordered input-sm w-24">
+          <ul id="moonshot-add-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <button type="button" onclick="addMoonshotWatchlistSymbol()" class="btn btn-ghost btn-sm">加入自選股</button>
+        <div id="moonshot-watchlist-chips" class="flex items-center gap-1 flex-wrap"></div>
+      </div>
+
+      <div id="moonshot-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="moonshot-content" class="mt-2"></div>
+    </div>
+  </div>
+
+<script>
+let moonshotWatchlistSymbols = {{ watchlist_symbols | default([]) | tojson }};
+const moonshotHoldingSymbols = {{ (snapshots | default([]) | rejectattr('symbol', 'equalto', 'CASH') | map(attribute='symbol') | list) | tojson }};
+
+attachTickerAutocomplete('moonshot-add-symbol', 'moonshot-add-symbol-suggestions');
+
+function renderMoonshotWatchlistChips() {
+  const box = document.getElementById('moonshot-watchlist-chips');
+  box.innerHTML = moonshotWatchlistSymbols.map((s) => `
+    <span class="badge badge-ghost gap-1">
+      ${escapeHtml(s)}
+      <button type="button" onclick="removeMoonshotWatchlistSymbol('${escapeHtml(s)}')" class="opacity-60 hover:opacity-100">✕</button>
+    </span>`).join('');
+}
+renderMoonshotWatchlistChips();
+
+async function addMoonshotWatchlistSymbol() {
+  const input = document.getElementById('moonshot-add-symbol');
+  const symbol = input.value.trim().toUpperCase();
+  if (!symbol) return;
+  input.value = '';
+  const res = await fetch('/api/watchlist', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ symbol }),
+  });
+  const data = await res.json();
+  moonshotWatchlistSymbols = data.symbols;
+  renderMoonshotWatchlistChips();
+}
+
+async function removeMoonshotWatchlistSymbol(symbol) {
+  const res = await fetch('/api/watchlist/delete', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ symbol }),
+  });
+  const data = await res.json();
+  moonshotWatchlistSymbols = data.symbols;
+  renderMoonshotWatchlistChips();
+}
+
+function updateMoonshotWatchlistManageVisibility() {
+  const isWatchlist = document.getElementById('moonshot-list-select').value === 'watchlist';
+  document.getElementById('moonshot-watchlist-manage').classList.toggle('hidden', !isWatchlist);
+}
+document.getElementById('moonshot-list-select').addEventListener('change', updateMoonshotWatchlistManageVisibility);
+updateMoonshotWatchlistManageVisibility();
+
+// Firstrade 清單是即時打 API 拿（跟持股/交易紀錄那種每次重新整理都自動
+// 抓的資料不同），按鈕才查一次，不佔用登入額度。
+async function loadFirstradeWatchlistOptions() {
+  const errorBox = document.getElementById('moonshot-error');
+  errorBox.classList.add('hidden');
+  const res = await fetch('/api/firstrade-watchlists');
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  const select = document.getElementById('moonshot-list-select');
+  [...select.querySelectorAll('option[data-ft]')].forEach((o) => o.remove());
+  for (const list of data.lists) {
+    const option = document.createElement('option');
+    option.value = `ft:${list.list_id}`;
+    option.dataset.ft = '1';
+    option.textContent = `Firstrade：${list.name}`;
+    select.appendChild(option);
+  }
+}
+
+async function resolveMoonshotSymbols() {
+  const value = document.getElementById('moonshot-list-select').value;
+  if (value === 'watchlist') return moonshotWatchlistSymbols;
+  if (value === 'holdings') return moonshotHoldingSymbols;
+  const listId = value.split(':')[1];
+  const res = await fetch(`/api/firstrade-watchlists/${listId}/symbols`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.symbols;
+}
+
+async function runMoonshotScreen() {
+  const errorBox = document.getElementById('moonshot-error');
+  const content = document.getElementById('moonshot-content');
+  errorBox.classList.add('hidden');
+  content.innerHTML = '<p class="opacity-60">查詢中…</p>';
+
+  let symbols;
+  try {
+    symbols = await resolveMoonshotSymbols();
+  } catch (e) {
+    content.innerHTML = '';
+    errorBox.textContent = e.message;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  if (!symbols.length) {
+    content.innerHTML = '<p class="text-sm opacity-60">這份清單目前沒有代號。</p>';
+    return;
+  }
+
+  const res = await fetch('/api/moonshot-screen?' + new URLSearchParams({ symbols: symbols.join(',') }));
+  const data = await res.json();
+  if (data.error) {
+    content.innerHTML = '';
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const fmtPct = (v) => (v == null ? '-' : `${(v * 100).toFixed(1)}%`);
+  const fmtCap = (v) => (v == null ? '-' : `$${(v / 1e9).toFixed(1)}B`);
+  const fmtNum = (v) => (v == null ? '-' : v.toFixed(2));
+  const cellClass = (passed) => (passed ? 'text-success font-medium' : 'opacity-50');
+
+  let html = '<table id="moonshot-table" class="table table-sm"><thead><tr>' +
+    '<th>代號</th><th class="text-right">分數</th><th class="text-right">毛利率</th>' +
+    '<th class="text-right">成長動能（YoY）</th><th class="text-right">市值</th><th class="text-right">PEG（本益成長比）</th>' +
+    '</tr></thead><tbody>';
+  for (const r of data.results) {
+    const [profitability, growth, smallCap, valuation] = r.criteria;
+    html += `<tr>
+      <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td class="text-right font-medium">${r.score} / 4</td>
+      <td class="text-right ${cellClass(profitability.passed)}">${fmtPct(profitability.value)}</td>
+      <td class="text-right ${cellClass(growth.passed)}">${fmtPct(growth.value)}</td>
+      <td class="text-right ${cellClass(smallCap.passed)}">${fmtCap(smallCap.value)}</td>
+      <td class="text-right ${cellClass(valuation.passed)}">${fmtNum(valuation.value)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  content.innerHTML = html;
+  makeSortable(document.getElementById('moonshot-table'));
+}
+</script>

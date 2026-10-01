@@ -75,6 +75,19 @@ class TargetAllocation(Base):
     sort_order = Column(Integer, nullable=False, default=0)
 
 
+class WatchlistSymbol(Base):
+    """App-local 自選股清單 (issue #348) - deliberately separate from
+    Firstrade's own watchlists (read-only, fetched live via
+    app.infrastructure.firstrade_client.fetch_watchlists) rather than
+    writing additions back to the user's real brokerage account."""
+
+    __tablename__ = "watchlist_symbols"
+
+    user_id = _user_id_col(primary_key=True)
+    symbol = Column(String, primary_key=True)
+    added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ExchangeRateSnapshot(Base):
     __tablename__ = "exchange_rate_snapshots"
 
@@ -107,6 +120,7 @@ class FundamentalsCache(Base):
     priceToBook = Column(Float)
     returnOnEquity = Column(Float)
     profitMargins = Column(Float)
+    grossMargins = Column(Float)
     revenueGrowth = Column(Float)
     earningsGrowth = Column(Float)
     debtToEquity = Column(Float)
@@ -389,7 +403,10 @@ def _infer_untracked_revision() -> str | None:
     target_cols = {c["name"] for c in inspector.get_columns("target_allocations")}
     if "sort_order" not in target_cols:
         return "0013_liabilities"
-    return "0014_target_sort_order"  # structure already matches head
+    fundamentals_cols = {c["name"] for c in inspector.get_columns("fundamentals_cache")}
+    if "grossMargins" not in fundamentals_cols or not inspector.has_table("watchlist_symbols"):
+        return "0014_target_sort_order"
+    return "0015_moonshot_screen"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

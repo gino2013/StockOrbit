@@ -37,6 +37,7 @@ from app.infrastructure.db import (
     Transaction,
     TransactionNote,
     User,
+    WatchlistSymbol,
 )
 
 _USDTWD = "USDTWD"
@@ -235,6 +236,25 @@ class Repositories:
             if row:
                 row.sort_order = idx
         self._db.commit()
+
+    # --- app-local 自選股 watchlist (issue #348) -------------------------------
+
+    def watchlist_symbols(self) -> list[str]:
+        rows = self._mine(WatchlistSymbol).order_by(WatchlistSymbol.added_at).all()
+        return [r.symbol for r in rows]
+
+    def add_watchlist_symbol(self, symbol: str) -> None:
+        symbol = symbol.upper()
+        if self._mine(WatchlistSymbol).filter(WatchlistSymbol.symbol == symbol).first():
+            return
+        self._db.add(WatchlistSymbol(symbol=symbol, user_id=self._user_id))
+        self._db.commit()
+
+    def remove_watchlist_symbol(self, symbol: str) -> None:
+        existing = self._mine(WatchlistSymbol).filter(WatchlistSymbol.symbol == symbol.upper()).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
 
     # --- price alerts (issue #18) ---------------------------------------------
 

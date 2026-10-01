@@ -103,6 +103,22 @@ def demo():
         assert a.goal().target_amount == 1000.0
         assert b.goal() is None  # uB's goal was deleted above
 
+    # app-local 自選股 watchlist (issue #348): per-user, dedupes, delete is
+    # cross-user-safe, insertion order preserved (sorted by added_at).
+    with Repositories("uA") as a, Repositories("uB") as b:
+        a.add_watchlist_symbol("rdw")  # lowercase input normalizes to upper
+        a.add_watchlist_symbol("NTLA")
+        a.add_watchlist_symbol("rdw")  # duplicate add is a no-op
+        b.add_watchlist_symbol("TEQNION")
+    with Repositories("uA") as a, Repositories("uB") as b:
+        assert a.watchlist_symbols() == ["RDW", "NTLA"]
+        assert b.watchlist_symbols() == ["TEQNION"]
+        b.remove_watchlist_symbol("RDW")  # cross-user delete is a no-op
+    with Repositories("uA") as a:
+        assert a.watchlist_symbols() == ["RDW", "NTLA"]
+        a.remove_watchlist_symbol("RDW")
+        assert a.watchlist_symbols() == ["NTLA"]
+
 
 if __name__ == "__main__":
     demo()

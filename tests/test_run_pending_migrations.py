@@ -86,6 +86,7 @@ with engine.begin() as conn:
     conn.execute(text("DROP TABLE price_alerts"))  # introduced by 0011, same reasoning
     conn.execute(text("DROP TABLE allocation_alerts"))  # introduced by 0012, same reasoning
     conn.execute(text("DROP TABLE liabilities"))  # introduced by 0013, same reasoning
+    conn.execute(text("DROP TABLE watchlist_symbols"))  # introduced by 0015, same reasoning
     # position_snapshots/transactions/target_allocations/position_notes/
     # transaction_notes only differ (current models vs this historical
     # shape) in their PK *constraint*, not their columns, so stripping

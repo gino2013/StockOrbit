@@ -4,6 +4,12 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-01（新增「千金股篩選」功能）
+
+- 使用者提供實證資產定價／企業金融學文獻的篩選框架，要求實作「尋找千金股」功能（issue #348）：新增 `app/domain/screening/moonshot.py`，套用四個跟長期超額報酬相關的維度做二元篩選——① 獲利能力護城河（毛利率 > 40%，對應 Novy-Marx gross profitability／Fama-French RMW 因子）、② 盈餘/營收動能（YoY 成長 > 20%，原文獻用 3~5 年 CAGR，這裡用 yfinance 能拿到的 YoY 當代理指標）、③ 輕資產小股本（市值 < 50 億美元，原文獻的台股「股本 < 20 億元」換成美股市值代理門檻）、④ 估值溢價（PEG 介於 0~2，原文獻同時要求高研發費用佔比，這裡沒有該資料故省略）。分數是通過幾項（0~4），缺資料的維度一律算未通過，不是連續分數
+- `fundamentals_cache` 新增 `grossMargins` 欄位（migration `0015`）支撐第一個維度
+- 同時實作使用者要求的清單切換功能：新增 app-local 的「自選股」清單（`watchlist_symbols` 表，純本機記錄，不寫回 Firstrade），以及唯讀讀取 Firstrade 帳號裡既有清單的功能（`firstrade.watchlist.Watchlist`，`app/infrastructure/firstrade_client.py` 新增 `fetch_watchlists()`/`fetch_watchlist_symbols()`，即時查詢不快取）。新畫面「千金股篩選」可以切換套用在：我的自選股／目前持股／任一個 Firstrade 清單
+
 ## 2026-10-01（FIRE 進度：說明預期實質報酬率跟儲蓄率）
 
 - 使用者截圖回報（issue #346）兩個看不懂的地方：「預期實質報酬率（選填）」不知道要填什麼（沒說是小數、沒解釋「實質」是什麼意思）；「儲蓄率（儲蓄 ÷ (儲蓄+年支出)）」不知道這個「年支出」是哪來的，要自己往上滑對照表單。表單下方補一段說明（小數格式 0.05 = 5%，「實質報酬率」＝扣通膨後的年化報酬率，給歷史名目/實質報酬區間參考）；儲蓄率卡片標題直接帶入使用者填的年支出金額
