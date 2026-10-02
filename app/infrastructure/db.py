@@ -154,6 +154,12 @@ class FundamentalsCache(Base):
     currency = Column(String)
     dividendRate = Column(Float)
     trailingAnnualDividendRate = Column(Float)
+    operatingMargins = Column(Float)  # 千倍股篩選的獲利品質 flag 用（issue #366）
+    netIncomeToCommon = Column(Float)
+    totalRevenue = Column(Float)
+    forwardEps = Column(Float)
+    trailingEps = Column(Float)
+    regularMarketTime = Column(Float)  # unix epoch - ticker 存活檢查用
     next_earnings_date = Column(String)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -431,7 +437,9 @@ def _infer_untracked_revision() -> str | None:
     screen_cache_cols = {c["name"] for c in inspector.get_columns("moonshot_market_screen_cache")}
     if "rank" not in screen_cache_cols:
         return "0016_market_screen_cache"
-    return "0017_screen_cache_rank"  # structure already matches head
+    if "operatingMargins" not in fundamentals_cols:
+        return "0017_screen_cache_rank"
+    return "0018_profit_quality_cols"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
