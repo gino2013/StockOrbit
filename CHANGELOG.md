@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-02（負債/信貸支援新台幣輸入）
+
+- 使用者回報：樂天信貸的本金/月付款是新台幣，但這個功能只能填美金（issue #358）。本金跟月付款比照現金加碼／儲蓄率等既有功能的做法，新增幣別選單，選 TWD 時用最近一次同步時存的參考匯率自動換算成美金再送出，換算後金額顯示出來供核對；組合內部（含未償還餘額）繼續一律用 USD 追蹤，沒有可用匯率時擋下來提示改用 USD
+
 ## 2026-10-01（千倍股篩選新增「全市場搜尋」）
 
 - 使用者回報（issue #356）：千倍股篩選只能評分自己整理的清單（自選股/持股/Firstrade 清單），但原本的需求是「根據最新的狀況找到所有股票裡符合條件的」，應該要能掃全市場，不是只能套在自己的清單上。查了 yfinance 的 `EquityQuery` screener，發現它實際支援這次篩選用到的所有欄位（`grossprofitmargin.lasttwelvemonths`、`intradaymarketcap`、`totalrevenues1yrgrowth.lasttwelvemonths`、`pegratio_5y`），可以把四項門檻直接組成一個查詢丟給 Yahoo 的伺服器端篩選，不用自己抓全市場報價回來算。新增 `market_data.screen_equities()`（唯一 import yfinance 的地方，同既有慣例）跟 `moonshot.market_screen_symbols()`，新增 `/api/moonshot-market-screen` 端點，清單下拉選單多一個「全市場搜尋（符合全部 4 項）」選項。實測：3 秒內掃出真實的 4/4 候選名單（DHT、HASI、SEZL 等），確認可行
