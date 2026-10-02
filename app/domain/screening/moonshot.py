@@ -75,7 +75,12 @@ def score_moonshot(fundamentals: dict) -> dict:
 
 
 def rank_moonshot_candidates(fundamentals_by_symbol: dict[str, dict]) -> list[dict]:
-    """幫一批代號評分，依分數高到低排序（同分用代號字母序，排序穩定）。
+    """幫一批代號評分，依分數高到低排序。同分的保留 fundamentals_by_symbol
+    原本的順序（Python dict 保留插入順序，sorted() 本身是穩定排序，這裡
+    拿掉次要排序鍵就好）——呼叫端（市場搜尋）傳進來的 dict 順序就是
+    market_screen_symbols() 向 Yahoo 要的市值大到小順序，這裡不能再用
+    字母序蓋過去，不然「依市值排序」就是假的（issue #364）。
+
     name/sector/industry 直接從同一份 fundamentals 資料帶出來（反正
     fetch_fundamentals()／FundamentalsCache 本來就有抓這幾欄），讓每次
     查詢結果自帶公司是做什麼的，不用另外呼叫 API，也不會因為候選名單
@@ -90,7 +95,7 @@ def rank_moonshot_candidates(fundamentals_by_symbol: dict[str, dict]) -> list[di
         }
         for symbol, f in fundamentals_by_symbol.items()
     ]
-    return sorted(results, key=lambda r: (-r["score"], r["symbol"]))
+    return sorted(results, key=lambda r: -r["score"])
 
 
 def market_screen_symbols(limit: int = 30) -> list[str]:
