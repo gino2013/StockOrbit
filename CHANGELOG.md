@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-03（千倍股篩選結果加上公司名稱/產業介紹）
+
+- 使用者反應查詢結果一串不熟的代號看不懂是什麼公司（issue #362），尤其全市場搜尋常常掃出沒聽過的小型股。`fetch_fundamentals()`／`FundamentalsCache` 本來就有抓 `longName`/`sector`/`industry`，`rank_moonshot_candidates()` 直接把這幾欄帶出來，不用多打 API；表格新增「公司」欄顯示名稱＋產業別。`moonshot_market_screen_cache` 的讀寫也一併存這幾欄，確保退回排程快取時一樣看得到公司介紹
+
 ## 2026-10-02（千倍股全市場搜尋：Render 連不到 Yahoo 時退回排程快取）
 
 - 使用者回報全市場搜尋在 Render 上顯示「全市場篩選失敗：HTTP Error 401:」，看起來像功能壞掉（issue #360）。原因：yfinance 的 `EquityQuery` screener 跟抓個股基本面走同一個有驗證的 session，Render 連不到 Yahoo 時這裡也會被擋，不是只有個股基本面會被擋。做法跟既有的 `FundamentalsCache` 一樣：新增 `moonshot_market_screen_cache` 資料表（不是 user-scoped，整批取代不是逐檔更新）、`scripts/refresh_moonshot_market_screen.py` + `.github/workflows/refresh-moonshot-market-screen.yml`（每 6 小時跑一次），即時掃失敗時自動退回這份快取，畫面上標明「這是快取，不是這一刻的即時資料」；兩邊都沒有時才顯示清楚的錯誤訊息，不再是原始的 `HTTPError` 字串。順手把 `_score_symbols_with_fundamentals` 從 `app/interface/http.py` 搬到新的 `app/application/moonshot.py`，讓即時查詢跟排程腳本共用同一套邏輯

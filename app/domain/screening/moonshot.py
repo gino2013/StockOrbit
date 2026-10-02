@@ -75,8 +75,21 @@ def score_moonshot(fundamentals: dict) -> dict:
 
 
 def rank_moonshot_candidates(fundamentals_by_symbol: dict[str, dict]) -> list[dict]:
-    """幫一批代號評分，依分數高到低排序（同分用代號字母序，排序穩定）。"""
-    results = [{"symbol": symbol, **score_moonshot(f)} for symbol, f in fundamentals_by_symbol.items()]
+    """幫一批代號評分，依分數高到低排序（同分用代號字母序，排序穩定）。
+    name/sector/industry 直接從同一份 fundamentals 資料帶出來（反正
+    fetch_fundamentals()／FundamentalsCache 本來就有抓這幾欄），讓每次
+    查詢結果自帶公司是做什麼的，不用另外呼叫 API，也不會因為候選名單
+    每次排程都換掉而需要維護一份寫死的介紹清單。"""
+    results = [
+        {
+            "symbol": symbol,
+            "name": f.get("longName"),
+            "sector": f.get("sector"),
+            "industry": f.get("industry"),
+            **score_moonshot(f),
+        }
+        for symbol, f in fundamentals_by_symbol.items()
+    ]
     return sorted(results, key=lambda r: (-r["score"], r["symbol"]))
 
 

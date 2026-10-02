@@ -272,7 +272,7 @@ class Repositories:
             return {"results": [], "cached_at": None}
         return {
             "results": [
-                {"symbol": r.symbol, "score": r.score, "criteria": json.loads(r.criteria_json)}
+                {"symbol": r.symbol, "score": r.score, **json.loads(r.criteria_json)}
                 for r in rows
             ],
             "cached_at": max(r.fetched_at for r in rows).isoformat(),
@@ -281,13 +281,16 @@ class Repositories:
     def replace_moonshot_market_screen_cache(self, results: list[dict]) -> None:
         """完全取代舊的快取（不是逐檔 upsert）- 候選名單本身每次重新整理都
         可能整批換掉，不是只有個別代號的數字變動，舊的「曾經符合」留著沒
-        意義。"""
+        意義。criteria_json 欄位名稱沒改，但現在存的是 criteria 以外的
+        所有欄位（含 name/sector/industry），用 symbol/score 以外的部分
+        原樣塞進去，欄位來源加減不用再改這裡。"""
         self._db.query(MoonshotMarketScreenCache).delete()
         now = datetime.now(timezone.utc)
         for r in results:
+            extra = {k: v for k, v in r.items() if k not in ("symbol", "score")}
             self._db.add(MoonshotMarketScreenCache(
                 symbol=r["symbol"], score=r["score"],
-                criteria_json=json.dumps(r["criteria"]), fetched_at=now,
+                criteria_json=json.dumps(extra), fetched_at=now,
             ))
         self._db.commit()
 
