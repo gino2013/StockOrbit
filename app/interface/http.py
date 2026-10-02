@@ -16,6 +16,7 @@ from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.liabilities import liability_summary
+from app.application.moonshot import score_symbols as score_moonshot_symbols
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.application.tax_lots import tax_lot_report
 from app.infrastructure import github_actions, market_data
@@ -74,7 +75,7 @@ from app.domain.analytics.scenario import simulate_market_drop
 from app.domain.analytics import stock_detail
 from app.domain.analytics.technical_indicators import compute_technical_indicators
 from app.domain.analytics.trending import SCREENERS, trending_tickers
-from app.domain.screening.moonshot import market_screen_symbols, rank_moonshot_candidates
+from app.domain.screening.moonshot import market_screen_symbols
 
 async def _bind_request_user(request: Request) -> None:
     """App-level dependency: publish the middleware-loaded user into the
@@ -1339,46 +1340,36 @@ def get_firstrade_watchlist_symbols(list_id: int, request: Request):
     return JSONResponse({"symbols": symbols})
 
 
-def _score_symbols_with_fundamentals(symbol_list: list[str]) -> list[dict]:
-    """Shared by /api/moonshot-screen and /api/moonshot-market-screen: live
-    fetch with cache fallback (same pattern as every other fundamentals-
-    driven endpoint), then score. Registers never-seen symbols for the
-    scheduled cache refresh rather than leaving them permanently blank."""
-    live = fetch_fundamentals(symbol_list)
-    with Repositories() as repo:
-        fundamentals_by_symbol = {}
-        newly_registered = False
-        for symbol in symbol_list:
-            fields = live.get(symbol, {})
-            if not fields.get("_fetch_ok"):
-                cached = repo.fundamentals_cache([symbol]).get(symbol)
-                if cached:
-                    fields = {**fields, **cached}
-                elif repo.register_fundamentals_symbol(symbol):
-                    newly_registered = True
-            fundamentals_by_symbol[symbol] = fields
-        if newly_registered:
-            github_actions.trigger_fundamentals_refresh()
-    return rank_moonshot_candidates(fundamentals_by_symbol)
-
-
 @app.get("/api/moonshot-screen")
 def moonshot_screen(symbols: str):
     symbol_list = sorted({s.strip().upper() for s in symbols.split(",") if s.strip()})
     if not symbol_list:
         return JSONResponse({"error": "請至少提供一個代號"}, status_code=400)
-    return JSONResponse({"results": _score_symbols_with_fundamentals(symbol_list)})
+    with Repositories() as repo:
+        return JSONResponse({"results": score_moonshot_symbols(repo, symbol_list)})
 
 
 @app.get("/api/moonshot-market-screen")
 def moonshot_market_screen():
+    # yfinance 的 EquityQuery screener 跟抓個股基本面走同一個有驗證的
+    # session，Render 連不到 Yahoo 時這裡也會失敗（不是只有個股基本面會
+    # 被擋）- 退回排程重新整理的快取（issue #360），跟 FundamentalsCache
+    # 同一套邏輯，只是這裡是整批候選名單一起退回，不是逐檔退回。
     try:
         symbol_list = market_screen_symbols(limit=30)
     except Exception as e:
-        return JSONResponse({"error": f"全市場篩選失敗：{e}"}, status_code=400)
+        with Repositories() as repo:
+            cached = repo.moonshot_market_screen_cache()
+        if cached["results"]:
+            return JSONResponse(cached)
+        return JSONResponse(
+            {"error": f"全市場篩選失敗（Render 連不到 Yahoo 的這個功能），目前也還沒有排程快取可以退回，請稍後再試：{e}"},
+            status_code=400,
+        )
     if not symbol_list:
         return JSONResponse({"results": []})
-    return JSONResponse({"results": _score_symbols_with_fundamentals(symbol_list)})
+    with Repositories() as repo:
+        return JSONResponse({"results": score_moonshot_symbols(repo, symbol_list)})
 
 
 @app.get("/api/price-alerts")

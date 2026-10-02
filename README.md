@@ -125,7 +125,7 @@
 
 ![千倍股篩選：套用獲利能力/成長動能/小股本/估值溢價四個維度幫自選股/持股評分，也能全市場搜尋](docs/screenshot-moonshot-screen.png)
 
-套用實證資產定價／企業金融學文獻裡，被證實跟長期超額報酬相關的四個維度做二元篩選：獲利能力護城河（毛利率 > 40%）、盈餘/營收動能（YoY 成長 > 20%）、輕資產小股本（市值 < 50 億美元）、估值溢價（PEG 介於 0~2）。分數是通過幾項（0~4），缺資料的維度一律算未通過，純資訊呈現，不是選股建議。可以切換要套用在哪份清單：「我的自選股」（在 StockOrbit 內建立，純本機記錄，不會寫回 Firstrade）、「目前持股」、按下「載入 Firstrade 清單」即時讀取你在 Firstrade 帳號裡建立的各個清單（唯讀，不會修改），或選「全市場搜尋」——這個不是從你自己的清單裡挑，是直接用 yfinance 的 EquityQuery 在 Yahoo 伺服器端套這四項門檻掃整個美股市場，回傳真的同時符合全部 4 項的候選名單（依市值排序，最多 30 檔）。表格裡的「－」是真的還沒抓到任何基本面資料（跟套進四個維度、算出來全部未通過的 0 分不是同一回事，兩者在畫面上刻意分開顯示），通常是第一次查這個代號，已經自動排入排程重新整理，稍後再查一次通常就有。
+套用實證資產定價／企業金融學文獻裡，被證實跟長期超額報酬相關的四個維度做二元篩選：獲利能力護城河（毛利率 > 40%）、盈餘/營收動能（YoY 成長 > 20%）、輕資產小股本（市值 < 50 億美元）、估值溢價（PEG 介於 0~2）。分數是通過幾項（0~4），缺資料的維度一律算未通過，純資訊呈現，不是選股建議。可以切換要套用在哪份清單：「我的自選股」（在 StockOrbit 內建立，純本機記錄，不會寫回 Firstrade）、「目前持股」、按下「載入 Firstrade 清單」即時讀取你在 Firstrade 帳號裡建立的各個清單（唯讀，不會修改），或選「全市場搜尋」——這個不是從你自己的清單裡挑，是直接用 yfinance 的 EquityQuery 在 Yahoo 伺服器端套這四項門檻掃整個美股市場，回傳真的同時符合全部 4 項的候選名單（依市值排序，最多 30 檔）。表格裡的「－」是真的還沒抓到任何基本面資料（跟套進四個維度、算出來全部未通過的 0 分不是同一回事，兩者在畫面上刻意分開顯示），通常是第一次查這個代號，已經自動排入排程重新整理，稍後再查一次通常就有。全市場搜尋在 Render 上即時連不到 Yahoo 時，會自動退回 GitHub Actions 排程（每 6 小時一次）重新整理好的快取結果，畫面上會標明「這是快取，不是這一刻的即時資料」。
 
 ### 市場資訊
 
@@ -369,6 +369,7 @@ HHI（賀氏指數，數字越低代表持股越分散）跟最大單一持股�
 - **每日摘要排程**：另一個 GitHub Actions job（`.github/workflows/daily-summary.yml`，每天台北時間早上 7 點）幫每個已驗證信箱的使用者組一封摘要信寄出去，重用既有的 `mailer.py`（跟信箱驗證信、重設密碼信同一套 stdlib smtplib 寄信邏輯），不加新的通知管道依賴（LINE Notify／Telegram 都需要另外申請 token，Email 直接沿用站台本來就要接的 SMTP）
 - **價格提醒排程**：`.github/workflows/check-price-alerts.yml` 每小時跑一次，抓所有使用者未觸發的價格提醒各自對應的最新股價（同一檔標的不管幾個使用者設了提醒都只抓一次），觸發後寫回資料庫標記已觸發並寄信，同一組 `SMTP_*` secrets
 - **配置偏離提醒排程**：`.github/workflows/check-allocation-alerts.yml` 每小時跑一次，比對每個使用者的目前配置 vs 目標配置——純資料庫查詢，不用打 yfinance，比價格提醒的排程便宜；超標寄信＋標記，回到門檻內靜默重置（不寄信），下次再超標會重新通知
+- **千倍股全市場搜尋快取**：`.github/workflows/refresh-moonshot-market-screen.yml` 每 6 小時跑一次，跟基本面快取同一個限制——yfinance 的 `EquityQuery` screener 跟 quoteSummary 走同一個有驗證的連線，Render 一樣連不到；即時掃失敗時自動退回這份快取（`moonshot_market_screen_cache` 資料表，整批取代不是逐檔更新），畫面上會標明這是快取結果
 
 ## 專案結構
 
@@ -392,6 +393,7 @@ app/
     goals.py                     # 目標進度用例（市值 + XIRR → build_goal_progress）
     fire.py                      # FIRE 進度用例（市值 + XIRR → build_fire_progress）
     liabilities.py               # 負債摘要用例（未償餘額 + XIRR → 槓桿利差）
+    moonshot.py                  # 千倍股篩選查詢編排：即時抓 + 快取退回 + 評分，即時查詢跟排程腳本共用
     tax.py                       # 海外所得試算 + 稅務效率分析用例
   domain/
     portfolio/
@@ -453,6 +455,7 @@ app/
     login.html / register.html / forgot.html / reset.html / settings.html / terms.html / privacy.html
 scripts/
   refresh_fundamentals_cache.py  # 排程更新基本面快取（GitHub Actions 執行）
+  refresh_moonshot_market_screen.py  # 排程更新千倍股全市場搜尋快取（GitHub Actions 執行）
   send_daily_summary.py          # 排程寄每日摘要 Email（GitHub Actions 執行）
   check_price_alerts.py          # 排程檢查價格提醒（GitHub Actions 執行）
   check_allocation_alerts.py     # 排程檢查配置偏離提醒（GitHub Actions 執行）

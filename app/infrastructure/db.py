@@ -88,6 +88,25 @@ class WatchlistSymbol(Base):
     added_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class MoonshotMarketScreenCache(Base):
+    """Last successful 全市場搜尋 result (issue #360) - yfinance's
+    EquityQuery screener goes through the same crumb-authenticated session
+    as quoteSummary, so it's blocked on Render just like per-symbol
+    fundamentals (see FundamentalsCache above); a GitHub Actions job
+    (unaffected) refreshes this table on a schedule, and the live endpoint
+    falls back to it when the real-time screen call fails. Not user-scoped
+    - a market screen isn't personal data. Each refresh wholesale-replaces
+    every row (the candidate set itself changes, not just individual
+    symbols' numbers), so there's no per-symbol upsert here."""
+
+    __tablename__ = "moonshot_market_screen_cache"
+
+    symbol = Column(String, primary_key=True)
+    score = Column(Integer, nullable=False)
+    criteria_json = Column(Text, nullable=False)
+    fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class ExchangeRateSnapshot(Base):
     __tablename__ = "exchange_rate_snapshots"
 
@@ -406,7 +425,9 @@ def _infer_untracked_revision() -> str | None:
     fundamentals_cols = {c["name"] for c in inspector.get_columns("fundamentals_cache")}
     if "grossMargins" not in fundamentals_cols or not inspector.has_table("watchlist_symbols"):
         return "0014_target_sort_order"
-    return "0015_moonshot_screen"  # structure already matches head
+    if not inspector.has_table("moonshot_market_screen_cache"):
+        return "0015_moonshot_screen"
+    return "0016_market_screen_cache"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

@@ -176,7 +176,12 @@ async function runMoonshotScreen() {
   const fmtNum = (v) => (v == null ? '-' : v.toFixed(2));
   const cellClass = (passed) => (passed ? 'text-success font-medium' : 'opacity-50');
 
-  let html = '<table id="moonshot-table" class="table table-sm"><thead><tr>' +
+  // 全市場搜尋即時掃失敗時（Render 連不到 Yahoo 的 screener），後端會退
+  // 回排程重新整理的快取，用 cached_at 判斷現在看到的是不是這種退回結果。
+  let html = data.cached_at
+    ? `<p class="text-xs opacity-50 mb-1">⚠️ 即時掃全市場失敗（Render 連不到 Yahoo），這是排程重新整理的快取結果（${escapeHtml(data.cached_at.slice(0, 16).replace('T', ' '))} UTC），不是這一刻的即時資料。</p>`
+    : '';
+  html += '<table id="moonshot-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-right">分數</th><th class="text-right">毛利率</th>' +
     '<th class="text-right">成長動能（YoY）</th><th class="text-right">市值</th><th class="text-right">PEG（本益成長比）</th>' +
     '</tr></thead><tbody>';

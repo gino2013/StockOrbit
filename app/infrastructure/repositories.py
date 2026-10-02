@@ -16,6 +16,7 @@ pass an explicit id from `current_user`.
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 
 from sqlalchemy import desc, func
@@ -28,6 +29,7 @@ from app.infrastructure.db import (
     FundamentalsCache,
     InvestmentGoal,
     Liability,
+    MoonshotMarketScreenCache,
     PositionNote,
     PositionNoteHistory,
     PositionSnapshot,
@@ -255,6 +257,39 @@ class Repositories:
         if existing:
             self._db.delete(existing)
             self._db.commit()
+
+    # --- 全市場搜尋排程快取 (issue #360) ----------------------------------------
+    # 不是 user-scoped - 全市場篩選結果不是個人資料，跟 FundamentalsCache/
+    # ExchangeRateSnapshot 一樣全域共用。
+
+    def moonshot_market_screen_cache(self) -> dict:
+        rows = (
+            self._db.query(MoonshotMarketScreenCache)
+            .order_by(desc(MoonshotMarketScreenCache.score), MoonshotMarketScreenCache.symbol)
+            .all()
+        )
+        if not rows:
+            return {"results": [], "cached_at": None}
+        return {
+            "results": [
+                {"symbol": r.symbol, "score": r.score, "criteria": json.loads(r.criteria_json)}
+                for r in rows
+            ],
+            "cached_at": max(r.fetched_at for r in rows).isoformat(),
+        }
+
+    def replace_moonshot_market_screen_cache(self, results: list[dict]) -> None:
+        """完全取代舊的快取（不是逐檔 upsert）- 候選名單本身每次重新整理都
+        可能整批換掉，不是只有個別代號的數字變動，舊的「曾經符合」留著沒
+        意義。"""
+        self._db.query(MoonshotMarketScreenCache).delete()
+        now = datetime.now(timezone.utc)
+        for r in results:
+            self._db.add(MoonshotMarketScreenCache(
+                symbol=r["symbol"], score=r["score"],
+                criteria_json=json.dumps(r["criteria"]), fetched_at=now,
+            ))
+        self._db.commit()
 
     # --- price alerts (issue #18) ---------------------------------------------
 
