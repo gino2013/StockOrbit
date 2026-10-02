@@ -54,6 +54,18 @@ def demo():
         replaced = repo.moonshot_market_screen_cache()
         assert [r["symbol"] for r in replaced["results"]] == ["BBB"]
 
+    # name/sector/industry round-trip through the cache too (not just
+    # criteria) - the UI shows a company blurb on every query, including
+    # the cache-fallback path, so these can't be dropped on write.
+    with Repositories("owner1") as repo:
+        repo.replace_moonshot_market_screen_cache([
+            {"symbol": "CCC", "score": 4, "criteria": [], "name": "Ccc Corp", "sector": "Technology", "industry": "Software"},
+        ])
+        with_meta = repo.moonshot_market_screen_cache()["results"][0]
+        assert with_meta["name"] == "Ccc Corp"
+        assert with_meta["sector"] == "Technology"
+        assert with_meta["industry"] == "Software"
+
 
 if __name__ == "__main__":
     demo()

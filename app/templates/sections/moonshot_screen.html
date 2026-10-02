@@ -182,7 +182,7 @@ async function runMoonshotScreen() {
     ? `<p class="text-xs opacity-50 mb-1">⚠️ 即時掃全市場失敗（Render 連不到 Yahoo），這是排程重新整理的快取結果（${escapeHtml(data.cached_at.slice(0, 16).replace('T', ' '))} UTC），不是這一刻的即時資料。</p>`
     : '';
   html += '<table id="moonshot-table" class="table table-sm"><thead><tr>' +
-    '<th>代號</th><th class="text-right">分數</th><th class="text-right">毛利率</th>' +
+    '<th>代號</th><th>公司</th><th class="text-right">分數</th><th class="text-right">毛利率</th>' +
     '<th class="text-right">成長動能（YoY）</th><th class="text-right">市值</th><th class="text-right">PEG（本益成長比）</th>' +
     '</tr></thead><tbody>';
   const noDataSymbols = [];
@@ -193,8 +193,12 @@ async function runMoonshotScreen() {
     const scoreCell = hasData
       ? `${r.score} / 4`
       : '<span class="opacity-40" title="還沒抓到任何基本面資料，不是真的 0 分">尚無資料</span>';
+    const companyCell = r.name
+      ? `${escapeHtml(r.name)}${r.industry ? `<div class="text-xs opacity-50">${escapeHtml(r.industry)}</div>` : ''}`
+      : '<span class="opacity-40">-</span>';
     html += `<tr${hasData ? '' : ' class="opacity-50"'}>
       <td class="font-medium">${escapeHtml(r.symbol)}</td>
+      <td>${companyCell}</td>
       <td class="text-right font-medium">${scoreCell}</td>
       <td class="text-right ${cellClass(profitability.passed)}">${fmtPct(profitability.value)}</td>
       <td class="text-right ${cellClass(growth.passed)}">${fmtPct(growth.value)}</td>
