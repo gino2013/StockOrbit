@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-02（千倍股全市場搜尋：Render 連不到 Yahoo 時退回排程快取）
+
+- 使用者回報全市場搜尋在 Render 上顯示「全市場篩選失敗：HTTP Error 401:」，看起來像功能壞掉（issue #360）。原因：yfinance 的 `EquityQuery` screener 跟抓個股基本面走同一個有驗證的 session，Render 連不到 Yahoo 時這裡也會被擋，不是只有個股基本面會被擋。做法跟既有的 `FundamentalsCache` 一樣：新增 `moonshot_market_screen_cache` 資料表（不是 user-scoped，整批取代不是逐檔更新）、`scripts/refresh_moonshot_market_screen.py` + `.github/workflows/refresh-moonshot-market-screen.yml`（每 6 小時跑一次），即時掃失敗時自動退回這份快取，畫面上標明「這是快取，不是這一刻的即時資料」；兩邊都沒有時才顯示清楚的錯誤訊息，不再是原始的 `HTTPError` 字串。順手把 `_score_symbols_with_fundamentals` 從 `app/interface/http.py` 搬到新的 `app/application/moonshot.py`，讓即時查詢跟排程腳本共用同一套邏輯
+
 ## 2026-10-02（負債/信貸支援新台幣輸入）
 
 - 使用者回報：樂天信貸的本金/月付款是新台幣，但這個功能只能填美金（issue #358）。本金跟月付款比照現金加碼／儲蓄率等既有功能的做法，新增幣別選單，選 TWD 時用最近一次同步時存的參考匯率自動換算成美金再送出，換算後金額顯示出來供核對；組合內部（含未償還餘額）繼續一律用 USD 追蹤，沒有可用匯率時擋下來提示改用 USD
