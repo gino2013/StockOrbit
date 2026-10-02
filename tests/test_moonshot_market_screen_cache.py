@@ -37,9 +37,12 @@ def demo():
     with Repositories("owner1") as repo:
         cached = repo.moonshot_market_screen_cache()
         assert cached["cached_at"] is not None
-        # Sorted by score desc, then symbol asc for ties - same order rank_moonshot_candidates uses.
-        assert [r["symbol"] for r in cached["results"]] == ["AAA", "ZZZ", "MMM"]
-        assert cached["results"][0]["criteria"] == [{"key": "profitability", "value": 0.6, "passed": True}]
+        # Sorted by score desc, then by rank (insertion order) for ties - NOT
+        # symbol (issue #364: that silently broke the "依市值排序" promise,
+        # since replace_moonshot_market_screen_cache() is called with results
+        # already in market-cap-desc order).
+        assert [r["symbol"] for r in cached["results"]] == ["ZZZ", "AAA", "MMM"]
+        assert cached["results"][0]["criteria"] == [{"key": "profitability", "value": 0.5, "passed": True}]
 
         # Not user-scoped: a second user's Repositories sees the same global cache.
     with Repositories() as owner_repo:
@@ -65,6 +68,22 @@ def demo():
         assert with_meta["name"] == "Ccc Corp"
         assert with_meta["sector"] == "Technology"
         assert with_meta["industry"] == "Software"
+
+    # Regression for issue #364: among same-score rows, the cache must
+    # follow the order results were written in, not re-derive its own
+    # (e.g. alphabetical) order. Flip two tied symbols' input order and
+    # confirm the read flips too.
+    with Repositories("owner1") as repo:
+        repo.replace_moonshot_market_screen_cache([
+            {"symbol": "ZZZ", "score": 4, "criteria": []},
+            {"symbol": "AAA", "score": 4, "criteria": []},
+        ])
+        assert [r["symbol"] for r in repo.moonshot_market_screen_cache()["results"]] == ["ZZZ", "AAA"]
+        repo.replace_moonshot_market_screen_cache([
+            {"symbol": "AAA", "score": 4, "criteria": []},
+            {"symbol": "ZZZ", "score": 4, "criteria": []},
+        ])
+        assert [r["symbol"] for r in repo.moonshot_market_screen_cache()["results"]] == ["AAA", "ZZZ"]
 
 
 if __name__ == "__main__":

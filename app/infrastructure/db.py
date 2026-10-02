@@ -103,6 +103,7 @@ class MoonshotMarketScreenCache(Base):
 
     symbol = Column(String, primary_key=True)
     score = Column(Integer, nullable=False)
+    rank = Column(Integer, nullable=False, default=0)  # insertion order (issue #364) - preserves the screener's market-cap-desc order through score ties, instead of falling back to symbol
     criteria_json = Column(Text, nullable=False)
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -427,7 +428,10 @@ def _infer_untracked_revision() -> str | None:
         return "0014_target_sort_order"
     if not inspector.has_table("moonshot_market_screen_cache"):
         return "0015_moonshot_screen"
-    return "0016_market_screen_cache"  # structure already matches head
+    screen_cache_cols = {c["name"] for c in inspector.get_columns("moonshot_market_screen_cache")}
+    if "rank" not in screen_cache_cols:
+        return "0016_market_screen_cache"
+    return "0017_screen_cache_rank"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

@@ -263,9 +263,11 @@ class Repositories:
     # ExchangeRateSnapshot 一樣全域共用。
 
     def moonshot_market_screen_cache(self) -> dict:
+        # rank 保留寫入時的順序（市值大到小，issue #364），同分不能再退回
+        # symbol 字母序，不然「依市值排序」又是假的。
         rows = (
             self._db.query(MoonshotMarketScreenCache)
-            .order_by(desc(MoonshotMarketScreenCache.score), MoonshotMarketScreenCache.symbol)
+            .order_by(desc(MoonshotMarketScreenCache.score), MoonshotMarketScreenCache.rank)
             .all()
         )
         if not rows:
@@ -286,10 +288,10 @@ class Repositories:
         原樣塞進去，欄位來源加減不用再改這裡。"""
         self._db.query(MoonshotMarketScreenCache).delete()
         now = datetime.now(timezone.utc)
-        for r in results:
+        for rank, r in enumerate(results):
             extra = {k: v for k, v in r.items() if k not in ("symbol", "score")}
             self._db.add(MoonshotMarketScreenCache(
-                symbol=r["symbol"], score=r["score"],
+                symbol=r["symbol"], score=r["score"], rank=rank,
                 criteria_json=json.dumps(extra), fetched_at=now,
             ))
         self._db.commit()

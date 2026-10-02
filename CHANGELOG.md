@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-03（修正千倍股全市場搜尋沒有真的依市值排序）
+
+- 使用者人工核對全市場搜尋結果後發現順序接近字母排列，不是文件宣稱的「依市值大到小排序」（issue #364）。根因：`market_screen_symbols()` 確實向 Yahoo 要求市值大到小排序，但 `rank_moonshot_candidates()` 的排序鍵是 `(-score, symbol)`，候選股本來就都通過全部 4 項（同分），字母序 tiebreak 把市值順序整個蓋掉；快取讀取路徑也有一樣的問題。拿掉字母序 tiebreak，改成穩定排序保留輸入順序；`moonshot_market_screen_cache` 資料表新增 `rank` 欄位記錄寫入順序，讀取時依 `rank` 而不是 `symbol` 排序
+
 ## 2026-10-03（千倍股篩選結果加上公司名稱/產業介紹）
 
 - 使用者反應查詢結果一串不熟的代號看不懂是什麼公司（issue #362），尤其全市場搜尋常常掃出沒聽過的小型股。`fetch_fundamentals()`／`FundamentalsCache` 本來就有抓 `longName`/`sector`/`industry`，`rank_moonshot_candidates()` 直接把這幾欄帶出來，不用多打 API；表格新增「公司」欄顯示名稱＋產業別。`moonshot_market_screen_cache` 的讀寫也一併存這幾欄，確保退回排程快取時一樣看得到公司介紹

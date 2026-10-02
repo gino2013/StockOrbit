@@ -53,16 +53,16 @@ def demo():
     })
     assert rich_peg["score"] == 3
 
-    # Ranking: highest score first, ties broken alphabetically by symbol.
-    ranked = rank_moonshot_candidates({"ZZZ": strong, "AAA": megacap, "BBB": strong})
-    # (rank_moonshot_candidates takes fundamentals dicts, not pre-scored
-    # results - reuse the same fundamentals that produced `strong`/`megacap`.)
+    # Ranking: highest score first. Ties preserve input order (issue #364) -
+    # for the market-screen caller that input order IS market-cap-desc (from
+    # Yahoo's screener), so this can't fall back to alphabetical or that
+    # promise breaks silently.
     ranked = rank_moonshot_candidates({
         "ZZZ": {"grossMargins": 0.55, "revenueGrowth": 0.30, "marketCap": 2_000_000_000, "pegRatio": 1.2},
         "AAA": {"grossMargins": 0.60, "revenueGrowth": 0.25, "marketCap": 2_000_000_000_000, "pegRatio": 1.5},
         "BBB": {"grossMargins": 0.55, "revenueGrowth": 0.30, "marketCap": 2_000_000_000, "pegRatio": 1.2},
     })
-    assert [r["symbol"] for r in ranked] == ["BBB", "ZZZ", "AAA"]
+    assert [r["symbol"] for r in ranked] == ["ZZZ", "BBB", "AAA"]
     assert ranked[0]["score"] == 4 and ranked[-1]["score"] == 3
 
     # market_screen_symbols (issue #356): delegates to the infrastructure
