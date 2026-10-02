@@ -24,11 +24,19 @@
           <input id="liability-payment" type="number" min="1" step="any" placeholder="5000" class="input input-bordered input-sm w-24">
         </div>
         <div>
+          <label class="text-xs opacity-60 block mb-1">幣別</label>
+          <select id="liability-currency" class="select select-bordered select-sm w-24">
+            <option value="USD">USD</option>
+            <option value="TWD">TWD</option>
+          </select>
+        </div>
+        <div>
           <label class="text-xs opacity-60 block mb-1">起貸日</label>
           <input id="liability-start" type="date" class="input input-bordered input-sm w-36">
         </div>
         <button type="button" onclick="addLiability()" class="btn btn-neutral btn-sm">新增</button>
       </div>
+      <div id="liability-converted" class="text-xs opacity-50 mt-1 hidden"></div>
       <div id="liability-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="leverage-spread-content"></div>
       <div id="liability-content" class="mt-3"></div>
@@ -100,19 +108,41 @@ async function loadLiabilities() {
   renderLiabilityContext(data);
 }
 
+// 用最近一次同步時存的 USD/TWD 參考匯率（跟頁首「總市值 (TWD)」卡片、
+// 加碼現金的 TWD 選項同一個來源）換算，不是即時再打一次匯率 API - 組合
+// 內部（本金/月付款/未償還餘額）一律用 USD 追蹤，TWD 只是輸入時的方便。
+const liabilityUsdTwdRate = {{ stats.usd_twd_rate | default(none) | tojson }};
+
 async function addLiability() {
   const errorBox = document.getElementById('liability-error');
+  const convertedBox = document.getElementById('liability-converted');
   errorBox.classList.add('hidden');
+  convertedBox.classList.add('hidden');
 
   const name = document.getElementById('liability-name').value.trim();
-  const principal = document.getElementById('liability-principal').value;
+  const enteredPrincipal = parseFloat(document.getElementById('liability-principal').value);
   const ratePct = document.getElementById('liability-rate').value;
-  const payment = document.getElementById('liability-payment').value;
+  const enteredPayment = parseFloat(document.getElementById('liability-payment').value);
+  const currency = document.getElementById('liability-currency').value;
   const startDate = document.getElementById('liability-start').value;
-  if (!name || !principal || ratePct === '' || !payment || !startDate) {
+  if (!name || !enteredPrincipal || ratePct === '' || !enteredPayment || !startDate) {
     errorBox.textContent = '請填完整資訊';
     errorBox.classList.remove('hidden');
     return;
+  }
+
+  let principal = enteredPrincipal;
+  let payment = enteredPayment;
+  if (currency === 'TWD') {
+    if (!liabilityUsdTwdRate) {
+      errorBox.textContent = '目前沒有可用的參考匯率，換算不了，請改用 USD 輸入';
+      errorBox.classList.remove('hidden');
+      return;
+    }
+    principal = enteredPrincipal / liabilityUsdTwdRate;
+    payment = enteredPayment / liabilityUsdTwdRate;
+    convertedBox.textContent = `NT$${enteredPrincipal.toLocaleString('en-US')} ÷ 參考匯率 ${liabilityUsdTwdRate.toFixed(4)} ≈ $${principal.toLocaleString('en-US', {maximumFractionDigits: 2})} USD 本金；NT$${enteredPayment.toLocaleString('en-US')} ≈ $${payment.toLocaleString('en-US', {maximumFractionDigits: 2})} USD 月付款`;
+    convertedBox.classList.remove('hidden');
   }
 
   const body = new FormData();
