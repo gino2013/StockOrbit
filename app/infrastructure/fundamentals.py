@@ -45,6 +45,12 @@ FIELDS = [
     "trailingAnnualDividendRate",  # dividendRate (forward, per-payment x frequency)
     # is often None for ETFs even when they clearly pay dividends (e.g. VOO) -
     # this is the trailing-12-months actual total instead, a reliable fallback
+    "operatingMargins",  # 千倍股篩選的獲利品質 flag 用（issue #366）
+    "netIncomeToCommon",
+    "totalRevenue",
+    "forwardEps",
+    "trailingEps",
+    "regularMarketTime",  # unix epoch - 千倍股篩選的 ticker 存活檢查用（issue #366）
 ]
 
 # ponytail: get_info() is a slow, blocking HTTP round-trip per symbol with
