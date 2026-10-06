@@ -1243,7 +1243,7 @@ def cash_deployment(amount: float, account: str | None = None):
         return JSONResponse({"error": "還沒有持股資料，請先按「重新抓取持股」"}, status_code=400)
     if not targets:
         return JSONResponse({"error": "還沒有設定目標配置，請先在「目標配置」設定"}, status_code=400)
-    plan = build_rebalance_plan(snapshots, targets, extra_cash=amount)
+    plan = build_rebalance_plan(snapshots, targets, extra_cash=amount, include_cash=True)
     new_total = sum(s["market_value"] for s in snapshots) + amount
     return JSONResponse({"plan": plan, "new_total": new_total})
 

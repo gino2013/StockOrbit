@@ -129,7 +129,9 @@ async function loadCashDeployment() {
     '<th class="text-right">做完後市值</th><th class="text-right">做完後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
   for (const p of data.plan) {
     let buyLabel = '<span class="opacity-40">已達標</span>';
-    if (p.diff > 0.5) {
+    if (p.symbol === 'CASH' && p.diff < -0.5) {
+      buyLabel = `<span class="opacity-70">動用 $${(-p.diff).toLocaleString('en-US', {maximumFractionDigits: 0})} 現金</span>`;
+    } else if (p.diff > 0.5) {
       buyLabel = `<span class="text-success font-medium">+$${p.diff.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>`;
     } else if (p.diff < -0.5) {
       buyLabel = `<span class="text-error font-medium">-$${(-p.diff).toLocaleString('en-US', {maximumFractionDigits: 0})} 賣出</span>`;
