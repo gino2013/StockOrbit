@@ -126,7 +126,7 @@ async function loadCashDeployment() {
     : `台股：<span class="font-medium">$${twUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（沒有可用參考匯率，先以 USD 顯示）　`;
   html += `美股：<span class="font-medium">$${usUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>　`;
   html += `加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（合計，USD）</p>`;
-  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（勾選「保留」的除外）（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
+  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（勾選「保留」的整檔不動，不買也不賣）（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
     '<th>代號</th><th class="text-center">保留</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
     '<th class="text-right">做完後市值</th><th class="text-right">做完後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
