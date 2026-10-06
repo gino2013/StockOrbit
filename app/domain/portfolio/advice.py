@@ -114,6 +114,11 @@ def build_rebalance_plan(
     `include_cash` adds a CASH row for cash already held (issue #368). The
     total includes that cash and targets sum to 100%, so without the row
     the current weights don't add up and the cash is spent invisibly.
+
+    `keep` (issues #370, #374): symbols left completely untouched - frozen at
+    their current value, neither bought nor sold; everyone else splits the
+    remaining total in proportion to their target weights, so the overall mix
+    lands as close to target as the constraint allows.
     """
     total_value = sum(s["market_value"] for s in snapshots)
     new_total = total_value + extra_cash
@@ -123,21 +128,12 @@ def build_rebalance_plan(
             current_value_by_symbol[s["symbol"]] += s["market_value"]
 
     symbols = sorted(set(current_value_by_symbol) | set(targets))
-    # Freeze kept symbols that'd otherwise be sold, re-spread the rest until
-    # stable (each freeze shrinks the budget, which can trigger another).
-    frozen: set[str] = set()
-    while True:
-        budget = new_total - sum(current_value_by_symbol.get(f, 0.0) for f in frozen)
-        free_weight = sum(targets.get(x, 0.0) for x in symbols if x not in frozen)
-        scale = budget / free_weight if free_weight else 0.0
-        newly = {
-            x for x in symbols
-            if x in keep and x not in frozen
-            and targets.get(x, 0.0) * scale < current_value_by_symbol.get(x, 0.0)
-        }
-        if not newly:
-            break
-        frozen |= newly
+    # Kept symbols are frozen at their current value (no buy, no sell); the
+    # rest split what's left in proportion to their target weights.
+    frozen = {x for x in symbols if x in keep}
+    budget = new_total - sum(current_value_by_symbol.get(f, 0.0) for f in frozen)
+    free_weight = sum(targets.get(x, 0.0) for x in symbols if x not in frozen)
+    scale = budget / free_weight if free_weight else 0.0
 
     plan = []
     for symbol in symbols:

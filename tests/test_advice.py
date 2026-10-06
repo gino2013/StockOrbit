@@ -127,6 +127,11 @@ def demo():
     plan7 = build_rebalance_plan(snapshots, {"AAPL": 0.3, "MSFT": 0.7}, extra_cash=4000, keep=frozenset({"AAPL"}))
     assert min(p["diff"] for p in plan7) >= -1e-6
     assert abs(sum(p["target_value"] for p in plan7) - 14000) < 1e-6
+    # issue #374: kept means untouched even when its target is ABOVE current
+    # (MSFT 4000 target 70% would otherwise be bought) - diff is exactly 0.
+    plan8 = build_rebalance_plan(snapshots, {"AAPL": 0.3, "MSFT": 0.7}, extra_cash=4000, keep=frozenset({"MSFT"}))
+    by8 = {p["symbol"]: p for p in plan8}
+    assert by8["MSFT"]["diff"] == 0 and abs(by8["AAPL"]["diff"] - 4000) < 1e-6
 
 
 if __name__ == "__main__":
