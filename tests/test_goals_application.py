@@ -55,6 +55,24 @@ def demo():
     mocked.assert_not_called()
     assert empty["monte_carlo_probability"] is None
 
+    # Manual contributions (issue #372) replace the historical estimate.
+    with patch.object(goals, "weighted_portfolio_returns", return_value=_fake_returns()):
+        manual = goals.goal_progress(
+            target_amount=100000.0, target_date=date(2036, 1, 1),
+            snapshots=snapshots, transactions=transactions, as_of=as_of,
+            monthly_contribution=1000.0, year_end_contribution=5000.0,
+        )
+        auto = goals.goal_progress(
+            target_amount=100000.0, target_date=date(2036, 1, 1),
+            snapshots=snapshots, transactions=transactions, as_of=as_of,
+        )
+    assert manual["contribution_source"] == "manual" and auto["contribution_source"] == "estimated"
+    assert manual["annual_contribution"] == 12000.0 and manual["year_end_contribution"] == 5000.0
+    assert manual["monte_carlo_probability"] >= auto["monte_carlo_probability"]
+    # One 年終 lump per February 1st in (as_of, target_date]: 2026..2036 = 10.
+    assert len(goals._year_end_trading_days(5000.0, as_of, date(2036, 1, 1))) == 10
+    assert goals._year_end_trading_days(0.0, as_of, date(2036, 1, 1)) == {}
+
 
 def _fake_returns():
     import pandas as pd

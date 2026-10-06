@@ -16,6 +16,7 @@ _DAYS_PER_MONTH = 30.4375
 _MAX_PROJECTION_DAYS = 365 * 40  # don't project a near-zero return for centuries
 _MAX_PROJECTION_POINTS = 120  # enough for a smooth line; keeps the payload small
 _MAX_PROJECTION_MONTHS = round(_MAX_PROJECTION_DAYS / _DAYS_PER_MONTH)
+YEAR_END_BONUS_MONTH = 2  # 年終獎金通常落在農曆年前後，統一設在每年 2 月入帳一次
 
 
 def required_annual_return(current_value: float, target_amount: float, target_date: date, as_of: date) -> float | None:
@@ -29,20 +30,30 @@ def _monthly_rate(annual_return: float) -> float:
     return (1 + annual_return) ** (1 / 12) - 1
 
 
-def _value_after_months(current_value: float, monthly_rate: float, monthly_contribution: float, m: int) -> float:
-    """Future value of a lump sum plus an ordinary monthly annuity."""
-    grown = current_value * (1 + monthly_rate) ** m
-    if monthly_contribution:
-        if monthly_rate:
-            grown += monthly_contribution * ((1 + monthly_rate) ** m - 1) / monthly_rate
-        else:
-            grown += monthly_contribution * m
-    return grown
+def _values_by_month(
+    current_value: float, annual_return: float, as_of: date, months: int,
+    monthly_contribution: float = 0.0, year_end_contribution: float = 0.0,
+) -> list[float]:
+    """Portfolio value at months 0..`months`: growth first, then that
+    month's deposit (an ordinary annuity). `year_end_contribution` lands
+    once each time the step crosses the 1st of YEAR_END_BONUS_MONTH."""
+    rate = _monthly_rate(annual_return)
+    value, prev, out = current_value, as_of, [current_value]
+    for m in range(1, months + 1):
+        d = as_of + timedelta(days=round(_DAYS_PER_MONTH * m))
+        value = value * (1 + rate) + monthly_contribution
+        # 30.4375-day steps can hop over a whole short February, so check
+        # whether the 1st of that month fell inside (prev, d] instead.
+        if prev < date(d.year, YEAR_END_BONUS_MONTH, 1) <= d:
+            value += year_end_contribution
+        prev = d
+        out.append(value)
+    return out
 
 
 def projected_achievement_date(
     current_value: float, target_amount: float, annual_return: float | None, as_of: date,
-    annual_contribution: float = 0.0,
+    annual_contribution: float = 0.0, year_end_contribution: float = 0.0,
 ) -> str | None:
     """When the target is hit if the portfolio keeps compounding at
     `annual_return` *and* the investor keeps adding `annual_contribution`
@@ -60,23 +71,24 @@ def projected_achievement_date(
     if annual_return is None or current_value <= 0:
         return None
 
-    if annual_contribution <= 0:
+    if annual_contribution <= 0 and year_end_contribution <= 0:
         if annual_return <= 0:
             return None
         years = math.log(target_amount / current_value) / math.log(1 + annual_return)
         return (as_of + timedelta(days=years * 365.25)).isoformat()
 
-    monthly_rate = _monthly_rate(annual_return)
-    monthly_contribution = annual_contribution / 12
-    for m in range(1, _MAX_PROJECTION_MONTHS + 1):
-        if _value_after_months(current_value, monthly_rate, monthly_contribution, m) >= target_amount:
+    values = _values_by_month(
+        current_value, annual_return, as_of, _MAX_PROJECTION_MONTHS, annual_contribution / 12, year_end_contribution
+    )
+    for m, v in enumerate(values):
+        if v >= target_amount:
             return (as_of + timedelta(days=round(_DAYS_PER_MONTH * m))).isoformat()
     return None
 
 
 def _projection(
     current_value: float, annual_return: float | None, as_of: date, until: date,
-    annual_contribution: float = 0.0,
+    annual_contribution: float = 0.0, year_end_contribution: float = 0.0,
 ) -> list[dict]:
     """Monthly [{date, value}] from `as_of` to `until`, compounding at
     `annual_return` and adding `annual_contribution / 12` each month. Empty
@@ -84,8 +96,9 @@ def _projection(
     if annual_return is None or current_value <= 0:
         return []
     months = max(1, round((until - as_of).days / _DAYS_PER_MONTH))
-    monthly_rate = _monthly_rate(annual_return)
-    monthly_contribution = annual_contribution / 12
+    values = _values_by_month(
+        current_value, annual_return, as_of, months, annual_contribution / 12, year_end_contribution
+    )
     step = max(1, -(-months // _MAX_PROJECTION_POINTS))  # thin out long horizons
     marks = list(range(0, months + 1, step))
     if marks[-1] != months:
@@ -93,7 +106,7 @@ def _projection(
     return [
         {
             "date": (as_of + timedelta(days=round(_DAYS_PER_MONTH * m))).isoformat(),
-            "value": _value_after_months(current_value, monthly_rate, monthly_contribution, m),
+            "value": values[m],
         }
         for m in marks
     ]
@@ -101,7 +114,7 @@ def _projection(
 
 def build_goal_progress(
     current_value: float, target_amount: float, target_date: date, current_annual_return: float | None, as_of: date,
-    annual_contribution: float = 0.0,
+    annual_contribution: float = 0.0, year_end_contribution: float = 0.0,
 ) -> dict:
     progress_pct = min(1.0, current_value / target_amount) if target_amount else None
     required_rate = required_annual_return(current_value, target_amount, target_date, as_of)
@@ -112,7 +125,7 @@ def build_goal_progress(
     )
 
     proj_date = projected_achievement_date(
-        current_value, target_amount, current_annual_return, as_of, annual_contribution
+        current_value, target_amount, current_annual_return, as_of, annual_contribution, year_end_contribution
     )
     # Extend the chart past the target date when the current pace hits the
     # target later than that, so the crossing point is actually visible.
@@ -130,10 +143,11 @@ def build_goal_progress(
         "required_annual_return": required_rate,
         "current_annual_return": current_annual_return,
         "annual_contribution": annual_contribution,
+        "year_end_contribution": year_end_contribution,
         "already_past_target_date": (target_date - as_of).days <= 0,
         "on_track": on_track,
         "projected_achievement_date": proj_date,
         "projection": _projection(
-            current_value, current_annual_return, as_of, until, annual_contribution
+            current_value, current_annual_return, as_of, until, annual_contribution, year_end_contribution
         ),
     }

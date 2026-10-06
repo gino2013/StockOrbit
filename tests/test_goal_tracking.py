@@ -93,6 +93,19 @@ def demo():
     # build_goal_progress echoes the contribution back for the caption.
     assert build_goal_progress(15000, 20000, date(2027, 1, 1), 0.30, as_of)["annual_contribution"] == 0.0
 
+    # 年終投入 (issue #372): zero return, no monthly deposits, as_of Jan 1 ->
+    # the lump lands once per February, so ~1 year out the value is 10000+5000,
+    # ~2 years out 10000+10000, and never before the first February.
+    from app.domain.goals.goal_tracking import _values_by_month
+
+    vals = _values_by_month(10000, 0.0, as_of, 25, 0.0, 5000.0)
+    assert vals[0] == 10000 and vals[1] == 10000  # Jan 31: Feb 1 not crossed yet
+    assert vals[2] == 15000  # Mar 3 step hops over Feb entirely, lump still lands
+    assert vals[12] == 15000 and vals[13] == 20000  # one lump per year
+    # Hits 12000 only once the first lump lands.
+    assert projected_achievement_date(10000, 12000, 0.0, as_of, 0.0, 5000.0) is not None
+    assert projected_achievement_date(10000, 12000, 0.0, as_of, 0.0, 0.0) is None
+
 
 if __name__ == "__main__":
     demo()

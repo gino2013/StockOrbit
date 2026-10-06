@@ -1476,20 +1476,31 @@ def get_goal(account: str | None = None):
             snapshots=repo.latest_snapshots(account),
             transactions=repo.all_transactions(account),
             as_of=datetime.now().date(),
+            monthly_contribution=goal.monthly_contribution,
+            year_end_contribution=goal.year_end_contribution,
         )
     return JSONResponse({"goal": progress})
 
 
 @app.post("/api/goal")
-def set_goal(target_amount: float = Form(...), target_date: str = Form(...)):
+def set_goal(
+    target_amount: float = Form(...), target_date: str = Form(...),
+    monthly_contribution: str = Form(""), year_end_contribution: str = Form(""),
+):
     if target_amount <= 0:
         return JSONResponse({"error": "目標金額需大於 0"}, status_code=400)
+    try:  # blank = not entered (None), so the historical estimate stays in use
+        monthly, year_end = (float(v) if v.strip() else None for v in (monthly_contribution, year_end_contribution))
+    except ValueError:
+        return JSONResponse({"error": "投入金額格式錯誤"}, status_code=400)
+    if any(v is not None and v < 0 for v in (monthly, year_end)):
+        return JSONResponse({"error": "投入金額不能是負數"}, status_code=400)
     try:
         target_date_parsed = date.fromisoformat(target_date)
     except ValueError:
         return JSONResponse({"error": "日期格式錯誤"}, status_code=400)
     with Repositories() as repo:
-        repo.upsert_goal(target_amount, target_date_parsed)
+        repo.upsert_goal(target_amount, target_date_parsed, monthly, year_end)
     return JSONResponse({"ok": True})
 
 

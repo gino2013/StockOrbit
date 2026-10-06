@@ -454,11 +454,16 @@ class Repositories:
     def goal(self) -> InvestmentGoal | None:
         return self._mine(InvestmentGoal).first()
 
-    def upsert_goal(self, target_amount: float, target_date: date) -> None:
+    def upsert_goal(
+        self, target_amount: float, target_date: date,
+        monthly_contribution: float | None = None, year_end_contribution: float | None = None,
+    ) -> None:
         existing = self._mine(InvestmentGoal).first()
         if existing:
             existing.target_amount = target_amount
             existing.target_date = target_date
+            existing.monthly_contribution = monthly_contribution
+            existing.year_end_contribution = year_end_contribution
             existing.updated_at = datetime.now(timezone.utc)
         else:
             self._db.add(
@@ -466,6 +471,8 @@ class Repositories:
                     user_id=self._user_id,
                     target_amount=target_amount,
                     target_date=target_date,
+                    monthly_contribution=monthly_contribution,
+                    year_end_contribution=year_end_contribution,
                 )
             )
         self._db.commit()

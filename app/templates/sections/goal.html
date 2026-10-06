@@ -11,6 +11,12 @@
         <label class="text-sm">目標日期<br>
           <input name="target_date" type="date" required class="input input-bordered input-sm mt-1 w-40">
         </label>
+        <label class="text-sm">每月定期定額（選填）<br>
+          <input name="monthly_contribution" type="number" min="0" step="any" placeholder="例如 1000" class="input input-bordered input-sm mt-1 w-40">
+        </label>
+        <label class="text-sm">年終投入・每年 2 月（選填）<br>
+          <input name="year_end_contribution" type="number" min="0" step="any" placeholder="例如 5000" class="input input-bordered input-sm mt-1 w-40">
+        </label>
         <button type="submit" class="btn btn-neutral btn-sm">設定目標</button>
         <button type="button" onclick="deleteGoal()" id="goal-delete-btn" class="btn btn-ghost btn-sm hidden">清除目標</button>
       </form>
@@ -34,6 +40,8 @@ async function loadGoal() {
   deleteBtn.classList.remove('hidden');
   document.querySelector('#goal-form input[name=target_amount]').value = g.target_amount;
   document.querySelector('#goal-form input[name=target_date]').value = g.target_date;
+  document.querySelector('#goal-form input[name=monthly_contribution]').value = g.monthly_contribution ?? '';
+  document.querySelector('#goal-form input[name=year_end_contribution]').value = g.year_end_contribution ?? '';
 
   const progressPct = (g.progress_pct * 100).toFixed(1);
   const onTrackBadge = g.on_track === null ? ''
@@ -80,8 +88,11 @@ async function loadGoal() {
       <span>${progressPct}%</span>
     </div>
     <progress class="progress progress-primary w-full" value="${progressPct}" max="100"></progress>`;
-  if (g.annual_contribution) {
-    html += `<p class="text-xs opacity-50 mt-1">推算已假設你每年持續投入約 $${g.annual_contribution.toLocaleString('en-US', { maximumFractionDigits: 0 })}（依過去的入金推算），不只靠投資報酬。</p>`;
+  const fmtMoney = (v) => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (g.contribution_source === 'manual') {
+    html += `<p class="text-xs opacity-50 mt-1">推算已加入你輸入的投入：每月 ${fmtMoney(g.monthly_contribution || 0)}、每年 2 月年終 ${fmtMoney(g.year_end_contribution || 0)}（取代依過去入金的推算）。</p>`;
+  } else if (g.annual_contribution) {
+    html += `<p class="text-xs opacity-50 mt-1">推算已假設你每年持續投入約 ${fmtMoney(g.annual_contribution)}（依過去的入金推算），不只靠投資報酬。</p>`;
   }
   if (g.projection && g.projection.length) {
     html += '<div class="h-64 mt-4"><canvas id="goalProjectionChart"></canvas></div>';

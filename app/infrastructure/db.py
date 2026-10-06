@@ -319,6 +319,10 @@ class InvestmentGoal(Base):
     user_id = _user_id_col(primary_key=True)
     target_amount = Column(Float, nullable=False)
     target_date = Column(Date, nullable=False)
+    # NULL = not entered -> goal tracking falls back to the contribution
+    # estimated from past deposits. 年終 lands once a year (February).
+    monthly_contribution = Column(Float)
+    year_end_contribution = Column(Float)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
