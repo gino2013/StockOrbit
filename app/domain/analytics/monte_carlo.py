@@ -18,6 +18,7 @@ _MIN_HISTORY_DAYS = 30
 def _bootstrap_values(
     current_value: float, daily_returns: np.ndarray, total_days: int, n_simulations: int, seed: int,
     monthly_contribution: float = 0.0, days_per_month: float = TRADING_DAYS_PER_YEAR / 12,
+    lump_contributions: dict[int, float] | None = None,
 ) -> np.ndarray | None:
     """(n_simulations, total_days) matrix of simulated portfolio values,
     each day independently bootstrap-resampled (with replacement) from
@@ -40,7 +41,8 @@ def _bootstrap_values(
     rng = np.random.default_rng(seed)
     sampled = rng.choice(daily_returns, size=(n_simulations, total_days), replace=True)
 
-    if not monthly_contribution:
+    lumps = lump_contributions or {}
+    if not monthly_contribution and not lumps:
         return current_value * np.cumprod(1 + sampled, axis=1)
 
     total_months = int(total_days / days_per_month) + 2
@@ -50,6 +52,7 @@ def _bootstrap_values(
     for d in range(total_days):
         if d in month_boundary_days:
             values = values + monthly_contribution
+        values = values + lumps.get(d, 0.0)
         values = values * (1 + sampled[:, d])
         path[:, d] = values
     return path
@@ -82,12 +85,14 @@ def simulate_paths(
 def probability_of_reaching_target(
     current_value: float, daily_returns, target_amount: float, months: int,
     n_simulations: int = 1000, seed: int = 42, monthly_contribution: float = 0.0,
+    lump_contributions: dict[int, float] | None = None,
 ) -> float | None:
     """Fraction of bootstrap-simulated paths whose value at `months` months
     out is >= target_amount - "given how bumpy your actual historical
     returns have been (and how much you've kept adding), what are the odds
     you're at the target by then", instead of goal_tracking's single
-    point-estimate pace projection. None when there's too little history
+    point-estimate pace projection. `lump_contributions` maps a trading-day
+    offset to a one-off deposit (e.g. 年終投入). None when there's too little history
     to simulate from."""
     if current_value <= 0 or months <= 0 or target_amount <= 0:
         return None
@@ -95,7 +100,8 @@ def probability_of_reaching_target(
     days_per_month = TRADING_DAYS_PER_YEAR / 12
     total_days = round(months * days_per_month)
     values = _bootstrap_values(
-        current_value, daily_returns, total_days, n_simulations, seed, monthly_contribution, days_per_month
+        current_value, daily_returns, total_days, n_simulations, seed, monthly_contribution, days_per_month,
+        lump_contributions,
     )
     if values is None:
         return None
