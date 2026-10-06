@@ -93,7 +93,10 @@ def build_advice(
 
 
 def build_rebalance_plan(
-    snapshots: list[dict], targets: dict[str, float], extra_cash: float = 0.0
+    snapshots: list[dict],
+    targets: dict[str, float],
+    extra_cash: float = 0.0,
+    include_cash: bool = False,
 ) -> list[dict]:
     """For every symbol that's either currently held or has a target weight
     (excluding CASH, which is funding source/destination, not a position),
@@ -106,12 +109,16 @@ def build_rebalance_plan(
     including the new cash - not just buy-only. `current_weight` still uses
     the pre-cash total (today's actual allocation), everything else uses
     the post-cash total.
+
+    `include_cash` adds a CASH row for cash already held (issue #368). The
+    total includes that cash and targets sum to 100%, so without the row
+    the current weights don't add up and the cash is spent invisibly.
     """
     total_value = sum(s["market_value"] for s in snapshots)
     new_total = total_value + extra_cash
     current_value_by_symbol: dict[str, float] = defaultdict(float)
     for s in snapshots:
-        if s["symbol"] != "CASH":
+        if include_cash or s["symbol"] != "CASH":
             current_value_by_symbol[s["symbol"]] += s["market_value"]
 
     symbols = sorted(set(current_value_by_symbol) | set(targets))

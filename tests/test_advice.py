@@ -102,6 +102,19 @@ def demo():
     # current_weight still reflects today's actual allocation (pre-cash).
     assert abs(by_symbol3["AAPL"]["current_weight"] - 0.6) < 1e-9
 
+    # include_cash (issue #368): held CASH gets its own row so current
+    # weights sum to 100%; target 0% -> it's fully deployed, so the diffs
+    # still net to extra_cash.
+    cash_snaps = snapshots + [{"symbol": "CASH", "market_value": 1000.0}]
+    plan4 = build_rebalance_plan(
+        cash_snaps, targets={"AAPL": 0.5, "MSFT": 0.5}, extra_cash=1000, include_cash=True
+    )
+    by4 = {p["symbol"]: p for p in plan4}
+    assert abs(by4["CASH"]["diff"] - -1000) < 1e-6
+    assert abs(sum(p["current_weight"] for p in plan4) - 1.0) < 1e-9
+    assert abs(sum(p["diff"] for p in plan4) - 1000) < 1e-6
+    assert "CASH" not in {p["symbol"] for p in build_rebalance_plan(cash_snaps, {"AAPL": 1.0})}
+
 
 if __name__ == "__main__":
     demo()
