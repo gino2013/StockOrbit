@@ -115,6 +115,19 @@ def demo():
     assert abs(sum(p["diff"] for p in plan4) - 1000) < 1e-6
     assert "CASH" not in {p["symbol"] for p in build_rebalance_plan(cash_snaps, {"AAPL": 1.0})}
 
+    # keep (issue #370): AAPL 6000 / MSFT 4000, target 30/70, no cash.
+    # Unkept: AAPL sell 3000. Kept AAPL is frozen at 6000, MSFT absorbs the
+    # remaining 4000 (no sells anywhere, total still 10000).
+    plan5 = build_rebalance_plan(snapshots, {"AAPL": 0.3, "MSFT": 0.7})
+    assert abs({p["symbol"]: p for p in plan5}["AAPL"]["diff"] - -3000) < 1e-6
+    plan6 = build_rebalance_plan(snapshots, {"AAPL": 0.3, "MSFT": 0.7}, keep=frozenset({"AAPL"}))
+    by6 = {p["symbol"]: p for p in plan6}
+    assert abs(by6["AAPL"]["diff"]) < 1e-6 and abs(by6["MSFT"]["diff"]) < 1e-6
+    # With +4000 cash the kept AAPL stays 6000 and MSFT gets the rest.
+    plan7 = build_rebalance_plan(snapshots, {"AAPL": 0.3, "MSFT": 0.7}, extra_cash=4000, keep=frozenset({"AAPL"}))
+    assert min(p["diff"] for p in plan7) >= -1e-6
+    assert abs(sum(p["target_value"] for p in plan7) - 14000) < 1e-6
+
 
 if __name__ == "__main__":
     demo()
