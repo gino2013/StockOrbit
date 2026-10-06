@@ -97,6 +97,7 @@ def build_rebalance_plan(
     targets: dict[str, float],
     extra_cash: float = 0.0,
     include_cash: bool = False,
+    keep: frozenset[str] = frozenset(),
 ) -> list[dict]:
     """For every symbol that's either currently held or has a target weight
     (excluding CASH, which is funding source/destination, not a position),
@@ -122,11 +123,27 @@ def build_rebalance_plan(
             current_value_by_symbol[s["symbol"]] += s["market_value"]
 
     symbols = sorted(set(current_value_by_symbol) | set(targets))
+    # Freeze kept symbols that'd otherwise be sold, re-spread the rest until
+    # stable (each freeze shrinks the budget, which can trigger another).
+    frozen: set[str] = set()
+    while True:
+        budget = new_total - sum(current_value_by_symbol.get(f, 0.0) for f in frozen)
+        free_weight = sum(targets.get(x, 0.0) for x in symbols if x not in frozen)
+        scale = budget / free_weight if free_weight else 0.0
+        newly = {
+            x for x in symbols
+            if x in keep and x not in frozen
+            and targets.get(x, 0.0) * scale < current_value_by_symbol.get(x, 0.0)
+        }
+        if not newly:
+            break
+        frozen |= newly
+
     plan = []
     for symbol in symbols:
         current_value = current_value_by_symbol.get(symbol, 0.0)
         target_weight = targets.get(symbol, 0.0)
-        target_value = target_weight * new_total
+        target_value = current_value if symbol in frozen else target_weight * scale
         plan.append({
             "symbol": symbol,
             "current_value": current_value,

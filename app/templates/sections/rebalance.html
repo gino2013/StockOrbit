@@ -66,6 +66,9 @@ makeSortable(document.getElementById('rebalance-table'));
 // USD 再送給 /api/cash-deployment（組合內部一律用 USD 追蹤）。
 const usdTwdRate = {{ stats.usd_twd_rate | default(none) | tojson }};
 
+// 勾選「保留」的代號：不賣出，其餘標的重新分配剩下的資金（issue #370）。
+const keepSymbols = new Set();
+
 async function loadCashDeployment() {
   const errorBox = document.getElementById('cash-deployment-error');
   const content = document.getElementById('cash-deployment-content');
@@ -97,7 +100,7 @@ async function loadCashDeployment() {
   }
   content.innerHTML = '<p class="opacity-60">查詢中…</p>';
 
-  const res = await fetch('/api/cash-deployment?' + withAccount(new URLSearchParams({ amount })));
+  const res = await fetch('/api/cash-deployment?' + withAccount(new URLSearchParams({ amount, keep: [...keepSymbols].join(',') })));
   const data = await res.json();
   if (data.error) {
     content.innerHTML = '';
@@ -123,9 +126,9 @@ async function loadCashDeployment() {
     : `台股：<span class="font-medium">$${twUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（沒有可用參考匯率，先以 USD 顯示）　`;
   html += `美股：<span class="font-medium">$${usUsd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>　`;
   html += `加碼後總市值：<span class="font-medium">$${data.new_total.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>（合計，USD）</p>`;
-  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
+  html += '<p class="text-xs opacity-50 mb-1">把這筆現金併入目前總市值，重新算出貼齊目標配置所需的買入/賣出金額，不是只加碼、不動其他持股，過重的標的一樣會建議賣出（勾選「保留」的除外）（目標設為 0% 的也會建議全數賣出）。不含手續費/稅金，僅供參考，不是投資建議。</p>';
   html += '<table id="cash-deployment-table" class="table table-sm"><thead><tr>' +
-    '<th>代號</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
+    '<th>代號</th><th class="text-center">保留</th><th class="text-right">建議買入/賣出</th><th class="text-right">目前佔比</th>' +
     '<th class="text-right">做完後市值</th><th class="text-right">做完後佔比</th><th class="text-right">目標佔比</th></tr></thead><tbody>';
   for (const p of data.plan) {
     let buyLabel = '<span class="opacity-40">已達標</span>';
@@ -140,18 +143,28 @@ async function loadCashDeployment() {
     // extra_cash 參數），不是只是盡量接近 - target_value/target_weight
     // 就是做完後的市值/佔比，不用另外算，但欄位還是明講「做完後」，
     // 不用使用者自己去推。
-    const newWeightClass = posNegClass(p.target_weight - p.current_weight);
+    // 勾選「保留」時做完後不一定等於目標，佔比改用做完後市值實際算。
+    const newWeight = data.new_total ? p.target_value / data.new_total : 0;
+    const newWeightClass = posNegClass(newWeight - p.current_weight);
+    const keepCell = p.symbol === 'CASH' ? '' :
+      `<input type="checkbox" class="checkbox checkbox-xs" ${keepSymbols.has(p.symbol) ? 'checked' : ''} onchange="toggleKeep('${escapeHtml(p.symbol)}', this.checked)">`;
     html += `<tr>
       <td class="font-medium">${escapeHtml(p.symbol)}</td>
+      <td class="text-center">${keepCell}</td>
       <td class="text-right">${buyLabel}</td>
       <td class="text-right opacity-70">${(p.current_weight * 100).toFixed(1)}%</td>
       <td class="text-right opacity-70">$${p.target_value.toLocaleString('en-US', {maximumFractionDigits: 0})}</td>
-      <td class="text-right ${newWeightClass}">${(p.target_weight * 100).toFixed(1)}%</td>
+      <td class="text-right ${newWeightClass}">${(newWeight * 100).toFixed(1)}%</td>
       <td class="text-right opacity-70">${(p.target_weight * 100).toFixed(1)}%</td>
     </tr>`;
   }
   html += '</tbody></table>';
   content.innerHTML = html;
   makeSortable(document.getElementById('cash-deployment-table'));
+}
+
+function toggleKeep(symbol, on) {
+  if (on) keepSymbols.add(symbol); else keepSymbols.delete(symbol);
+  loadCashDeployment();
 }
 </script>
