@@ -7,7 +7,7 @@ mode from the cookie, and hands the raw data here.
 from datetime import date
 from itertools import groupby
 
-from app.domain.liabilities.amortization import remaining_balance
+from app.domain.liabilities.amortization import balance_in_usd
 from app.domain.portfolio.advice import build_advice, build_rebalance_plan
 from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
 from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
@@ -169,10 +169,7 @@ def build_dashboard_context(
     # the plain 總市值 card they always had, not a redundant duplicate.
     total_liabilities = (
         sum(
-            remaining_balance(
-                liability["principal"], liability["annual_rate"], liability["monthly_payment"],
-                date.fromisoformat(liability["start_date"]), as_of,
-            )
+            balance_in_usd(liability, as_of, usd_twd_rate)
             for liability in liabilities
         )
         if liabilities

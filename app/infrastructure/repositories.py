@@ -372,11 +372,12 @@ class Repositories:
                 "annual_rate": r.annual_rate,
                 "monthly_payment": r.monthly_payment,
                 "start_date": r.start_date.isoformat(),
+                "currency": r.currency,
             }
             for r in rows
         ]
 
-    def add_liability(self, name: str, principal: float, annual_rate: float, monthly_payment: float, start_date: date) -> None:
+    def add_liability(self, name: str, principal: float, annual_rate: float, monthly_payment: float, start_date: date, currency: str = "USD") -> None:
         self._db.add(
             Liability(
                 user_id=self._user_id,
@@ -385,6 +386,7 @@ class Repositories:
                 annual_rate=annual_rate,
                 monthly_payment=monthly_payment,
                 start_date=start_date,
+                currency=currency,
             )
         )
         self._db.commit()

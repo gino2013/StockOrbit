@@ -1424,6 +1424,7 @@ def _liability_context(repo) -> dict:
         snapshots=repo.latest_snapshots(),
         transactions=repo.all_transactions(),
         as_of=datetime.now().date(),
+        usd_twd_rate=repo.usd_twd_rate(),
     )
 
 
@@ -1440,7 +1441,10 @@ def add_liability(
     annual_rate: float = Form(...),
     monthly_payment: float = Form(...),
     start_date: str = Form(...),
+    currency: str = Form("USD"),
 ):
+    if currency not in ("USD", "TWD"):
+        return JSONResponse({"error": "幣別只支援 USD / TWD"}, status_code=400)
     if not name.strip():
         return JSONResponse({"error": "請填名稱"}, status_code=400)
     if principal <= 0 or monthly_payment <= 0:
@@ -1452,7 +1456,7 @@ def add_liability(
     except ValueError:
         return JSONResponse({"error": "起貸日格式錯誤"}, status_code=400)
     with Repositories() as repo:
-        repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start)
+        repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency)
         return JSONResponse(_liability_context(repo))
 
 

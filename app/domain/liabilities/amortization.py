@@ -48,6 +48,30 @@ def remaining_balance(principal: float, annual_rate: float, monthly_payment: flo
     return max(0.0, balance)
 
 
+def balance_in_usd(liability: dict, as_of: date, usd_twd_rate: float | None) -> float:
+    """Remaining balance in USD. A TWD loan is a fixed NT$ debt, so it's
+    converted at the *current* rate every time (issue #382) rather than
+    frozen at the rate on the day it was entered. No rate on file -> 0,
+    ponytail: the rate is stored on every sync, so only a brand-new account
+    hits this; show an explicit warning if it ever matters."""
+    balance = remaining_balance(
+        liability["principal"], liability["annual_rate"], liability["monthly_payment"],
+        date.fromisoformat(liability["start_date"]), as_of,
+    )
+    if liability.get("currency", "USD") != "TWD":
+        return balance
+    return balance / usd_twd_rate if usd_twd_rate else 0.0
+
+
+def loan_term_months(principal: float, annual_rate: float, monthly_payment: float) -> int | None:
+    """Total number of monthly payments until paid off, None if the payment
+    never covers the interest (the loan never amortizes)."""
+    schedule = amortization_schedule(principal, annual_rate, monthly_payment, date(2000, 1, 1))
+    if not schedule or "warning" in schedule[-1]:
+        return None
+    return len(schedule)
+
+
 def amortization_schedule(
     principal: float, annual_rate: float, monthly_payment: float, start_date: date, max_months: int = 600
 ) -> list[dict]:
