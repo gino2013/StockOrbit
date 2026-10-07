@@ -249,6 +249,7 @@
       <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain_pct >= 0 else 'text-error' }}">
         {{ "{:+.1%}".format(stats.total_gain_pct) }}
       </div>
+      {% if stats.net_deposits %}<div class="stat-desc">相對淨入金 ${{ "{:,.0f}".format(stats.net_deposits) }}（含已實現/股息）</div>{% endif %}
     </div>
     {% if stats.annualized_return is not none %}
     <div class="stat">

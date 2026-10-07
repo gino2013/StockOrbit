@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-07（報酬率改用淨入金為基準）
+
+- 頁首「報酬率」原本是 (總市值 − 持股成本) ÷ 持股成本，賣出獲利跟股息變成現金後成本等於金額，不再計入（issue #378）。改成 (總市值 − 淨入金) ÷ 淨入金（淨入金 = DEPOSIT − WITHDRAWAL，`xirr.net_deposits`），卡片附註淨入金金額；沒有入金紀錄或 flex 模式時維持舊算法。「未實現損益」數字不變。
+
 ## 2026-10-07（修正已實現損益重複計算同一筆賣出）
 
 - Firstrade 對同一筆成交先回傳當天版（description 是證券名稱、amount 未進位），隔天回傳結算版（大寫全名 + `S/D: 日期`、amount 進位到分），`Transaction.make_id` 因為雜湊含 description/amount 把它們當成兩筆，已實現損益翻倍（issue #376，PLTR/VOO/VT 2026-10-06）。`save_refresh` 對 BOUGHT/SOLD 另用 帳號/日期/買賣/代號/股數/價格 判斷重複並跳過（`trade_already_recorded`）；migration 0020 清掉既有重複列（保留最早抓到的一列）。
