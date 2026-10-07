@@ -34,7 +34,8 @@
           <label class="text-xs opacity-60 block mb-1">起貸日</label>
           <input id="liability-start" type="date" class="input input-bordered input-sm w-36">
         </div>
-        <button type="button" onclick="addLiability()" class="btn btn-neutral btn-sm">新增</button>
+        <button type="button" id="liability-submit" onclick="addLiability()" class="btn btn-neutral btn-sm">新增</button>
+        <button type="button" id="liability-cancel" onclick="resetLiabilityForm()" class="btn btn-ghost btn-sm hidden">取消編輯</button>
       </div>
       <div id="liability-converted" class="text-xs opacity-50 mt-1 hidden"></div>
       <div id="liability-error" class="alert alert-error text-sm hidden mt-2"></div>
@@ -45,7 +46,34 @@
 
 <script>
 // --- 負債（信貸） ---
+let liabilityRows = [];
+let editingLiabilityId = '';
+
+function resetLiabilityForm() {
+  editingLiabilityId = '';
+  for (const id of ['name', 'principal', 'rate', 'payment', 'start']) document.getElementById('liability-' + id).value = '';
+  document.getElementById('liability-submit').textContent = '新增';
+  document.getElementById('liability-cancel').classList.add('hidden');
+}
+
+// 編輯：把這筆帶回上方表單（原幣別、原金額），按「儲存」更新同一筆。
+function editLiability(id) {
+  const l = liabilityRows.find((x) => x.id === id);
+  if (!l) return;
+  editingLiabilityId = id;
+  document.getElementById('liability-name').value = l.name;
+  document.getElementById('liability-principal').value = l.principal;
+  document.getElementById('liability-rate').value = +(l.annual_rate * 100).toFixed(4);
+  document.getElementById('liability-payment').value = l.monthly_payment;
+  document.getElementById('liability-currency').value = l.currency || 'USD';
+  document.getElementById('liability-start').value = l.start_date;
+  document.getElementById('liability-submit').textContent = '儲存';
+  document.getElementById('liability-cancel').classList.remove('hidden');
+  document.getElementById('liability-name').focus();
+}
+
 function renderLiabilities(liabilities) {
+  liabilityRows = liabilities;
   const content = document.getElementById('liability-content');
   if (!liabilities.length) {
     content.innerHTML = '<p class="text-xs opacity-60">還沒有記錄任何負債。</p>';
@@ -66,7 +94,7 @@ function renderLiabilities(liabilities) {
       <td class="opacity-70 whitespace-nowrap">${term(l)}</td>
       <td class="opacity-70">${escapeHtml(l.start_date)}</td>
       <td class="text-right font-medium">${nt(l.remaining_balance_twd)}</td>
-      <td class="text-right"><button type="button" onclick="deleteLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
+      <td class="text-right whitespace-nowrap"><button type="button" onclick="editLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs">編輯</button><button type="button" onclick="deleteLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -148,6 +176,7 @@ async function addLiability() {
   body.set('monthly_payment', enteredPayment);
   body.set('currency', currency);
   body.set('start_date', startDate);
+  if (editingLiabilityId) body.set('liability_id', editingLiabilityId);
   const res = await fetch('/api/liabilities', { method: 'POST', body });
   const data = await res.json();
   if (data.error) {
@@ -155,11 +184,7 @@ async function addLiability() {
     errorBox.classList.remove('hidden');
     return;
   }
-  document.getElementById('liability-name').value = '';
-  document.getElementById('liability-principal').value = '';
-  document.getElementById('liability-rate').value = '';
-  document.getElementById('liability-payment').value = '';
-  document.getElementById('liability-start').value = '';
+  resetLiabilityForm();
   renderLiabilityContext(data);
 }
 

@@ -391,6 +391,18 @@ class Repositories:
         )
         self._db.commit()
 
+    def update_liability(
+        self, liability_id: str, name: str, principal: float, annual_rate: float,
+        monthly_payment: float, start_date: date, currency: str,
+    ) -> bool:
+        existing = self._mine(Liability).filter(Liability.id == liability_id).first()
+        if not existing:
+            return False
+        existing.name, existing.principal, existing.annual_rate = name, principal, annual_rate
+        existing.monthly_payment, existing.start_date, existing.currency = monthly_payment, start_date, currency
+        self._db.commit()
+        return True
+
     def delete_liability(self, liability_id: str) -> None:
         existing = self._mine(Liability).filter(Liability.id == liability_id).first()
         if existing:
