@@ -1442,6 +1442,7 @@ def add_liability(
     monthly_payment: float = Form(...),
     start_date: str = Form(...),
     currency: str = Form("USD"),
+    liability_id: str = Form(""),  # set -> edit that loan instead of adding one
 ):
     if currency not in ("USD", "TWD"):
         return JSONResponse({"error": "幣別只支援 USD / TWD"}, status_code=400)
@@ -1456,7 +1457,13 @@ def add_liability(
     except ValueError:
         return JSONResponse({"error": "起貸日格式錯誤"}, status_code=400)
     with Repositories() as repo:
-        repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency)
+        if liability_id:
+            if not repo.update_liability(
+                liability_id, name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency
+            ):
+                return JSONResponse({"error": "找不到這筆負債"}, status_code=404)
+        else:
+            repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency)
         return JSONResponse(_liability_context(repo))
 
 
