@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-07（修正已實現損益重複計算同一筆賣出）
+
+- Firstrade 對同一筆成交先回傳當天版（description 是證券名稱、amount 未進位），隔天回傳結算版（大寫全名 + `S/D: 日期`、amount 進位到分），`Transaction.make_id` 因為雜湊含 description/amount 把它們當成兩筆，已實現損益翻倍（issue #376，PLTR/VOO/VT 2026-10-06）。`save_refresh` 對 BOUGHT/SOLD 另用 帳號/日期/買賣/代號/股數/價格 判斷重複並跳過（`trade_already_recorded`）；migration 0020 清掉既有重複列（保留最早抓到的一列）。
+
 ## 2026-10-06（修正「保留」只擋賣出、仍會加碼）
 
 - 新資金查詢勾選「保留」的標的原本只保證不賣，目標高於現值時還是會建議買進（issue #374）。改成整檔凍結在現有市值（不買也不賣），其餘標的分剩下的資金。

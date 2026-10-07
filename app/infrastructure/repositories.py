@@ -434,6 +434,24 @@ class Repositories:
     def transaction_exists(self, transaction_id: str) -> bool:
         return self._mine(Transaction).filter(Transaction.id == transaction_id).first() is not None
 
+    def trade_already_recorded(self, t: dict) -> bool:
+        """Same BOUGHT/SOLD fill under a different content hash (issue #376):
+        Firstrade returns a trade first as the same-day version (description
+        = security name, unrounded amount) and later as the settled one
+        (uppercase description + "S/D: date", amount rounded to cents), which
+        make_id() hashes as two different rows. Account/date/side/symbol/
+        quantity/price don't change between the two, so match on those."""
+        if t["trans_type"] not in ("BOUGHT", "SOLD"):
+            return False
+        return self._mine(Transaction).filter(
+            Transaction.account_number == t["account_number"],
+            Transaction.report_date == t["report_date"],
+            Transaction.trans_type == t["trans_type"],
+            Transaction.symbol == t["symbol"],
+            Transaction.quantity == t["quantity"],
+            Transaction.trade_price == t["trade_price"],
+        ).first() is not None
+
     def upsert_transaction_note(self, transaction_id: str, note: str) -> None:
         existing = self._mine(TransactionNote).filter(
             TransactionNote.transaction_id == transaction_id
@@ -615,7 +633,7 @@ class Repositories:
             self._db.add(PositionSnapshot(snapshot_at=now, user_id=self._user_id, **p))
         for t in transactions:
             tid = Transaction.make_id(t)
-            if self.transaction_exists(tid):
+            if self.transaction_exists(tid) or self.trade_already_recorded(t):
                 continue
             self._db.add(Transaction(id=tid, fetched_at=now, user_id=self._user_id, **t))
         if rate is not None:  # exchange rate is global, not user-scoped
