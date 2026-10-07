@@ -226,13 +226,6 @@
       <div class="stat-title">總市值</div>
       <div class="stat-value text-2xl">${{ "{:,.0f}".format(stats.total_value) }}</div>
     </div>
-    {% if stats.net_worth is not none %}
-    <div class="stat">
-      <div class="stat-title">淨資產</div>
-      <div class="stat-value text-2xl {{ 'text-success' if stats.net_worth >= 0 else 'text-error' }}">${{ "{:,.0f}".format(stats.net_worth) }}</div>
-      <div class="stat-desc">總市值 － 未償還負債 ${{ "{:,.0f}".format(stats.total_liabilities) }}</div>
-    </div>
-    {% endif %}
     <div class="stat">
       <div class="stat-title">未實現損益</div>
       <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain >= 0 else 'text-error' }}">
@@ -269,6 +262,13 @@
       <div class="stat-title">總市值 (TWD)</div>
       <div class="stat-value text-2xl">NT$ {{ "{:,.2f}".format(stats.total_value_twd) }}</div>
       <div class="stat-desc">參考匯率 {{ "{:.4f}".format(stats.usd_twd_rate) }}</div>
+    </div>
+    {% endif %}
+    {% if stats.net_worth is not none %}
+    <div class="stat">
+      <div class="stat-title">淨資產</div>
+      <div class="stat-value text-2xl {{ 'text-success' if stats.net_worth >= 0 else 'text-error' }}">{{ "-" if stats.net_worth < 0 else "" }}${{ "{:,.0f}".format(stats.net_worth|abs) }}</div>
+      <div class="stat-desc">總市值 － 未償還負債 ${{ "{:,.0f}".format(stats.total_liabilities) }}</div>
     </div>
     {% endif %}
   </div>
