@@ -63,6 +63,15 @@ def balance_in_usd(liability: dict, as_of: date, usd_twd_rate: float | None) -> 
     return balance / usd_twd_rate if usd_twd_rate else 0.0
 
 
+def payment_for_term(principal: float, annual_rate: float, months: int) -> float:
+    """Level monthly payment that pays `principal` off in exactly `months`
+    payments (standard annuity formula)."""
+    r = annual_rate / 12
+    if r == 0:
+        return principal / months
+    return principal * r / (1 - (1 + r) ** -months)
+
+
 def loan_term_months(principal: float, annual_rate: float, monthly_payment: float) -> int | None:
     """Total number of monthly payments until paid off, None if the payment
     never covers the interest (the loan never amortizes)."""

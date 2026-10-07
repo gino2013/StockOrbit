@@ -30,6 +30,8 @@ def demo():
         rows = a.liabilities()
         assert len(rows) == 1  # updated in place, not a second row
         assert rows[0]["name"] == "樂天1" and rows[0]["principal"] == 800000.0 and rows[0]["start_date"] == "2026-04-01"
+        assert a.update_liability(loan_id, "樂天1", 800000.0, 0.03, 7500.0, date(2026, 4, 1), "TWD", 84)
+        assert a.liabilities()[0]["term_months"] == 84
         assert not a.update_liability("nope", "x", 1.0, 0.0, 1.0, date(2026, 1, 1), "USD")
 
     # Tenancy: another user can't edit my loan by guessing its id.

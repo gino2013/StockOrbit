@@ -16,6 +16,7 @@ from app.application.dashboard import FLEX_RETURN_SINCE, build_dashboard_context
 from app.application.fire import fire_progress
 from app.application.goals import goal_progress
 from app.application.liabilities import liability_summary
+from app.domain.liabilities.amortization import payment_for_term
 from app.application.moonshot import score_symbols as score_moonshot_symbols
 from app.application.tax import overseas_income_report, tax_loss_report
 from app.application.tax_lots import tax_lot_report
@@ -1439,7 +1440,8 @@ def add_liability(
     name: str = Form(...),
     principal: float = Form(...),
     annual_rate: float = Form(...),
-    monthly_payment: float = Form(...),
+    monthly_payment: str = Form(""),  # blank + term_months -> computed from the term
+    term_months: str = Form(""),
     start_date: str = Form(...),
     currency: str = Form("USD"),
     liability_id: str = Form(""),  # set -> edit that loan instead of adding one
@@ -1448,10 +1450,23 @@ def add_liability(
         return JSONResponse({"error": "幣別只支援 USD / TWD"}, status_code=400)
     if not name.strip():
         return JSONResponse({"error": "請填名稱"}, status_code=400)
-    if principal <= 0 or monthly_payment <= 0:
-        return JSONResponse({"error": "本金跟月付款需大於 0"}, status_code=400)
+    if principal <= 0:
+        return JSONResponse({"error": "本金需大於 0"}, status_code=400)
     if not 0 <= annual_rate < 1:
         return JSONResponse({"error": "年利率請填小數（例如 0.03 代表 3%），需介於 0~1 之間"}, status_code=400)
+    try:
+        months = int(float(term_months)) if term_months.strip() else None
+        payment = float(monthly_payment) if monthly_payment.strip() else None
+    except ValueError:
+        return JSONResponse({"error": "年期或月付款格式錯誤"}, status_code=400)
+    if months is not None and not 1 <= months <= 600:
+        return JSONResponse({"error": "年期需介於 1 個月到 50 年之間"}, status_code=400)
+    if payment is None and months is None:
+        return JSONResponse({"error": "月付款跟年期至少填一個"}, status_code=400)
+    if payment is None:
+        payment = payment_for_term(principal, annual_rate, months)
+    if payment <= 0:
+        return JSONResponse({"error": "月付款需大於 0"}, status_code=400)
     try:
         parsed_start = date.fromisoformat(start_date)
     except ValueError:
@@ -1459,11 +1474,11 @@ def add_liability(
     with Repositories() as repo:
         if liability_id:
             if not repo.update_liability(
-                liability_id, name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency
+                liability_id, name.strip(), principal, annual_rate, payment, parsed_start, currency, months
             ):
                 return JSONResponse({"error": "找不到這筆負債"}, status_code=404)
         else:
-            repo.add_liability(name.strip(), principal, annual_rate, monthly_payment, parsed_start, currency)
+            repo.add_liability(name.strip(), principal, annual_rate, payment, parsed_start, currency, months)
         return JSONResponse(_liability_context(repo))
 
 
