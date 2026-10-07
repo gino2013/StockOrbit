@@ -45,6 +45,26 @@ def demo():
     assert no_holdings["leverage_spread"] is None
     assert no_holdings["weighted_average_rate"] == 0.03  # still computable - doesn't need portfolio data
 
+    # --- TWD loans (issue #382): stored in NT$, converted at the CURRENT rate.
+    twd_loan = {"id": "2", "name": "樂天", "principal": 730000.0, "annual_rate": 0.0288, "monthly_payment": 7009.0,
+                "start_date": "2025-01-01", "currency": "TWD"}
+    at_32 = liability_summary(liabilities=[twd_loan], snapshots=snapshots, transactions=transactions, as_of=as_of, usd_twd_rate=32.0)
+    at_30 = liability_summary(liabilities=[twd_loan], snapshots=snapshots, transactions=transactions, as_of=as_of, usd_twd_rate=30.0)
+    r32, r30 = at_32["liabilities"][0], at_30["liabilities"][0]
+    assert r32["remaining_balance_twd"] == r32["remaining_balance"] == r30["remaining_balance_twd"]  # NT$ side never moves
+    assert abs(r32["remaining_balance_usd"] - r32["remaining_balance"] / 32.0) < 1e-6
+    assert r30["remaining_balance_usd"] > r32["remaining_balance_usd"]  # weaker NT$ -> bigger USD debt
+    assert r32["principal_twd"] == 730000.0
+    # term: 730000 @2.88% paid 7009/mo -> roughly 120 payments (10 years), 12 elapsed.
+    assert 115 <= r32["term_months"] <= 125 and r32["remaining_months"] == r32["term_months"] - 12
+    # USD-stored loan shown in NT$ at the current rate; no rate -> None, not a crash.
+    usd_row = liability_summary(liabilities=liabilities, snapshots=snapshots, transactions=transactions, as_of=as_of, usd_twd_rate=32.0)["liabilities"][0]
+    assert abs(usd_row["principal_twd"] - 500000.0 * 32.0) < 1e-6
+    assert liability_summary(liabilities=liabilities, snapshots=snapshots, transactions=transactions, as_of=as_of)["liabilities"][0]["principal_twd"] is None
+    # payment below monthly interest never amortizes -> no term.
+    never = {**twd_loan, "monthly_payment": 100.0}
+    assert liability_summary(liabilities=[never], snapshots=[], transactions=[], as_of=as_of, usd_twd_rate=32.0)["liabilities"][0]["term_months"] is None
+
 
 if __name__ == "__main__":
     demo()
