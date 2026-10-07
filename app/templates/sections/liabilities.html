@@ -20,8 +20,12 @@
           <input id="liability-rate" type="number" min="0" max="99" step="any" placeholder="3" class="input input-bordered input-sm w-20">
         </div>
         <div>
-          <label class="text-xs opacity-60 block mb-1">月付款</label>
-          <input id="liability-payment" type="number" min="1" step="any" placeholder="5000" class="input input-bordered input-sm w-24">
+          <label class="text-xs opacity-60 block mb-1">年期（年）</label>
+          <input id="liability-term" type="number" min="0.1" max="50" step="any" placeholder="7" class="input input-bordered input-sm w-20">
+        </div>
+        <div>
+          <label class="text-xs opacity-60 block mb-1">月付款（有年期可留空）</label>
+          <input id="liability-payment" type="number" min="1" step="any" placeholder="自動算" class="input input-bordered input-sm w-28">
         </div>
         <div>
           <label class="text-xs opacity-60 block mb-1">幣別</label>
@@ -51,7 +55,7 @@ let editingLiabilityId = '';
 
 function resetLiabilityForm() {
   editingLiabilityId = '';
-  for (const id of ['name', 'principal', 'rate', 'payment', 'start']) document.getElementById('liability-' + id).value = '';
+  for (const id of ['name', 'principal', 'rate', 'term', 'payment', 'start']) document.getElementById('liability-' + id).value = '';
   document.getElementById('liability-submit').textContent = '新增';
   document.getElementById('liability-cancel').classList.add('hidden');
 }
@@ -64,6 +68,7 @@ function editLiability(id) {
   document.getElementById('liability-name').value = l.name;
   document.getElementById('liability-principal').value = l.principal;
   document.getElementById('liability-rate').value = +(l.annual_rate * 100).toFixed(4);
+  document.getElementById('liability-term').value = l.term_months ? +(l.term_months / 12).toFixed(2) : '';
   document.getElementById('liability-payment').value = l.monthly_payment;
   document.getElementById('liability-currency').value = l.currency || 'USD';
   document.getElementById('liability-start').value = l.start_date;
@@ -155,9 +160,10 @@ async function addLiability() {
   const enteredPrincipal = parseFloat(document.getElementById('liability-principal').value);
   const ratePct = document.getElementById('liability-rate').value;
   const enteredPayment = parseFloat(document.getElementById('liability-payment').value);
+  const termYears = parseFloat(document.getElementById('liability-term').value);
   const currency = document.getElementById('liability-currency').value;
   const startDate = document.getElementById('liability-start').value;
-  if (!name || !enteredPrincipal || ratePct === '' || !enteredPayment || !startDate) {
+  if (!name || !enteredPrincipal || ratePct === '' || (!enteredPayment && !termYears) || !startDate) {
     errorBox.textContent = '請填完整資訊';
     errorBox.classList.remove('hidden');
     return;
@@ -173,7 +179,8 @@ async function addLiability() {
   body.set('name', name);
   body.set('principal', enteredPrincipal);
   body.set('annual_rate', ratePct / 100);
-  body.set('monthly_payment', enteredPayment);
+  if (enteredPayment) body.set('monthly_payment', enteredPayment);
+  if (termYears) body.set('term_months', Math.round(termYears * 12));
   body.set('currency', currency);
   body.set('start_date', startDate);
   if (editingLiabilityId) body.set('liability_id', editingLiabilityId);

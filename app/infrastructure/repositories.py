@@ -373,11 +373,12 @@ class Repositories:
                 "monthly_payment": r.monthly_payment,
                 "start_date": r.start_date.isoformat(),
                 "currency": r.currency,
+                "term_months": r.term_months,
             }
             for r in rows
         ]
 
-    def add_liability(self, name: str, principal: float, annual_rate: float, monthly_payment: float, start_date: date, currency: str = "USD") -> None:
+    def add_liability(self, name: str, principal: float, annual_rate: float, monthly_payment: float, start_date: date, currency: str = "USD", term_months: int | None = None) -> None:
         self._db.add(
             Liability(
                 user_id=self._user_id,
@@ -387,19 +388,21 @@ class Repositories:
                 monthly_payment=monthly_payment,
                 start_date=start_date,
                 currency=currency,
+                term_months=term_months,
             )
         )
         self._db.commit()
 
     def update_liability(
         self, liability_id: str, name: str, principal: float, annual_rate: float,
-        monthly_payment: float, start_date: date, currency: str,
+        monthly_payment: float, start_date: date, currency: str, term_months: int | None = None,
     ) -> bool:
         existing = self._mine(Liability).filter(Liability.id == liability_id).first()
         if not existing:
             return False
         existing.name, existing.principal, existing.annual_rate = name, principal, annual_rate
         existing.monthly_payment, existing.start_date, existing.currency = monthly_payment, start_date, currency
+        existing.term_months = term_months
         self._db.commit()
         return True
 

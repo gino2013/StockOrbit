@@ -65,6 +65,17 @@ def demo():
     never = {**twd_loan, "monthly_payment": 100.0}
     assert liability_summary(liabilities=[never], snapshots=[], transactions=[], as_of=as_of, usd_twd_rate=32.0)["liabilities"][0]["term_months"] is None
 
+    # --- entered term (issue #388): overrides the payment-derived count, and
+    # payment_for_term inverts remaining_balance (balance hits ~0 at the term).
+    from app.domain.liabilities.amortization import payment_for_term, remaining_balance
+
+    pay = payment_for_term(730000.0, 0.0288, 84)
+    assert abs(remaining_balance(730000.0, 0.0288, pay, date(2020, 1, 1), date(2027, 1, 1))) < 1.0
+    assert payment_for_term(1200.0, 0.0, 12) == 100.0
+    termed = {**twd_loan, "monthly_payment": pay, "term_months": 84}
+    row = liability_summary(liabilities=[termed], snapshots=[], transactions=[], as_of=as_of, usd_twd_rate=32.0)["liabilities"][0]
+    assert row["term_months"] == 84 and row["remaining_months"] == 84 - 12
+
 
 if __name__ == "__main__":
     demo()

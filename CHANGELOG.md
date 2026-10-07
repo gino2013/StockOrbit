@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-07（負債年期可輸入）
+
+- 負債表單新增「年期（年）」（issue #388，migration 0022 `term_months`）。只填年期時月付款用等額本息公式自動算（`payment_for_term`）；兩者都填以月付款為準、年期照填顯示；只填月付款則維持由月付款反推。編輯時年期也會帶回表單。
+
 ## 2026-10-07（負債可編輯）
 
 - 負債表格每列加「編輯」（issue #386）：資料帶回上方表單（原幣別、原金額），按「儲存」更新同一筆，可「取消編輯」。`POST /api/liabilities` 多帶 `liability_id` 就是更新，沿用同一套驗證；`Repositories.update_liability`。

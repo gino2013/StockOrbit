@@ -309,6 +309,9 @@ class Liability(Base):
     # Currency principal/monthly_payment are stored in (issue #382). TWD
     # loans stay in NT$ and are converted at the current rate on read.
     currency = Column(String, nullable=False, default="USD", server_default="USD")
+    # Loan length in months as entered (issue #388). NULL = not entered ->
+    # derived from the payment amount instead.
+    term_months = Column(Integer)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 

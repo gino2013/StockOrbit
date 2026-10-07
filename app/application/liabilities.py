@@ -28,7 +28,9 @@ def liability_summary(
             liability["principal"], liability["annual_rate"], liability["monthly_payment"],
             date.fromisoformat(liability["start_date"]), as_of,
         )
-        term = loan_term_months(liability["principal"], liability["annual_rate"], liability["monthly_payment"])
+        term = liability.get("term_months") or loan_term_months(
+            liability["principal"], liability["annual_rate"], liability["monthly_payment"]
+        )
         elapsed = _months_elapsed(date.fromisoformat(liability["start_date"]), as_of)
         # Everything is *displayed* in NT$ (issue #382): a TWD loan as is, a
         # USD-stored one at the current rate (None without a rate).
