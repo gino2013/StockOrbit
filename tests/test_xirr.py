@@ -103,6 +103,17 @@ def demo():
 
     assert trailing_twelve_month_net_savings([], as_of) == 0.0
 
+    # net_deposits (issue #378): lifetime deposits minus withdrawals; trades
+    # and dividends aren't external cash.
+    from app.domain.analytics.xirr import net_deposits
+
+    assert net_deposits([
+        {"trans_type": "DEPOSIT", "amount": -1000}, {"trans_type": "DEPOSIT", "amount": 500},
+        {"trans_type": "WITHDRAWAL", "amount": 300}, {"trans_type": "DIV", "amount": 50},
+        {"trans_type": "SOLD", "amount": 999},
+    ]) == 1200
+    assert net_deposits([]) == 0.0
+
 
 if __name__ == "__main__":
     demo()

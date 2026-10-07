@@ -14,7 +14,7 @@ from app.domain.portfolio.sector_allocation import compute_sector_allocation, sy
 from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
 from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
 from app.domain.analytics.pace_projection import project_at_pace
-from app.domain.analytics.xirr import estimate_annual_contribution, portfolio_cashflows, xirr
+from app.domain.analytics.xirr import estimate_annual_contribution, net_deposits, portfolio_cashflows, xirr
 
 FLEX_RETURN_SINCE = "2017-01-01"
 
@@ -118,6 +118,15 @@ def build_dashboard_context(
     total_cost = sum(s["cost_basis"] for s in snapshots)
     total_gain = total_value - total_cost
     total_gain_pct = (total_gain / total_cost) if total_cost else 0
+    # 報酬率 against money actually put in (issue #378): realized gains and
+    # dividends sit in CASH at cost == value, so (value - cost) / cost drops
+    # them. Flex mode rewrites cost on purpose and keeps the old figure; no
+    # deposit history -> old figure too.
+    deposits = None if flex_active else net_deposits(transactions)
+    if deposits and deposits > 0:
+        total_gain_pct = (total_value - deposits) / deposits
+    else:
+        deposits = None
 
     if flex_active:
         annualized_return = xirr(flex_cashflows_since(snapshots, flex_basis, as_of))
@@ -174,6 +183,7 @@ def build_dashboard_context(
         "total_value": total_value,
         "total_gain": total_gain,
         "total_gain_pct": total_gain_pct,
+        "net_deposits": deposits,
         "annualized_return": annualized_return,
         "position_count": sum(1 for s in snapshots if s["symbol"] != "CASH"),
         "usd_twd_rate": usd_twd_rate,

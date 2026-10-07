@@ -27,6 +27,18 @@ def trailing_twelve_month_net_savings(transactions: list[dict], as_of: date) -> 
     return net_in
 
 
+def net_deposits(transactions: list[dict]) -> float:
+    """Lifetime external cash put in (deposits minus withdrawals) - the
+    denominator for a "money in vs money now" total return (issue #378)."""
+    total = 0.0
+    for t in transactions:
+        if t["trans_type"] in EXTERNAL_CASH_IN_TYPES:
+            total += abs(t["amount"])
+        elif t["trans_type"] in EXTERNAL_CASH_OUT_TYPES:
+            total -= abs(t["amount"])
+    return total
+
+
 def estimate_annual_contribution(transactions: list[dict], as_of: date) -> float:
     """Average net external cash put in per year, from the DEPOSIT/WITHDRAWAL
     history: (total deposits - total withdrawals) / years since the first
