@@ -3,12 +3,14 @@
   </h2>
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
-      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。</p>
+      <p class="text-xs opacity-60">記錄當初買進的理由、目標價，或任何想留給自己的提醒。已賣出的標的排在後面，可以寫下為什麼賣掉。</p>
       <div class="flex flex-col gap-1">
-        {% for s in snapshots if s.symbol != 'CASH' %}
+        {% for s in note_rows %}
         <details class="collapse collapse-arrow bg-base-200" {% if notes_by_symbol.get(s.symbol) %}open{% endif %}>
           <summary class="collapse-title text-sm font-medium py-2 min-h-0">
             {{ s.symbol }}
+            {% if s.sold %}<span class="badge badge-xs badge-ghost ml-2">已賣出{% if s.last_sold %} {{ s.last_sold.isoformat() }}{% endif %}</span>
+            {% if s.realized_gain is not none %}<span class="text-xs ml-1 {{ 'text-success' if s.realized_gain >= 0 else 'text-error' }}">{{ '+' if s.realized_gain >= 0 else '-' }}${{ "{:,.0f}".format(s.realized_gain|abs) }}</span>{% endif %}{% endif %}
             <span class="badge badge-xs badge-primary ml-2 note-badge" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">有筆記</span>
           </summary>
           <div class="collapse-content">

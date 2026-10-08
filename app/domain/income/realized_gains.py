@@ -86,6 +86,26 @@ def open_lots_by_symbol(transactions: list[dict]) -> dict[str, list[dict]]:
     }
 
 
+def sold_positions(transactions: list[dict], held_symbols: set[str], noted_symbols: set[str]) -> list[dict]:
+    """Symbols no longer held that still deserve a notes entry (issue #390):
+    anything sold, plus anything with a saved note (e.g. written before the
+    position was closed). Newest sale first; `last_sold` is None for a
+    note-only symbol with no sale on record. `realized_gain` sums its FIFO
+    gains (None when nothing was sold)."""
+    realized = compute_realized_gains(transactions)
+    by_symbol: dict[str, dict] = {}
+    for r in realized:
+        row = by_symbol.setdefault(r["symbol"], {"last_sold": r["report_date"], "realized_gain": 0.0})
+        row["last_sold"] = max(row["last_sold"], r["report_date"])
+        row["realized_gain"] += r["gain"]
+    symbols = (set(by_symbol) | noted_symbols) - held_symbols - {"CASH"}
+    rows = [
+        {"symbol": s, "last_sold": by_symbol.get(s, {}).get("last_sold"), "realized_gain": by_symbol.get(s, {}).get("realized_gain")}
+        for s in symbols
+    ]
+    return sorted(rows, key=lambda r: (r["last_sold"] is None, -(r["last_sold"].toordinal() if r["last_sold"] else 0), r["symbol"]))
+
+
 def summarize_realized_gains(realized: list[dict], year: int | None = None) -> dict:
     rows = [r for r in realized if year is None or r["report_date"].year == year]
     return {

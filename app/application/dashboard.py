@@ -12,7 +12,7 @@ from app.domain.portfolio.advice import build_advice, build_rebalance_plan
 from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
 from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
 from app.domain.income.dividends import forecast_dividend_calendar, trailing_twelve_month_dividends, with_yield
-from app.domain.income.realized_gains import compute_realized_gains, summarize_realized_gains
+from app.domain.income.realized_gains import compute_realized_gains, sold_positions, summarize_realized_gains
 from app.domain.analytics.pace_projection import project_at_pace
 from app.domain.analytics.xirr import estimate_annual_contribution, net_deposits, portfolio_cashflows, xirr
 
@@ -216,6 +216,12 @@ def build_dashboard_context(
         "symbol_sector_buckets": symbol_sector_buckets,
         "allocation_chart_data": allocation_chart_data,
         "concentration_chart_data": concentration_chart_data,
+        # 持股筆記 rows: what's held now, then what was sold (issue #390).
+        "note_rows": [{"symbol": s["symbol"], "sold": False} for s in snapshots if s["symbol"] != "CASH"]
+        + [
+            {**p, "sold": True}
+            for p in sold_positions(transactions, {s["symbol"] for s in snapshots}, set(notes))
+        ],
         "notes_by_symbol": notes,
         "note_history_by_symbol": note_history,
         "current_year": as_of.year,
