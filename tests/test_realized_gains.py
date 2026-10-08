@@ -89,6 +89,24 @@ def demo():
     # no transactions at all -> empty dict, not a crash.
     assert open_lots_by_symbol([]) == {}
 
+    # sold_positions (issue #390): sold-out + note-only symbols, never held
+    # ones or CASH; newest sale first, note-only last.
+    from datetime import date as _d
+    from app.domain.income.realized_gains import sold_positions
+
+    def _t(sym, typ, qty, amt, day):
+        return {"symbol": sym, "trans_type": typ, "report_date": day, "quantity": qty, "trade_price": abs(amt / qty), "amount": amt}
+
+    txns = [
+        _t("VT", "BOUGHT", 10, -1000.0, _d(2026, 1, 1)), _t("VT", "SOLD", -10, 1200.0, _d(2026, 10, 6)),
+        _t("OLD", "BOUGHT", 5, -500.0, _d(2025, 1, 1)), _t("OLD", "SOLD", -5, 400.0, _d(2026, 3, 1)),
+        _t("HELD", "BOUGHT", 1, -100.0, _d(2026, 1, 1)), _t("HELD", "SOLD", -1, 120.0, _d(2026, 2, 1)),
+    ]
+    rows = sold_positions(txns, held_symbols={"HELD"}, noted_symbols={"NOTEONLY", "CASH", "HELD"})
+    assert [r["symbol"] for r in rows] == ["VT", "OLD", "NOTEONLY"]
+    assert abs(rows[0]["realized_gain"] - 200) < 1e-6 and abs(rows[1]["realized_gain"] - -100) < 1e-6
+    assert rows[2]["last_sold"] is None and rows[2]["realized_gain"] is None
+
 
 if __name__ == "__main__":
     demo()
