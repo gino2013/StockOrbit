@@ -14,6 +14,12 @@
             <span class="badge badge-xs badge-primary ml-2 note-badge" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">有筆記</span>
           </summary>
           <div class="collapse-content">
+            {% if note_metrics.get(s.symbol) %}
+            <p class="text-xs opacity-70 mb-2" title="筆記文字裡的數字是當時寫下的快照；這一行是目前的數據">
+              <span class="font-medium">目前數據</span>{% if note_metrics_fetched.get(s.symbol) %}（基本面快取 {{ note_metrics_fetched[s.symbol] }}）{% endif %}：
+              {% for label, text in note_metrics[s.symbol] %}{{ label }} {{ text }}{{ '｜' if not loop.last }}{% endfor %}
+            </p>
+            {% endif %}
             <div class="note-view" style="display:{{ '' if notes_by_symbol.get(s.symbol) else 'none' }}">
               <p class="text-sm whitespace-pre-wrap">{{ notes_by_symbol.get(s.symbol) }}</p>
               <button type="button" onclick="toggleNoteEdit(this)" class="btn btn-ghost btn-xs mt-2">編輯</button>

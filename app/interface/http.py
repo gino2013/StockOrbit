@@ -754,6 +754,7 @@ def dashboard(request: Request, account: str | None = None):
             liabilities=repo.liabilities(),
             watchlist_symbols=repo.watchlist_symbols(),
             usd_twd_rate=repo.usd_twd_rate() if snapshots else None,
+            fundamentals=repo.fundamentals_cache(_syms) if snapshots else None,
             flex_mode=flex_mode,
             flex_basis=flex_basis,
             flex_div_per_share=flex_div,

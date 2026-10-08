@@ -8,6 +8,7 @@ from datetime import date
 from itertools import groupby
 
 from app.domain.liabilities.amortization import balance_in_usd
+from app.domain.portfolio.note_metrics import build_note_metrics
 from app.domain.portfolio.advice import build_advice, build_rebalance_plan
 from app.domain.portfolio.allocation_history import allocation_history, chart_series, concentration_series
 from app.domain.portfolio.sector_allocation import compute_sector_allocation, symbol_buckets
@@ -83,6 +84,7 @@ def build_dashboard_context(
     watchlist_symbols: list[str],
     usd_twd_rate: float | None,
     flex_mode: bool,
+    fundamentals: dict[str, dict] | None = None,
     flex_basis: dict[str, tuple] | None = None,
     flex_div_per_share: dict[str, float] | None = None,
     as_of: date,
@@ -224,6 +226,10 @@ def build_dashboard_context(
         ],
         "notes_by_symbol": notes,
         "note_history_by_symbol": note_history,
+        "note_metrics": build_note_metrics(snapshots, fundamentals or {}, targets),
+        "note_metrics_fetched": {
+            s: (f.get("fetched_at") or "")[:10] for s, f in (fundamentals or {}).items()
+        },
         "current_year": as_of.year,
         "total_ttm_dividends": sum(r["ttm_dividends"] for r in dividend_rows),
     }
