@@ -449,7 +449,17 @@ def _infer_untracked_revision() -> str | None:
         return "0016_market_screen_cache"
     if "operatingMargins" not in fundamentals_cols:
         return "0017_screen_cache_rank"
-    return "0018_profit_quality_cols"  # structure already matches head
+    # 0019+ add columns; 0020 is a data-only cleanup (no structure to detect),
+    # so stop at 0019 rather than skip past it - it's idempotent. Keep this
+    # ladder in step with every new migration: the last line must be head.
+    if "monthly_contribution" not in {c["name"] for c in inspector.get_columns("investment_goals")}:
+        return "0018_profit_quality_cols"
+    liability_cols = {c["name"] for c in inspector.get_columns("liabilities")}
+    if "currency" not in liability_cols:
+        return "0019_goal_contributions"
+    if "term_months" not in liability_cols:
+        return "0021_liability_currency"
+    return "0022_liability_term"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

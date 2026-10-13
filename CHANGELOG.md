@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-13（修正沒有 alembic_version 的最新結構 DB 啟動崩潰）
+
+- `_infer_untracked_revision` 最後一行寫死「結構已符合 head = 0018」，但 0019 到 0022 加了欄位後沒更新推論梯子，沒有 `alembic_version` 表、結構卻已是最新的 DB（`seed_demo_data.py` 用 `create_all` 建的 demo 庫、全新本機庫）啟動時會被 stamp 成 0018 再重跑 0019，因 duplicate column 崩潰（issue #396）。補上 0019 到 0022 的推論梯級，`tests/test_migration_infer_head.py` 涵蓋最新結構與三個中途梯級。正式庫已有 `alembic_version`，不受影響。
+
 ## 2026-10-13（README 拿掉破折號）
 
 - README 裡 16 處「——」依語境換成「，」或「：」（issue #394），文字內容沒有其他變動。
