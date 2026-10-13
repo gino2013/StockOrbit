@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-13（重拍 README 截圖）
+
+- 這一輪改了好幾個畫面，截圖還是舊的（issue #398）：總覽、目標達成進度、再平衡建議金額、已實現損益、持股筆記、負債（信貸）六張重拍並更新圖說。`scripts/seed_demo_data.py` 補上完全賣光的標的（VT，讓持股筆記有「已賣出」分組）、兩筆新台幣負債（一筆填年期、一筆由月付款反推）、目標的定期定額跟年終投入；用丟棄式 sqlite 加清空 `FT_*` 啟動，截圖裡只有假資料。
+
 ## 2026-10-13（修正沒有 alembic_version 的最新結構 DB 啟動崩潰）
 
 - `_infer_untracked_revision` 最後一行寫死「結構已符合 head = 0018」，但 0019 到 0022 加了欄位後沒更新推論梯子，沒有 `alembic_version` 表、結構卻已是最新的 DB（`seed_demo_data.py` 用 `create_all` 建的 demo 庫、全新本機庫）啟動時會被 stamp 成 0018 再重跑 0019，因 duplicate column 崩潰（issue #396）。補上 0019 到 0022 的推論梯級，`tests/test_migration_infer_head.py` 涵蓋最新結構與三個中途梯級。正式庫已有 `alembic_version`，不受影響。

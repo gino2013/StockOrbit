@@ -38,6 +38,7 @@ from app.infrastructure.db import (  # noqa: E402
     Base,
     ExchangeRateSnapshot,
     InvestmentGoal,
+    Liability,
     PositionNote,
     PositionNoteHistory,
     PositionSnapshot,
@@ -76,6 +77,8 @@ NOTES = {
     "VOO": "整體市場 beta。買進理由：用最低成本一次買下 S&P 500，當組合的壓艙石，抵銷個股選錯的風險。目標佔比 40%。",
     "QQQ": "Nasdaq-100 核心持股。買進理由：一次買到美股大型成長股龍頭，費用率低，長期做組合的成長引擎。目標佔比 30%。",
     "NVDA": "加速運算的「賣鏟人」。買進理由：資料中心 GPU 需求循環還沒到頂。波動大，只用小部位，漲多會分批減碼。",
+    # Fully sold out: shows up under 持股筆記 > 已賣出 with its realized gain.
+    "VT": "全球全市場 ETF，當初當作 VOO 之外的地理分散。【已賣出】考慮到保險部位不足，所以捨棄，不要拖累成長速度。",
 }
 
 # (days_ago, trans_type, symbol, quantity, trade_price, amount, description)
@@ -93,6 +96,8 @@ TRANSACTIONS = [
     (395, "DIV", "VOO", 0, 0, 21.60, "VOO cash dividend"),
     (360, "BOUGHT", "AAPL", 8, 175.00, -1400.00, "Bought 8 AAPL @ 175.00"),
     (300, "SOLD", "NVDA", -5, 140.00, 700.00, "Sold 5 NVDA @ 140.00"),
+    (500, "BOUGHT", "VT", 12, 100.00, -1200.00, "Bought 12 VT @ 100.00"),
+    (20, "SOLD", "VT", -12, 118.00, 1416.00, "Sold 12 VT @ 118.00"),
     (290, "DIV", "AAPL", 0, 0, 12.80, "AAPL cash dividend"),
     (280, "DIV", "QQQ", 0, 0, 9.20, "QQQ cash dividend"),
     (210, "BOUGHT", "NVDA", 10, 120.00, -1200.00, "Bought 10 NVDA @ 120.00"),
@@ -131,7 +136,7 @@ def _qty_at(symbol: str, months_ago: int) -> float:
 def _wipe(db):
     for model in (
         PositionSnapshot, TargetAllocation, ExchangeRateSnapshot,
-        Transaction, PositionNote, PositionNoteHistory, InvestmentGoal, User,
+        Transaction, PositionNote, PositionNoteHistory, InvestmentGoal, Liability, User,
     ):
         db.query(model).delete()
 
@@ -200,7 +205,23 @@ def seed():
                 saved_at = datetime.now(timezone.utc) - timedelta(days=days_ago)
                 db.add(PositionNoteHistory(user_id=uid, symbol=symbol, note=note, saved_at=saved_at))
 
-        db.add(InvestmentGoal(user_id=uid, target_amount=100000.0, target_date=date(2032, 1, 1)))
+        # monthly 定期定額 + 年終投入 filled in, so the goal screenshot shows
+        # the "your own contributions replace the estimate" caption.
+        db.add(InvestmentGoal(
+            user_id=uid, target_amount=100000.0, target_date=date(2032, 1, 1),
+            monthly_contribution=300.0, year_end_contribution=1500.0,
+        ))
+
+        # Two fabricated NT$ loans: one with an entered term, one whose term
+        # is derived from the payment (both paths of the 年期 column).
+        db.add(Liability(
+            user_id=uid, name="信貸-A銀行", principal=200000.0, annual_rate=0.028,
+            monthly_payment=2625.0, start_date=TODAY - timedelta(days=330), currency="TWD", term_months=84,
+        ))
+        db.add(Liability(
+            user_id=uid, name="信貸-B銀行", principal=100000.0, annual_rate=0.0325,
+            monthly_payment=1800.0, start_date=TODAY - timedelta(days=120), currency="TWD",
+        ))
 
         db.commit()
     finally:
@@ -217,9 +238,9 @@ def _check():
         total_cost = sum(r.cost_basis for r in rows)
         assert abs(total_mv - 18628.0) < 1.0, total_mv
         assert abs((total_mv - total_cost) / total_cost - 0.1356) < 0.01
-        assert db.query(PositionNote).count() == 5
+        assert db.query(PositionNote).count() == 6
         assert db.query(PositionNoteHistory).filter(PositionNoteHistory.symbol == "AAPL").count() == 3
-        assert db.query(Transaction).filter(Transaction.trans_type == "SOLD").count() == 2
+        assert db.query(Transaction).filter(Transaction.trans_type == "SOLD").count() == 3
         assert abs(sum(w for w in TARGETS.values()) - 1.0) < 1e-9
         nvda = next(r for r in rows if r.symbol == "NVDA")
         assert nvda.market_value < nvda.cost_basis, "NVDA should be underwater for 稅務效率分析"
