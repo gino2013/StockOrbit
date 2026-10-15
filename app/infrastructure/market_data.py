@@ -37,6 +37,18 @@ def download_dividends(symbols, *, start=None, end=None, period=None):
     )["Dividends"]
 
 
+def download_close_and_splits(symbols, *, start=None, end=None, period=None):
+    """(close, splits) frames for rebuilding real share counts from trade
+    history (issue #400). `auto_adjust=False` on purpose: that Close is
+    split-adjusted but *not* dividend-adjusted, so shares x close is the
+    actual market value on that day - dividends are counted separately as
+    cash. `splits` is the ratio on split dates (10.0 for 10:1), 0.0 elsewhere."""
+    data = yf.download(
+        symbols, auto_adjust=False, actions=True, progress=False, **_window(start, end, period)
+    )
+    return data["Close"], data["Stock Splits"]
+
+
 def ticker_history(symbol: str, *, start=None, end=None, period=None, interval=None, auto_adjust: bool = True):
     """Full OHLCV(+Dividends) frame for one symbol - used where the caller
     needs more than the close column (e.g. DRIP needs per-share dividends)."""

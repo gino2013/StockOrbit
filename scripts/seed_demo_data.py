@@ -95,6 +95,7 @@ TRANSACTIONS = [
     (400, "DIV", "MSFT", 0, 0, 18.40, "MSFT cash dividend"),
     (395, "DIV", "VOO", 0, 0, 21.60, "VOO cash dividend"),
     (360, "BOUGHT", "AAPL", 8, 175.00, -1400.00, "Bought 8 AAPL @ 175.00"),
+    (300, "BOUGHT", "AAPL", 12, 170.00, -2040.00, "Bought 12 AAPL @ 170.00"),
     (300, "SOLD", "NVDA", -5, 140.00, 700.00, "Sold 5 NVDA @ 140.00"),
     (500, "BOUGHT", "VT", 12, 100.00, -1200.00, "Bought 12 VT @ 100.00"),
     (20, "SOLD", "VT", -12, 118.00, 1416.00, "Sold 12 VT @ 118.00"),
@@ -109,7 +110,11 @@ TRANSACTIONS = [
     (90, "DIV", "QQQ", 0, 0, 10.10, "QQQ cash dividend"),
     (85, "DIV", "MSFT", 0, 0, 20.00, "MSFT cash dividend"),
     (80, "BOUGHT", "QQQ", 2, 520.00, -1040.00, "Bought 2 QQQ @ 520.00"),
+    (60, "BOUGHT", "VOO", 2, 540.00, -1080.00, "Bought 2 VOO @ 540.00"),
     (30, "DIV", "VOO", 0, 0, 23.10, "VOO cash dividend"),
+    # Sized so replaying every row lands on exactly the CASH holding above
+    # (帳戶價值與交易 flags any gap, issue #400).
+    (10, "WITHDRAWAL", None, 0, 0, 3819.90, "ACH withdrawal"),
 ]
 
 # For the allocation / concentration history charts we need several snapshots
