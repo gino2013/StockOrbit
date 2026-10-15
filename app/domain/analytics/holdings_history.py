@@ -23,9 +23,25 @@ def close_prices(symbols: list[str], start: str, end: str) -> pd.DataFrame:
 
 
 def portfolio_value_history(holdings: dict[str, float], start: str, end: str) -> pd.Series:
+    """A holding with no price yet (listed mid-window) joins on its first
+    priced day instead of truncating the whole series (issue #402): each
+    day's return only uses symbols priced on both that day and the day
+    before, and the chained returns are anchored to the last day's real
+    value - so wherever every holding has a price, the numbers equal plain
+    shares x close, and a late listing adds no fake jump on the day it joins.
+    """
     symbols = list(holdings.keys())
-    data = close_prices(symbols, start, end)
-    return (data * pd.Series(holdings)).sum(axis=1)
+    data = market_data.download_close(symbols, start=start, end=end)
+    # ffill never fills a symbol's leading NaNs, so "not listed yet" stays NaN.
+    values = data.reindex(columns=symbols).dropna(how="all").ffill() * pd.Series(holdings)
+    if len(values) < 2:
+        raise ValueError("所選期間沒有足夠的歷史股價資料（例如日期落在未來，或區間內沒有交易日）")
+    prev = values.shift()
+    both = values.notna() & prev.notna()
+    daily_ratio = values.where(both).sum(axis=1) / prev.where(both).sum(axis=1)
+    daily_ratio.iloc[0] = 1.0
+    chained = daily_ratio.cumprod()
+    return chained / chained.iloc[-1] * values.iloc[-1].sum()
 
 
 def resample_for_display(series: pd.Series, granularity: str) -> pd.Series:
