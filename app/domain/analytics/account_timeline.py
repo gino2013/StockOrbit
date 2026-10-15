@@ -11,11 +11,33 @@ Cash is the running sum of every transaction - trades, dividends, interest,
 deposits alike - with the direction taken from trans_type (see apply()).
 """
 
+import re
+
 import pandas as pd
 
 from app.domain.analytics.xirr import EXTERNAL_CASH_IN_TYPES, EXTERNAL_CASH_OUT_TYPES
 
 _EPS = 1e-6
+# Firstrade's DIV amount is gross; the non-resident withholding is only in
+# the description, e.g. "... NON-RES TAX WITHHELD $2.09000" (issue #404).
+_WITHHELD = re.compile(r"TAX WITHHELD \$([\d.]+)")
+
+
+def _withheld(t: dict) -> float:
+    m = _WITHHELD.search(t.get("description") or "")
+    return float(m.group(1)) if m else 0.0
+
+
+def _drop_dividend_mirrors(transactions: list[dict]) -> list[dict]:
+    """Firstrade also lists each dividend as an OTHER row on the margin
+    sub-account - same date, symbol and amount as the DIV row (issue #404).
+    Counting both doubles the dividend in cash; drop the OTHER copy."""
+    divs = {(t["report_date"], t.get("symbol"), t["amount"]) for t in transactions if t["trans_type"] == "DIV"}
+    return [
+        t for t in transactions
+        if not (t["trans_type"] == "OTHER" and t.get("symbol")
+                and (t["report_date"], t["symbol"], t["amount"]) in divs)
+    ]
 
 
 def split_factor(splits: pd.Series | None, on) -> float:
@@ -44,7 +66,7 @@ def build_account_timeline(
     trading days from the first transaction to today. `actual`: latest
     snapshot {symbol: quantity}, plus "CASH" -> cash balance if known; only
     used to flag where the replay disagrees with reality."""
-    txns = _sorted(transactions)
+    txns = _sorted(_drop_dividend_mirrors(transactions))
     closes = closes.ffill()
     symbols = sorted({t["symbol"] for t in txns if t["trans_type"] in ("BOUGHT", "SOLD") and t.get("symbol")})
 
@@ -69,7 +91,9 @@ def build_account_timeline(
             cash -= abs(amount)
         elif typ == "SOLD":
             cash += abs(amount)
-        else:  # DIV / INTEREST / OTHER (fees, withholding) keep their own sign
+        elif typ == "DIV":
+            cash += amount - _withheld(t)
+        else:  # INTEREST / OTHER (fees, rebates, margin transfers) keep their own sign
             cash += amount
         if t["trans_type"] not in ("BOUGHT", "SOLD") or not t.get("symbol"):
             return
