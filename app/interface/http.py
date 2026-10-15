@@ -1667,11 +1667,9 @@ def holdings_history(
         return JSONResponse({"error": f"比較標的：{error}"}, status_code=400)
 
     if exclude_portfolio:
-        # Skip fetching the user's own holdings entirely - useful because
-        # portfolio_value_history() requires every held symbol to have data
-        # on every date, so one recently-listed holding (e.g. an ETF that
-        # IPO'd in 2024) otherwise truncates how far back ANY comparison can
-        # go, even when the comparison tickers themselves have longer history.
+        # Skip fetching the user's own holdings entirely - for comparing
+        # baskets on their own. (A recently-listed holding no longer truncates
+        # the portfolio line since issue #402; it joins on its first priced day.)
         if not baskets:
             return JSONResponse({"error": "已移除你的持股組合，至少要填一個比較標的才有東西可畫"}, status_code=400)
         compare_series_by_label = {}
