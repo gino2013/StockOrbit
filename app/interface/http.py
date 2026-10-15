@@ -63,6 +63,7 @@ from app.domain.analytics.holdings_history import (
 )
 from app.domain.analytics.market_moves import price_swings, recent_news
 from app.domain.analytics.performance_report import build_performance_report
+from app.domain.analytics.account_timeline import build_account_timeline
 from app.domain.analytics.attribution import compute_attribution
 from app.domain.income.realized_gains import compute_realized_gains
 from app.domain.income.cash_flow_sankey import build_cash_flow_sankey
@@ -1783,6 +1784,43 @@ def holdings_history(
             if m["date"] in aligned.index
         ],
     })
+
+
+@app.get("/api/account-timeline")
+def account_timeline(account: str | None = None):
+    """Account value rebuilt from the full trade history (issue #400) - see
+    domain/analytics/account_timeline.py for the replay rules."""
+    with Repositories() as repo:
+        account = repo.resolve_account(account, repo.account_numbers())
+        transactions = repo.all_transactions(account)
+        snapshots = repo.latest_snapshots(account)
+    if not transactions:
+        return JSONResponse({"error": "還沒有交易紀錄，請先按「重新抓取持股」"}, status_code=400)
+
+    symbols = sorted({t["symbol"] for t in transactions if t["trans_type"] in ("BOUGHT", "SOLD") and t["symbol"]})
+    start = min(t["report_date"] for t in transactions)
+    if symbols:
+        try:
+            # yfinance's `end` is exclusive - +1 day so today's close is in.
+            closes, splits = market_data.download_close_and_splits(
+                symbols, start=start.isoformat(), end=(date.today() + timedelta(days=1)).isoformat()
+            )
+        except Exception as e:
+            return JSONResponse({"error": f"抓取歷史股價失敗：{e}"}, status_code=400)
+        if isinstance(closes, pd.Series):  # some yfinance versions, single symbol
+            closes, splits = closes.to_frame(symbols[0]), splits.to_frame(symbols[0])
+        closes = closes.dropna(how="all")
+        splits = splits.reindex(closes.index).fillna(0.0)
+    else:  # only deposits/dividends so far - a cash-only line on business days
+        closes = splits = pd.DataFrame(index=pd.bdate_range(start, date.today()))
+    if closes.empty:
+        return JSONResponse({"error": "查無歷史股價資料"}, status_code=400)
+
+    actual = {s["symbol"]: s["quantity"] for s in snapshots}
+    cash_row = next((s for s in snapshots if s["symbol"] == "CASH"), None)
+    if cash_row:
+        actual["CASH"] = cash_row["market_value"]
+    return JSONResponse(build_account_timeline(transactions, closes, splits, actual))
 
 
 @app.post("/api/backtest")

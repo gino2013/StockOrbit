@@ -1,0 +1,164 @@
+  <h2 id="section-account-timeline" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>帳戶價值與交易
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        用<b>完整交易紀錄</b>一天一天重播：每天實際持有的股數 × 當天收盤價，加上現金（入金、買賣、股息、利息累加）。拆股前的交易股數已經換算成今天的股數。▲ 是買進、▼ 是賣出，同一天的交易合併成一個點，滑鼠移上去看明細。切到單一持股可以看它的市值和平均成本。
+      </p>
+      <div class="flex flex-wrap gap-3 items-end mt-2">
+        <label class="text-sm">顯示<br>
+          <select id="at-symbol" class="select select-bordered select-sm mt-1">
+            <option value="">整個帳戶</option>
+          </select>
+        </label>
+        <div class="join self-end" id="at-ranges">
+          <button class="btn btn-sm join-item" data-range="1">1M</button>
+          <button class="btn btn-sm join-item" data-range="3">3M</button>
+          <button class="btn btn-sm join-item" data-range="12">1Y</button>
+          <button class="btn btn-sm join-item btn-active" data-range="0">ALL</button>
+        </div>
+        <div id="at-latest" class="text-sm ml-auto self-end"></div>
+      </div>
+      <div id="at-loading" class="text-sm opacity-60 mt-3">捲到這裡才會載入…</div>
+      <div id="at-error" class="alert alert-error text-sm mt-3 hidden"></div>
+      <div id="at-warnings" class="alert alert-warning text-sm mt-3 hidden"></div>
+      <div id="at-chart-wrap" class="h-80 mt-3 hidden"><canvas id="atChart"></canvas></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  let data = null, chart = null, rangeMonths = 0;
+  const money = (v) => `$${Math.round(v).toLocaleString()}`;
+
+  function showWarnings(w) {
+    const lines = [];
+    if (w.share_mismatches.length) {
+      lines.push('還原的股數跟目前持股對不上（可能有股票轉入或缺少紀錄）：' +
+        w.share_mismatches.map(m => `${escapeHtml(m.symbol)} 還原 ${m.rebuilt} 股／實際 ${m.actual} 股`).join('、'));
+    }
+    if (w.cash_mismatch) {
+      lines.push(`還原的現金 ${money(w.cash_mismatch.rebuilt)} 跟實際現金 ${money(w.cash_mismatch.actual)} 對不上。`);
+    }
+    if (w.negative_cash) lines.push('現金曾經是負數，可能缺少入金紀錄。');
+    if (w.missing_prices.length) {
+      lines.push('抓不到股價，這段期間市值以 0 計算：' + w.missing_prices.map(escapeHtml).join('、'));
+    }
+    const box = document.getElementById('at-warnings');
+    box.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+    box.classList.toggle('hidden', !lines.length);
+  }
+
+  function markerTooltip(m) {
+    return m.items.map(it => {
+      const verb = m.side === 'buy' ? '買' : '賣';
+      const gain = it.realized_gain == null ? '' : `（損益 ${it.realized_gain >= 0 ? '+' : ''}${money(it.realized_gain)}）`;
+      return `${verb} ${it.symbol} ${+it.quantity.toFixed(4)}股 ${money(it.amount)}${gain}`;
+    });
+  }
+
+  function render() {
+    const symbol = document.getElementById('at-symbol').value;
+    let start = 0;
+    if (rangeMonths) {
+      const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - rangeMonths);
+      const iso = cutoff.toISOString().split('T')[0];
+      start = Math.max(0, data.dates.findIndex(d => d >= iso));
+    }
+    const labels = data.dates.slice(start);
+    const lines = symbol
+      ? [
+          { label: `${symbol} 市值`, values: data.per_symbol[symbol].market_value, color: '#4f46e5' },
+          { label: `${symbol} 總成本（平均成本法）`, values: data.per_symbol[symbol].cost, color: '#94a3b8', dash: [5, 4] },
+        ]
+      : [
+          { label: '帳戶總價值（含現金）', values: data.total_value, color: '#4f46e5' },
+          { label: '累計投入', values: data.invested, color: '#94a3b8', dash: [5, 4] },
+        ];
+    const main = lines[0].values.slice(start);
+    const l = data.latest, last = (arr) => arr[arr.length - 1];
+    document.getElementById('at-latest').innerHTML = symbol
+      ? `${escapeHtml(symbol)} 市值 <b>${money(last(data.per_symbol[symbol].market_value))}</b>　成本 <b>${money(last(data.per_symbol[symbol].cost))}</b>`
+      : `持股市值 <b>${money(l.holdings_value)}</b> ＋ 現金 <b>${money(l.cash)}</b> ＝ <b>${money(l.holdings_value + l.cash)}</b>`;
+
+    // Markers sit on the main line; single-stock mode keeps only that symbol's trades.
+    const index = new Map(labels.map((d, i) => [d, i]));
+    const markerSets = { buy: [], sell: [] };
+    for (const m of data.markers) {
+      const items = symbol ? m.items.filter(it => it.symbol === symbol) : m.items;
+      if (!items.length || !index.has(m.date)) continue;
+      markerSets[m.side].push({ ...m, items });
+    }
+    const markerDataset = (side, label, color, rotation) => {
+      const ys = labels.map(() => null), bySlot = {};
+      for (const m of markerSets[side]) { const i = index.get(m.date); ys[i] = main[i]; bySlot[i] = m; }
+      return { label, data: ys, bySlot, showLine: false, pointStyle: 'triangle', rotation,
+        pointRadius: 6, pointHoverRadius: 8, backgroundColor: color, borderColor: color };
+    };
+
+    const datasets = [
+      ...lines.map(l => ({ label: l.label, data: l.values.slice(start), borderColor: l.color,
+        borderWidth: l.dash ? 1.5 : 2, borderDash: l.dash, pointRadius: 0, tension: 0.1 })),
+      markerDataset('buy', '買進', '#10b981', 0),
+      markerDataset('sell', '賣出', '#ef4444', 180),
+    ];
+
+    document.getElementById('at-chart-wrap').classList.remove('hidden');
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('atChart'), {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+          tooltip: { callbacks: { label: (ctx) => {
+            const m = ctx.dataset.bySlot?.[ctx.dataIndex];
+            return m ? markerTooltip(m) : ` ${ctx.dataset.label}: ${money(ctx.parsed.y)}`;
+          } } },
+        },
+        scales: { x: { ticks: { maxTicksLimit: 12 } }, y: { ticks: { callback: (v) => money(v) } } },
+      },
+    });
+  }
+
+  async function load() {
+    const res = await fetch('/api/account-timeline?' + withAccount(new URLSearchParams()));
+    const body = await res.json();
+    document.getElementById('at-loading').classList.add('hidden');
+    if (body.error) {
+      const box = document.getElementById('at-error');
+      box.textContent = body.error;
+      box.classList.remove('hidden');
+      return;
+    }
+    data = body;
+    const select = document.getElementById('at-symbol');
+    for (const s of data.symbols) {
+      const opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = data.sold_out.includes(s) ? `${s}（已賣出）` : s;
+      select.appendChild(opt);
+    }
+    showWarnings(data.warnings);
+    render();
+  }
+
+  document.getElementById('at-symbol').addEventListener('change', () => data && render());
+  document.querySelectorAll('#at-ranges button').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('#at-ranges button').forEach(b => b.classList.remove('btn-active'));
+    btn.classList.add('btn-active');
+    rangeMonths = +btn.dataset.range;
+    if (data) render();
+  }));
+
+  // Lazy: one yfinance download per traded symbol since the first trade, so
+  // only pay for it once the section actually scrolls into view.
+  const observer = new IntersectionObserver((entries) => {
+    if (entries.some(e => e.isIntersecting)) { observer.disconnect(); load(); }
+  }, { rootMargin: '200px' });
+  observer.observe(document.getElementById('section-account-timeline'));
+})();
+</script>
