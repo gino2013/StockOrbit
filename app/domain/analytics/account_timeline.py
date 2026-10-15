@@ -11,21 +11,12 @@ Cash is the running sum of every transaction - trades, dividends, interest,
 deposits alike - with the direction taken from trans_type (see apply()).
 """
 
-import re
-
 import pandas as pd
 
 from app.domain.analytics.xirr import EXTERNAL_CASH_IN_TYPES, EXTERNAL_CASH_OUT_TYPES
+from app.domain.income.dividends import withheld_tax
 
 _EPS = 1e-6
-# Firstrade's DIV amount is gross; the non-resident withholding is only in
-# the description, e.g. "... NON-RES TAX WITHHELD $2.09000" (issue #404).
-_WITHHELD = re.compile(r"TAX WITHHELD \$([\d.]+)")
-
-
-def _withheld(t: dict) -> float:
-    m = _WITHHELD.search(t.get("description") or "")
-    return float(m.group(1)) if m else 0.0
 
 
 def _drop_dividend_mirrors(transactions: list[dict]) -> list[dict]:
@@ -92,7 +83,7 @@ def build_account_timeline(
         elif typ == "SOLD":
             cash += abs(amount)
         elif typ == "DIV":
-            cash += amount - _withheld(t)
+            cash += amount - withheld_tax(t)
         else:  # INTEREST / OTHER (fees, rebates, margin transfers) keep their own sign
             cash += amount
         if t["trans_type"] not in ("BOUGHT", "SOLD") or not t.get("symbol"):
