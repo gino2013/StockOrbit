@@ -75,6 +75,18 @@ def demo():
     r3 = build_account_timeline([t(date(2026, 1, 5), "DEPOSIT", -500.0)], closes, splits, {})
     assert r3["total_value"][0] == 500.0 and r3["invested"][0] == 500.0
 
+    # Issue #404: DIV is gross with the withholding only in the description,
+    # plus Firstrade's OTHER mirror of the same dividend on the margin side.
+    div = t(date(2026, 1, 6), "DIV", 6.96, "MSFT")
+    div["description"] = "MICROSOFT CORP CASH DIV ON 7.64539 SHS NON-RES TAX WITHHELD $2.09000"
+    mirror = t(date(2026, 1, 6), "OTHER", 6.96, "MSFT")
+    rebate = t(date(2026, 1, 6), "OTHER", 25.0)  # wire rebate: real cash, no symbol
+    r4 = build_account_timeline(
+        [t(date(2026, 1, 5), "DEPOSIT", 100.0), div, mirror, rebate], closes, splits, {"CASH": 129.87}
+    )
+    assert abs(r4["latest"]["cash"] - (100 + 6.96 - 2.09 + 25)) < 1e-9
+    assert r4["warnings"]["cash_mismatch"] is None
+
 
 if __name__ == "__main__":
     demo()

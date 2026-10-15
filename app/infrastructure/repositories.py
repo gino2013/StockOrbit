@@ -184,6 +184,7 @@ class Repositories:
                 "quantity": t.quantity,
                 "trade_price": t.trade_price,
                 "amount": t.amount,
+                "description": t.description,
             }
             for t in query.all()
         ]
