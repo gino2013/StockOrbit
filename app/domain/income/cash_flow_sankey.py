@@ -15,9 +15,10 @@ of "withdrawn" or "still in the account".
 """
 
 from app.domain.analytics.xirr import EXTERNAL_CASH_IN_TYPES, EXTERNAL_CASH_OUT_TYPES
+from app.domain.income.dividends import withheld_tax
 
 DEPOSITS = "總入金"
-DIVIDENDS = "累計配息"
+DIVIDENDS = "累計配息（稅後）"
 WITHDRAWN = "已提領"
 REMAINING = "留在帳戶（現金＋投資）"
 
@@ -25,7 +26,8 @@ REMAINING = "留在帳戶（現金＋投資）"
 def build_cash_flow_sankey(transactions: list[dict]) -> dict:
     total_deposits = sum(abs(t["amount"]) for t in transactions if t["trans_type"] in EXTERNAL_CASH_IN_TYPES)
     total_withdrawals = sum(abs(t["amount"]) for t in transactions if t["trans_type"] in EXTERNAL_CASH_OUT_TYPES)
-    total_dividends = sum(t["amount"] for t in transactions if t["trans_type"] == "DIV")
+    # Net of non-resident withholding: only what actually landed in the account (issue #406).
+    total_dividends = sum(t["amount"] - withheld_tax(t) for t in transactions if t["trans_type"] == "DIV")
 
     dividends_withdrawn = min(total_dividends, total_withdrawals)
     deposits_withdrawn = total_withdrawals - dividends_withdrawn

@@ -2,8 +2,18 @@
 no separate fetch needed, Firstrade's account history already includes them.
 """
 
+import re
 from collections import defaultdict
 from datetime import date, timedelta
+
+# Firstrade's DIV amount is gross; the non-resident withholding is only in
+# the description, e.g. "... NON-RES TAX WITHHELD $2.09000" (issue #404).
+_WITHHELD = re.compile(r"TAX WITHHELD \$([\d.]+)")
+
+
+def withheld_tax(t: dict) -> float:
+    m = _WITHHELD.search(t.get("description") or "")
+    return float(m.group(1)) if m else 0.0
 
 
 def trailing_twelve_month_dividends(transactions: list[dict], as_of: date) -> list[dict]:

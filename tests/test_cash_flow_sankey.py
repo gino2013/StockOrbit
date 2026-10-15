@@ -76,6 +76,15 @@ def demo():
     assert empty["flows"] == []
     assert empty["total_deposits"] == 0
 
+    # Issue #406: DIV is gross; the withholding in the description never
+    # reached the account, so the dividend node is net of it.
+    withheld = build_cash_flow_sankey([
+        {"trans_type": "DIV", "report_date": date(2026, 6, 11), "amount": 6.96,
+         "description": "MICROSOFT CORP CASH DIV ON 7.64539 SHS NON-RES TAX WITHHELD $2.09000"},
+        {"trans_type": "DIV", "report_date": date(2026, 6, 12), "amount": 1.0},  # no description key
+    ])
+    assert abs(withheld["total_dividends"] - (6.96 - 2.09 + 1.0)) < 1e-9
+
 
 if __name__ == "__main__":
     demo()
