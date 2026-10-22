@@ -108,6 +108,21 @@ class MoonshotMarketScreenCache(Base):
     fetched_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class MoonshotEvaluation(Base):
+    """千倍股評估（issue #408）- 每次評估一筆，不覆蓋，畫面看最新一筆＋歷史。
+    在 Claude Code session 裡產生（ADR 0002）。不是 user-scoped：只有站長
+    能評估、能看，跟 MoonshotMarketScreenCache 一樣全域。result_json 同時
+    存判斷跟當下的 key_metrics，回頭看才知道當時依據哪些數字。"""
+
+    __tablename__ = "moonshot_evaluation"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String, nullable=False, index=True)
+    evaluated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    model = Column(String, nullable=False)
+    result_json = Column(Text, nullable=False)
+
+
 class ExchangeRateSnapshot(Base):
     __tablename__ = "exchange_rate_snapshots"
 
@@ -459,7 +474,9 @@ def _infer_untracked_revision() -> str | None:
         return "0019_goal_contributions"
     if "term_months" not in liability_cols:
         return "0021_liability_currency"
-    return "0022_liability_term"  # structure already matches head
+    if not inspector.has_table("moonshot_evaluation"):
+        return "0022_liability_term"
+    return "0023_moonshot_evaluation"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

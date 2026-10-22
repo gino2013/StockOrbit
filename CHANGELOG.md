@@ -4,6 +4,11 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-22（千倍股評估）
+
+- 新增「千倍股評估」（issue #408）：在 Claude Code 執行 `/moonshot-eval <代號>`（`.claude/skills/moonshot-eval/`），依百倍股（Phelps、Mayer）、成長股（Fisher）、十倍股（Lynch）、護城河（Buffett、Munger）四個學派各給 1–5 分，附 3 個風險與摘要。不用 API key，評估在 session 裡做（ADR 0002）。`scripts/moonshot_eval.py fetch` 從 yfinance 抓數據，新算 ROIC 近似值、3 年營收年化成長、內部人持股，基本資料抓不到就中止；`save` 驗證判斷（分數 1–5、Lynch 類型、剛好 3 個風險、摘要 ≤100 字）後由程式算總分與資料信心度，寫進新表 `moonshot_evaluation`（migration 0023，每次一筆）。數字只由後端提供（ADR 0001）。「個股資訊查詢」顯示最新評估與歷史，僅站長可見（`/api/moonshot-evaluations` 非站長回 403）。
+- 千倍股篩選表格的「分數」欄改名「通過項數」，與評估的「學派分數」「總分」區分；代號可點，跳到個股資訊查詢。用詞見新的 `GLOSSARY.md`。
+
 ## 2026-10-15（資金流：配息改用稅後金額）
 
 - 資金流的「累計配息」原本加總 `DIV` 的稅前金額，30% 非居民預扣稅沒進帳戶卻算在「留在帳戶」裡（issue #406）。改用稅後金額，畫面標示「累計股利（稅後）」。預扣稅解析（`withheld_tax`）移到 `domain/income/dividends.py`，與帳戶價值與交易共用。股利追蹤、海外所得試算維持稅前金額（申報用稅前）。

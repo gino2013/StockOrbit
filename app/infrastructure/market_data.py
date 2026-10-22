@@ -66,6 +66,14 @@ def ticker_info(symbol: str) -> dict:
     return yf.Ticker(symbol).get_info()
 
 
+def annual_statements(symbol: str):
+    """(income_stmt, balance_sheet) annual frames - rows are line items
+    ("Total Revenue", "Stockholders Equity"...), columns are fiscal year
+    ends newest first; the oldest column is often all NaN."""
+    t = yf.Ticker(symbol)
+    return t.income_stmt, t.balance_sheet
+
+
 def earnings_calendar(symbol: str):
     """`yf.Ticker(symbol).calendar` - may raise or return empty when Yahoo
     blocks the request; the caller decides what that means."""
