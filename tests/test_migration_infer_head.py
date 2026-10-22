@@ -53,7 +53,7 @@ def demo():
         assert {"currency", "term_months"} <= _cols(db, "liabilities"), name
         assert {"monthly_contribution", "year_end_contribution"} <= _cols(db, "investment_goals"), name
         head = sqlite3.connect(db).execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        assert head == "0022_liability_term", (name, head)
+        assert head == "0023_moonshot_evaluation", (name, head)
 
 
 if __name__ == "__main__":

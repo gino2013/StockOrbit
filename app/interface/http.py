@@ -1354,6 +1354,16 @@ def moonshot_screen(symbols: str):
         return JSONResponse({"results": score_moonshot_symbols(repo, symbol_list)})
 
 
+@app.get("/api/moonshot-evaluations")
+def moonshot_evaluations(request: Request, symbol: str):
+    # 千倍股評估（issue #408）只給站長看；評估本身在 Claude Code session
+    # 裡跑 scripts/moonshot_eval.py 產生（ADR 0002），這裡只讀。
+    if not _current_user(request).is_owner:
+        return JSONResponse({"error": "owner only"}, status_code=403)
+    with Repositories() as repo:
+        return JSONResponse({"evaluations": repo.moonshot_evaluations(symbol.strip().upper())})
+
+
 @app.get("/api/moonshot-market-screen")
 def moonshot_market_screen():
     # yfinance 的 EquityQuery screener 跟抓個股基本面走同一個有驗證的

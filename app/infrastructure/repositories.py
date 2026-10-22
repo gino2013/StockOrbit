@@ -29,6 +29,7 @@ from app.infrastructure.db import (
     FundamentalsCache,
     InvestmentGoal,
     Liability,
+    MoonshotEvaluation,
     MoonshotMarketScreenCache,
     PositionNote,
     PositionNoteHistory,
@@ -296,6 +297,29 @@ class Repositories:
                 criteria_json=json.dumps(extra), fetched_at=now,
             ))
         self._db.commit()
+
+    # --- 千倍股評估 (issue #408) ------------------------------------------------
+    # 不是 user-scoped，只有站長能看（route 用 require_owner 擋）。
+
+    def add_moonshot_evaluation(self, symbol: str, model: str, result: dict) -> None:
+        self._db.add(MoonshotEvaluation(
+            symbol=symbol, model=model, result_json=json.dumps(result, ensure_ascii=False),
+            evaluated_at=datetime.now(timezone.utc),
+        ))
+        self._db.commit()
+
+    def moonshot_evaluations(self, symbol: str) -> list[dict]:
+        """新到舊。"""
+        rows = (
+            self._db.query(MoonshotEvaluation)
+            .filter(MoonshotEvaluation.symbol == symbol)
+            .order_by(desc(MoonshotEvaluation.evaluated_at), desc(MoonshotEvaluation.id))
+            .all()
+        )
+        return [
+            {"evaluated_at": r.evaluated_at.isoformat(), "model": r.model, **json.loads(r.result_json)}
+            for r in rows
+        ]
 
     # --- price alerts (issue #18) ---------------------------------------------
 

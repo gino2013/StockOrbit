@@ -50,6 +50,10 @@
         <div><div class="opacity-60">52週高點</div><div id="stock-lookup-52h" class="font-medium"></div></div>
         <div><div class="opacity-60">52週低點</div><div id="stock-lookup-52l" class="font-medium"></div></div>
       </div>
+
+      {% if user and user.is_owner %}
+      <div id="moonshot-eval" class="mt-6 border-t border-base-300 pt-4"></div>
+      {% endif %}
     </div>
   </div>
 
@@ -75,6 +79,7 @@ async function loadStockLookup(symbol, period) {
     return;
   }
   document.querySelector('#stock-lookup-form input[name=symbol]').value = data.symbol;
+  loadMoonshotEval(data.symbol);
 
   document.getElementById('stock-lookup-name').textContent = data.name;
   document.getElementById('stock-lookup-sub').textContent = [data.exchange, data.symbol].filter(Boolean).join(': ');
@@ -125,6 +130,70 @@ async function loadStockLookup(symbol, period) {
       },
     },
   });
+}
+
+// 千倍股評估（issue #408）：只有站長看得到這個區塊（沒有 #moonshot-eval 就
+// 什麼都不做）。評估在 Claude Code session 裡跑 /moonshot-eval 產生，這裡只讀。
+const MOONSHOT_SCHOOLS = [
+  ['phelps_mayer', '百倍股學派（Phelps、Mayer）'],
+  ['fisher', '成長股學派（Fisher）'],
+  ['lynch', '十倍股學派（Lynch）'],
+  ['buffett_munger', '護城河學派（Buffett、Munger）'],
+];
+const MOONSHOT_CONFIDENCE = { high: '高', medium: '中', low: '低' };
+
+function moonshotEvalHtml(e) {
+  const km = e.key_metrics;
+  const pct = (v) => (v == null ? '無資料' : `${v}%`);
+  const schools = MOONSHOT_SCHOOLS.map(([key, label]) => {
+    const s = e.schools[key];
+    const extra = key === 'lynch' ? `　<span class="badge badge-ghost badge-sm">${escapeHtml(s.category)}</span>`
+      : key === 'buffett_munger' && s.moat_type.length ? `　<span class="text-xs opacity-60">護城河：${escapeHtml(s.moat_type.join('、'))}</span>` : '';
+    return `<tr><td class="whitespace-nowrap">${label}${extra}</td><td class="text-right font-bold">${s.score} / 5</td><td>${escapeHtml(s.reason)}</td></tr>`;
+  }).join('');
+  return `
+    <div class="flex items-end gap-3 flex-wrap">
+      <span class="text-3xl font-bold">${e.total_score}<span class="text-base opacity-60"> / 20 總分</span></span>
+      <span class="text-xs opacity-60 mb-1">資料信心度：${MOONSHOT_CONFIDENCE[e.data_confidence] || e.data_confidence}　·　${escapeHtml(e.evaluated_at.slice(0, 10))}　·　${escapeHtml(e.model)}</span>
+    </div>
+    <p class="text-sm mt-2">${escapeHtml(e.summary)}</p>
+    <div class="overflow-x-auto"><table class="table table-sm mt-2"><thead><tr><th>學派</th><th class="text-right">學派分數</th><th>理由</th></tr></thead><tbody>${schools}</tbody></table></div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm mt-2">
+      <div><div class="opacity-60">市值</div>${km.market_cap_usd == null ? '無資料' : stockLookupFmtCompact(km.market_cap_usd)}</div>
+      <div><div class="opacity-60">ROIC（近似）</div>${pct(km.roic_pct)}</div>
+      <div><div class="opacity-60">3 年營收年化成長</div>${pct(km.revenue_growth_3y_pct)}</div>
+      <div><div class="opacity-60">內部人持股</div>${pct(km.insider_ownership_pct)}</div>
+    </div>
+    <div class="text-sm mt-3"><div class="opacity-60">主要風險</div><ul class="list-disc ml-5">${e.risks.map((r) => `<li>${escapeHtml(r)}</li>`).join('')}</ul></div>`;
+}
+
+async function loadMoonshotEval(symbol) {
+  const box = document.getElementById('moonshot-eval');
+  if (!box) return;
+  const head = '<h3 class="font-bold mb-2">千倍股評估</h3>';
+  const disclaimer = '<p class="text-xs opacity-50 mt-3">本評估僅為投資框架參考，不構成投資建議。</p>';
+  let data;
+  try {
+    data = await (await fetch('/api/moonshot-evaluations?' + new URLSearchParams({ symbol }))).json();
+  } catch (err) {
+    box.innerHTML = head + `<p class="text-sm text-error">讀取評估失敗：${escapeHtml(String(err))}</p>`;
+    return;
+  }
+  if (data.error) {
+    box.innerHTML = head + `<p class="text-sm text-error">${escapeHtml(data.error)}</p>`;
+    return;
+  }
+  const evals = data.evaluations || [];
+  if (!evals.length) {
+    box.innerHTML = head + `<p class="text-sm opacity-60">${escapeHtml(symbol)} 還沒有評估過。在 Claude Code 執行 <code>/moonshot-eval ${escapeHtml(symbol)}</code> 產生評估。</p>`;
+    return;
+  }
+  let html = head + moonshotEvalHtml(evals[0]);
+  if (evals.length > 1) {
+    html += `<details class="mt-3"><summary class="text-sm cursor-pointer opacity-70">歷史評估（${evals.length - 1} 筆）</summary>` +
+      evals.slice(1).map((e) => `<div class="mt-3 pt-3 border-t border-base-200">${moonshotEvalHtml(e)}</div>`).join('') + '</details>';
+  }
+  box.innerHTML = html + disclaimer;
 }
 
 function stockLookupGoto(symbol) {
