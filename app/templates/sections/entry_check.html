@@ -1,0 +1,103 @@
+  <h2 id="section-entry-check" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>進場檢查
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        買進前按一下，抓最新股價（盤中是即時價），看這檔標的在 1 個月／3 個月／1 年／5 年各自的高低區間裡站在哪個位置，加上 RSI 跟「歷史上類似位置買進後 3 個月的表現」。規則式的客觀數據，不是預測也不是投資建議。
+      </p>
+      <div class="flex flex-wrap items-end gap-2 mt-2">
+        <div class="relative">
+          <label class="text-xs opacity-60 block mb-1">標的</label>
+          <input id="entry-symbol" placeholder="VOO" autocomplete="off" class="input input-bordered input-sm w-24"
+                 onkeydown="if (event.key === 'Enter') loadEntryCheck()">
+          <ul id="entry-symbol-suggestions" class="absolute z-20 hidden menu bg-base-100 rounded-box shadow-md mt-1 w-56 max-h-56 overflow-y-auto flex-nowrap"></ul>
+        </div>
+        <button type="button" onclick="loadEntryCheck()" class="btn btn-neutral btn-sm">檢查</button>
+      </div>
+      <div id="entry-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="entry-result" class="hidden mt-3">
+        <div id="entry-verdict" class="alert text-sm"></div>
+        <div class="overflow-x-auto mt-3">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>時間區段</th>
+                <th class="text-right">區間低點</th>
+                <th class="text-right">區間高點</th>
+                <th>目前位置（低 → 高）</th>
+                <th class="text-right">距離高點</th>
+                <th class="text-right">相對區間均價</th>
+              </tr>
+            </thead>
+            <tbody id="entry-tbody"></tbody>
+          </table>
+        </div>
+        <div id="entry-similar" class="text-sm mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+attachTickerAutocomplete('entry-symbol', 'entry-symbol-suggestions');
+// --- 進場檢查 ---
+const ENTRY_ZONE = {
+  high: { cls: 'text-error', label: '偏高' },
+  mid: { cls: '', label: '中間' },
+  low: { cls: 'text-success', label: '偏低' },
+};
+const ENTRY_VERDICT = {
+  high: ['alert-warning', '目前偏高：多數時間區段都接近區間高點（或 RSI 超買）。如果還是要買，可以考慮分批進場、或等回檔，避免一次全押在高點。'],
+  mid: ['alert-info', '目前位置中性：沒有明顯在高點或低點。'],
+  low: ['alert-success', '目前偏低：多數時間區段都接近區間低點（或 RSI 超賣）。便宜不代表會漲，先確認下跌的原因。'],
+};
+
+async function loadEntryCheck() {
+  const symbol = document.getElementById('entry-symbol').value.trim();
+  const errorBox = document.getElementById('entry-error');
+  const resultBox = document.getElementById('entry-result');
+  errorBox.classList.add('hidden');
+  resultBox.classList.add('hidden');
+  if (!symbol) return;
+
+  const res = await fetch(`/api/entry-check?symbol=${encodeURIComponent(symbol)}`);
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+
+  const [verdictCls, verdictText] = ENTRY_VERDICT[data.verdict];
+  const rsiText = data.rsi == null ? '' : `，RSI(14) ${data.rsi.toFixed(0)}`;
+  const verdictBox = document.getElementById('entry-verdict');
+  verdictBox.className = `alert text-sm ${verdictCls}`;
+  verdictBox.innerHTML = `<div><b>${escapeHtml(data.symbol)}</b> 目前 ${fmtPrice(data.price)}（${escapeHtml(data.as_of)}${rsiText}）<br>${verdictText}</div>`;
+
+  document.getElementById('entry-tbody').innerHTML = data.windows.map(w => {
+    const zone = ENTRY_ZONE[w.zone];
+    return `
+    <tr>
+      <td>${escapeHtml(w.label)}</td>
+      <td class="text-right">${fmtPrice(w.low)}</td>
+      <td class="text-right">${fmtPrice(w.high)}</td>
+      <td>
+        <div class="flex items-center gap-2">
+          <progress class="progress w-24" value="${(w.position * 100).toFixed(0)}" max="100"></progress>
+          <span class="${zone.cls}">${(w.position * 100).toFixed(0)}% ${zone.label}</span>
+        </div>
+      </td>
+      <td class="text-right">${fmtPct(w.from_high)}</td>
+      <td class="text-right ${posNegClass(-w.vs_average)}">${fmtPct(w.vs_average)}</td>
+    </tr>`;
+  }).join('');
+
+  const s = data.similar;
+  document.getElementById('entry-similar').innerHTML = s == null
+    ? '<span class="opacity-60">歷史資料不足，無法做類似位置的歷史對照。</span>'
+    : `過去 10 年裡，股價相對 200 日均線的乖離跟今天（${fmtPct(s.today_gap)}）差不多的 ${s.sample_days} 個交易日，` +
+      `之後 3 個月報酬中位數 <b class="${posNegClass(s.median_return)}">${fmtPct(s.median_return)}</b>、上漲機率 <b>${(s.win_rate * 100).toFixed(0)}%</b>；` +
+      `對照所有日子：中位數 ${fmtPct(s.baseline_median_return)}、上漲機率 ${(s.baseline_win_rate * 100).toFixed(0)}%。歷史不代表未來。`;
+  resultBox.classList.remove('hidden');
+}
+</script>

@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-10-29（進場檢查）
+
+- 新區塊「進場檢查」（issue #410）：加碼前輸入代號，抓最新股價（`Ticker.history` 10 年日線，盤中最後一列是即時價），列出 1 個月／3 個月／1 年／5 年各自的區間高低、目前位置（前／後 20% 標偏高／偏低）、距離高點、相對區間均價，加 RSI(14)。歷史對照：過去 10 年相對 200 日均線乖離跟今天差 ±5pp 以內的日子，之後 3 個月報酬中位數與上漲機率 vs 所有日子。規則式總結：1M／3M／1Y 有兩個以上偏高或 RSI ≥ 70 為偏高，對稱判斷偏低，5 年不投票。`domain/analytics/entry_check.py`、`/api/entry-check`、`tests/test_entry_check.py`，放在「個股資訊查詢」下面。
+
 ## 2026-10-22（千倍股評估）
 
 - 新增「千倍股評估」（issue #408）：在 Claude Code 執行 `/moonshot-eval <代號>`（`.claude/skills/moonshot-eval/`），依百倍股（Phelps、Mayer）、成長股（Fisher）、十倍股（Lynch）、護城河（Buffett、Munger）四個學派各給 1–5 分，附 3 個風險與摘要。不用 API key，評估在 session 裡做（ADR 0002）。`scripts/moonshot_eval.py fetch` 從 yfinance 抓數據，新算 ROIC 近似值、3 年營收年化成長、內部人持股，基本資料抓不到就中止；`save` 驗證判斷（分數 1–5、Lynch 類型、剛好 3 個風險、摘要 ≤100 字）後由程式算總分與資料信心度，寫進新表 `moonshot_evaluation`（migration 0023，每次一筆）。數字只由後端提供（ADR 0001）。「個股資訊查詢」顯示最新評估與歷史，僅站長可見（`/api/moonshot-evaluations` 非站長回 403）。
