@@ -51,6 +51,7 @@ from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
+from app.domain.analytics.entry_check import check_entry
 from app.domain.analytics.fx_history import resample_rate_series
 from app.domain.analytics.drip import simulate_drip
 from app.domain.analytics.health_dashboard import build_health_overview
@@ -1984,6 +1985,15 @@ def drip(symbol: str, start: str, end: str, initial_investment: float = 10000):
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     result["symbol"] = symbol.upper()
+    return JSONResponse(result)
+
+
+@app.get("/api/entry-check")
+def entry_check(symbol: str):
+    try:
+        result = check_entry(symbol.strip().upper())
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
 
 
