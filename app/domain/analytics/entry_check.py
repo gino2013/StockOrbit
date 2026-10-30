@@ -68,13 +68,48 @@ def similar_setups(closes: pd.Series) -> dict | None:
     }
 
 
-def verdict(windows: list[dict], rsi: float | None) -> str:
-    # ponytail: simple vote over 1M/3M/1Y zones + RSI; 5Y left out because
-    # long uptrends sit near the 5Y high most of the time.
-    zones = [w["zone"] for w in windows[:3]]
-    if zones.count("high") >= 2 or (rsi is not None and rsi >= RSI_OVERBOUGHT):
+WIN_RATE_EDGE = 0.05  # similar-setup win rate vs baseline, in pp
+
+
+def entry_score(windows: list[dict], rsi: float | None, similar: dict | None) -> tuple[int, list[dict]]:
+    """+/-1 per signal (issue #414). 5Y is left out because long uptrends sit
+    near the 5Y high most of the time. Returns (score, reasons)."""
+    # ponytail: equal weights, hand-picked thresholds; tune here if they mislead.
+    reasons = []
+    for w in windows[:3]:
+        if w["zone"] == "low":
+            reasons.append({"points": 1, "text": f"{w['label']}區間偏低"})
+        elif w["zone"] == "high":
+            reasons.append({"points": -1, "text": f"{w['label']}區間偏高"})
+    if rsi is not None and rsi <= RSI_OVERSOLD:
+        reasons.append({"points": 1, "text": f"RSI {rsi:.0f} 超賣"})
+    elif rsi is not None and rsi >= RSI_OVERBOUGHT:
+        reasons.append({"points": -1, "text": f"RSI {rsi:.0f} 超買"})
+    if similar is not None:
+        edge = similar["win_rate"] - similar["baseline_win_rate"]
+        if edge >= WIN_RATE_EDGE:
+            reasons.append({"points": 1, "text": f"歷史類似位置上漲機率高於平常 {edge * 100:.0f}pp"})
+        elif edge <= -WIN_RATE_EDGE:
+            reasons.append({"points": -1, "text": f"歷史類似位置上漲機率低於平常 {-edge * 100:.0f}pp"})
+    return sum(r["points"] for r in reasons), reasons
+
+
+def stars(score: int) -> int:
+    if score >= 4:
+        return 5
+    if score >= 2:
+        return 4
+    if score >= -1:
+        return 3
+    if score >= -3:
+        return 2
+    return 1
+
+
+def verdict(star_count: int) -> str:
+    if star_count <= 2:
         return "high"
-    if zones.count("low") >= 2 or (rsi is not None and rsi <= RSI_OVERSOLD):
+    if star_count >= 4:
         return "low"
     return "mid"
 
@@ -96,14 +131,20 @@ def check_entry(symbol: str, as_of: date | None = None, buy_price: float | None 
     ]
     latest_rsi = compute_rsi(closes).iloc[-1]
     rsi = None if pd.isna(latest_rsi) else float(latest_rsi)
+    similar = similar_setups(closes)
+    score, reasons = entry_score(windows, rsi, similar)
+    star_count = stars(score)
     result = {
         "symbol": symbol,
         "price": price,
         "as_of": closes.index[-1].strftime("%Y-%m-%d"),
         "rsi": rsi,
         "windows": windows,
-        "similar": similar_setups(closes),
-        "verdict": verdict(windows, rsi),
+        "similar": similar,
+        "score": score,
+        "reasons": reasons,
+        "stars": star_count,
+        "verdict": verdict(star_count),
     }
     if as_of is not None:
         result["as_of"] = as_of.isoformat()  # the buy date, even on a non-trading day

@@ -23,14 +23,19 @@ def demo():
     # flat window doesn't divide by zero.
     assert ec.window_stats(pd.Series([5.0, 5.0]), 2)["position"] == 0.5
 
-    # verdict: 2 of the short/mid/long windows high -> high; RSI overrides;
+    # score: +/-1 per 1M/3M/1Y zone, RSI extreme, similar-setup edge;
     # 5Y (4th window) doesn't vote.
-    w = lambda z: {"zone": z}
-    assert ec.verdict([w("high"), w("high"), w("mid"), w("high")], 50) == "high"
-    assert ec.verdict([w("mid"), w("mid"), w("mid"), w("high")], 50) == "mid"
-    assert ec.verdict([w("mid"), w("mid"), w("mid")], 75) == "high"
-    assert ec.verdict([w("low"), w("low"), w("mid")], 50) == "low"
-    assert ec.verdict([w("mid")], None) == "mid"
+    w = lambda z: {"zone": z, "label": "x"}
+    sim = lambda win, base: {"win_rate": win, "baseline_win_rate": base}
+    assert ec.entry_score([w("high")] * 4, 50, None)[0] == -3
+    assert ec.entry_score([w("mid"), w("mid"), w("mid"), w("high")], 50, None)[0] == 0
+    score, reasons = ec.entry_score([w("low"), w("low"), w("mid")], 25, sim(0.91, 0.71))
+    assert score == 4 and len(reasons) == 4
+    assert ec.entry_score([w("mid")], 75, sim(0.60, 0.70))[0] == -2
+    assert ec.entry_score([w("mid")], None, sim(0.73, 0.70))[0] == 0  # under 5pp edge
+    # stars: boundaries of the score -> 1..5 mapping; verdict follows stars.
+    assert [ec.stars(x) for x in (5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5)] == [5, 5, 4, 4, 3, 3, 3, 2, 2, 1, 1]
+    assert [ec.verdict(x) for x in (1, 2, 3, 4, 5)] == ["high", "high", "mid", "low", "low"]
 
     # end-to-end: a steady uptrend ends at the top of every window, and
     # every past forward-3M return was positive.
@@ -41,6 +46,7 @@ def demo():
     assert [x["label"] for x in result["windows"]] == ["1 個月", "3 個月", "1 年", "5 年"]
     assert all(x["zone"] == "high" for x in result["windows"])
     assert result["verdict"] == "high"
+    assert result["score"] == -4 and result["stars"] == 1  # 3 windows high + RSI overbought
     assert result["similar"]["win_rate"] == 1.0
     assert result["similar"]["baseline_win_rate"] == 1.0
 
