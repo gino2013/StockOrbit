@@ -37,6 +37,11 @@
             <tbody id="entry-tbody"></tbody>
           </table>
         </div>
+        <div class="text-xs opacity-60 mt-2 space-y-0.5">
+          <div><b>目前位置</b>：現價落在這個區段最低價（0%）到最高價（100%）之間的哪裡，前 20% 算偏高、後 20% 算偏低。</div>
+          <div><b>距離高點</b>：現價比這個區段的最高價低多少。幾個區段數字一樣，代表最高價是同一天創的（例如近一個月剛創歷史新高）。</div>
+          <div><b>相對區間均價</b>：現價比這個區段的平均價格高（紅）或低（綠）多少。</div>
+        </div>
         <div id="entry-similar" class="text-sm mt-3"></div>
       </div>
     </div>
@@ -51,9 +56,9 @@ const ENTRY_ZONE = {
   low: { cls: 'text-success', label: '偏低' },
 };
 const ENTRY_VERDICT = {
-  high: ['alert-warning', '目前偏高：多數時間區段都接近區間高點（或 RSI 超買）。如果還是要買，可以考慮分批進場、或等回檔，避免一次全押在高點。'],
+  high: ['alert-warning', '目前偏高。如果還是要買，可以考慮分批進場、或等回檔，避免一次全押在高點。'],
   mid: ['alert-info', '目前位置中性：沒有明顯在高點或低點。'],
-  low: ['alert-success', '目前偏低：多數時間區段都接近區間低點（或 RSI 超賣）。便宜不代表會漲，先確認下跌的原因。'],
+  low: ['alert-success', '目前偏低。便宜不代表會漲，先確認下跌的原因。'],
 };
 
 async function loadEntryRecentBuys() {
@@ -98,7 +103,14 @@ async function loadEntryCheck(pastBuy = null) {
     ? `<b>${escapeHtml(data.symbol)}</b> ${escapeHtml(data.as_of)} 買在 ${fmtPrice(data.price)}${data.rsi == null ? '' : `（當時 RSI(14) ${data.rsi.toFixed(0)}）`}。` +
       `到 ${escapeHtml(sb.current_date)} 現價 ${fmtPrice(sb.current_price)}，買進至今 <b>${fmtPct(sb.return)}</b>`
     : `<b>${escapeHtml(data.symbol)}</b> 目前 ${fmtPrice(data.price)}（${escapeHtml(data.as_of)}${rsiText}）`;
-  verdictBox.innerHTML = `<div>${head}<br>${sb ? verdictText.replace(/^目前/, '當時') : verdictText}</div>`;
+  const starText = '★'.repeat(data.stars) + '☆'.repeat(5 - data.stars);
+  const reasonsText = data.reasons.length === 0
+    ? '各項都沒有明顯訊號'
+    : data.reasons.map(r => `${r.points > 0 ? '+1' : '−1'} ${escapeHtml(r.text)}`).join('、');
+  verdictBox.innerHTML = `<div>` +
+    `<div class="text-xl tracking-wider" aria-label="進場評分 ${data.stars} 顆星">${starText} <span class="text-sm">${sb ? '當時' : ''}進場評分 ${data.stars}/5</span></div>` +
+    `${head}<br>${sb ? verdictText.replace(/^目前/, '當時') : verdictText}` +
+    `<div class="text-xs mt-1">加減分（${data.score >= 0 ? '+' : ''}${data.score}）：${reasonsText}</div></div>`;
 
   document.getElementById('entry-tbody').innerHTML = data.windows.map(w => {
     const zone = ENTRY_ZONE[w.zone];
