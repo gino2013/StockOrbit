@@ -51,7 +51,7 @@ from app.domain.analytics.compounder_checklist import build_compounder_checklist
 from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
-from app.domain.analytics.entry_check import check_entry
+from app.domain.analytics.entry_check import check_entry, recent_buys
 from app.domain.analytics.fx_history import resample_rate_series
 from app.domain.analytics.drip import simulate_drip
 from app.domain.analytics.health_dashboard import build_health_overview
@@ -1989,12 +1989,19 @@ def drip(symbol: str, start: str, end: str, initial_investment: float = 10000):
 
 
 @app.get("/api/entry-check")
-def entry_check(symbol: str):
+def entry_check(symbol: str, as_of: date | None = None, buy_price: float | None = None):
     try:
-        result = check_entry(symbol.strip().upper())
+        result = check_entry(symbol.strip().upper(), as_of=as_of, buy_price=buy_price)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)
+
+
+@app.get("/api/entry-check/recent-buys")
+def entry_check_recent_buys():
+    with Repositories() as repo:
+        transactions = repo.all_transactions()
+    return JSONResponse({"items": recent_buys(transactions)})
 
 
 @app.get("/api/drawdown-periods")
