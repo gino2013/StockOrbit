@@ -15,6 +15,10 @@
         </div>
         <button type="button" onclick="loadEntryCheck()" class="btn btn-neutral btn-sm">檢查</button>
       </div>
+      <div id="entry-recent-buys" class="hidden mt-3">
+        <div class="text-xs opacity-60 mb-1">回頭看最近的買進（用當天成交價、只用當時看得到的股價）：</div>
+        <div id="entry-recent-buys-list" class="flex flex-wrap gap-1"></div>
+      </div>
       <div id="entry-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="entry-result" class="hidden mt-3">
         <div id="entry-verdict" class="alert text-sm"></div>
@@ -52,7 +56,22 @@ const ENTRY_VERDICT = {
   low: ['alert-success', '目前偏低：多數時間區段都接近區間低點（或 RSI 超賣）。便宜不代表會漲，先確認下跌的原因。'],
 };
 
-async function loadEntryCheck() {
+async function loadEntryRecentBuys() {
+  const res = await fetch('/api/entry-check/recent-buys');
+  if (!res.ok) return;
+  const data = await res.json();
+  if (!data.items || data.items.length === 0) return;
+  document.getElementById('entry-recent-buys-list').innerHTML = data.items.map(b => `
+    <button type="button" class="btn btn-xs btn-outline"
+      onclick="loadEntryCheck({ symbol: '${escapeHtml(b.symbol)}', asOf: '${b.date}', buyPrice: ${b.price} })">
+      ${escapeHtml(b.symbol)} ${escapeHtml(b.date)} @ ${fmtPrice(b.price)}
+    </button>`).join('');
+  document.getElementById('entry-recent-buys').classList.remove('hidden');
+}
+loadEntryRecentBuys();
+
+async function loadEntryCheck(pastBuy = null) {
+  if (pastBuy) document.getElementById('entry-symbol').value = pastBuy.symbol;
   const symbol = document.getElementById('entry-symbol').value.trim();
   const errorBox = document.getElementById('entry-error');
   const resultBox = document.getElementById('entry-result');
@@ -60,7 +79,9 @@ async function loadEntryCheck() {
   resultBox.classList.add('hidden');
   if (!symbol) return;
 
-  const res = await fetch(`/api/entry-check?symbol=${encodeURIComponent(symbol)}`);
+  const params = new URLSearchParams({ symbol });
+  if (pastBuy) { params.set('as_of', pastBuy.asOf); params.set('buy_price', pastBuy.buyPrice); }
+  const res = await fetch(`/api/entry-check?${params}`);
   const data = await res.json();
   if (data.error) {
     errorBox.textContent = data.error;
@@ -72,7 +93,12 @@ async function loadEntryCheck() {
   const rsiText = data.rsi == null ? '' : `，RSI(14) ${data.rsi.toFixed(0)}`;
   const verdictBox = document.getElementById('entry-verdict');
   verdictBox.className = `alert text-sm ${verdictCls}`;
-  verdictBox.innerHTML = `<div><b>${escapeHtml(data.symbol)}</b> 目前 ${fmtPrice(data.price)}（${escapeHtml(data.as_of)}${rsiText}）<br>${verdictText}</div>`;
+  const sb = data.since_buy;
+  const head = sb
+    ? `<b>${escapeHtml(data.symbol)}</b> ${escapeHtml(data.as_of)} 買在 ${fmtPrice(data.price)}${data.rsi == null ? '' : `（當時 RSI(14) ${data.rsi.toFixed(0)}）`}。` +
+      `到 ${escapeHtml(sb.current_date)} 現價 ${fmtPrice(sb.current_price)}，買進至今 <b>${fmtPct(sb.return)}</b>`
+    : `<b>${escapeHtml(data.symbol)}</b> 目前 ${fmtPrice(data.price)}（${escapeHtml(data.as_of)}${rsiText}）`;
+  verdictBox.innerHTML = `<div>${head}<br>${sb ? verdictText.replace(/^目前/, '當時') : verdictText}</div>`;
 
   document.getElementById('entry-tbody').innerHTML = data.windows.map(w => {
     const zone = ENTRY_ZONE[w.zone];
@@ -95,7 +121,7 @@ async function loadEntryCheck() {
   const s = data.similar;
   document.getElementById('entry-similar').innerHTML = s == null
     ? '<span class="opacity-60">歷史資料不足，無法做類似位置的歷史對照。</span>'
-    : `過去 10 年裡，股價相對 200 日均線的乖離跟今天（${fmtPct(s.today_gap)}）差不多的 ${s.sample_days} 個交易日，` +
+    : `${data.since_buy ? '買進前' : '過去'} 10 年裡，股價相對 200 日均線的乖離跟${data.since_buy ? '當時' : '今天'}（${fmtPct(s.today_gap)}）差不多的 ${s.sample_days} 個交易日，` +
       `之後 3 個月報酬中位數 <b class="${posNegClass(s.median_return)}">${fmtPct(s.median_return)}</b>、上漲機率 <b>${(s.win_rate * 100).toFixed(0)}%</b>；` +
       `對照所有日子：中位數 ${fmtPct(s.baseline_median_return)}、上漲機率 ${(s.baseline_win_rate * 100).toFixed(0)}%。歷史不代表未來。`;
   resultBox.classList.remove('hidden');

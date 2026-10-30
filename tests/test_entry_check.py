@@ -18,6 +18,8 @@ def demo():
     assert abs(stats["from_high"] - (-0.25)) < 1e-9
     assert ec.window_stats(pd.Series([10.0, 15.0, 20.0]), 3)["zone"] == "high"
     assert ec.window_stats(pd.Series([20.0, 15.0, 10.0]), 3)["zone"] == "low"
+    # a fill above the window's closes clamps to the top.
+    assert ec.window_stats(closes, 3, price=25.0)["position"] == 1.0
     # flat window doesn't divide by zero.
     assert ec.window_stats(pd.Series([5.0, 5.0]), 2)["position"] == 0.5
 
@@ -41,6 +43,27 @@ def demo():
     assert result["verdict"] == "high"
     assert result["similar"]["win_rate"] == 1.0
     assert result["similar"]["baseline_win_rate"] == 1.0
+
+    # replaying a past buy: only prices up to that day, actual fill price
+    # used for the position, plus return since then.
+    from datetime import date
+    buy_day = dates[700].date()
+    with patch.object(ec.market_data, "ticker_history", return_value=pd.DataFrame({"Close": prices})):
+        past = ec.check_entry("AAA", as_of=buy_day, buy_price=float(prices.iloc[700]) * 0.5)
+    assert past["as_of"] == buy_day.isoformat()
+    assert all(x["position"] == 0 for x in past["windows"])  # below every range, clamped
+    assert [x["label"] for x in past["windows"]] == ["1 個月", "3 個月", "1 年"]  # no 5Y of data yet
+    assert abs(past["since_buy"]["return"] - (prices.iloc[-1] / (prices.iloc[700] * 0.5) - 1)) < 1e-9
+    assert "since_buy" not in result
+
+    txs = [
+        {"symbol": "AAA", "trans_type": "BOUGHT", "report_date": date(2026, 1, 2), "trade_price": 10, "quantity": 1},
+        {"symbol": "BBB", "trans_type": "BOUGHT", "report_date": date(2026, 3, 1), "trade_price": 20, "quantity": 2},
+        {"symbol": "AAA", "trans_type": "SOLD", "report_date": date(2026, 4, 1), "trade_price": 30, "quantity": 1},
+        {"symbol": None, "trans_type": "BOUGHT", "report_date": date(2026, 5, 1), "trade_price": 1, "quantity": 1},
+    ]
+    assert [b["symbol"] for b in ec.recent_buys(txs)] == ["BBB", "AAA"]
+    assert ec.recent_buys(txs, limit=1)[0]["date"] == "2026-03-01"
 
     # too little history -> error, short history -> only the windows that fit.
     with patch.object(ec.market_data, "ticker_history", return_value=pd.DataFrame({"Close": prices[:10]})):

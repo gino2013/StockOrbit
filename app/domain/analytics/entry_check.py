@@ -1,9 +1,12 @@
 """Entry check for one symbol right before buying: where today's price sits
 inside several lookback windows (1M / 3M / 1Y / 5Y), RSI, and how the
 stock historically did over the next 3 months on days whose distance from
-the 200-day MA looked like today's. Rule-based facts, not a prediction or
-investment advice.
+the 200-day MA looked like today's. With `as_of` it replays a past buy
+using only the prices known on that day (issue #412). Rule-based facts,
+not a prediction or investment advice.
 """
+
+from datetime import date
 
 import pandas as pd
 
@@ -26,11 +29,12 @@ def _zone(position: float) -> str:
     return "mid"
 
 
-def window_stats(closes: pd.Series, days: int) -> dict:
+def window_stats(closes: pd.Series, days: int, price: float | None = None) -> dict:
     window = closes.iloc[-days:]
-    price = float(closes.iloc[-1])
+    price = float(closes.iloc[-1]) if price is None else price
     high, low = float(window.max()), float(window.min())
-    position = 0.5 if high == low else (price - low) / (high - low)
+    # A past fill can sit outside the window's closes (intraday high/low).
+    position = 0.5 if high == low else min(max((price - low) / (high - low), 0.0), 1.0)
     return {
         "days": len(window),
         "high": high,
@@ -75,26 +79,52 @@ def verdict(windows: list[dict], rsi: float | None) -> str:
     return "mid"
 
 
-def check_entry(symbol: str) -> dict:
+def check_entry(symbol: str, as_of: date | None = None, buy_price: float | None = None) -> dict:
     # Ticker.history's last row is today's live bar during market hours.
     history = market_data.ticker_history(symbol, period="10y")
-    closes = history["Close"].dropna() if "Close" in history else pd.Series(dtype=float)
+    all_closes = history["Close"].dropna() if "Close" in history else pd.Series(dtype=float)
+    # Replaying a past buy: only prices up to that day, no look-ahead.
+    closes = all_closes if as_of is None else all_closes[all_closes.index.date <= as_of]
     if len(closes) < WINDOWS[0][1]:
         raise ValueError("沒有足夠的歷史股價資料")
 
+    price = float(closes.iloc[-1]) if buy_price is None else float(buy_price)
     windows = [
-        {"label": label, **window_stats(closes, days)}
+        {"label": label, **window_stats(closes, days, price)}
         for label, days in WINDOWS
         if len(closes) >= days
     ]
     latest_rsi = compute_rsi(closes).iloc[-1]
     rsi = None if pd.isna(latest_rsi) else float(latest_rsi)
-    return {
+    result = {
         "symbol": symbol,
-        "price": float(closes.iloc[-1]),
+        "price": price,
         "as_of": closes.index[-1].strftime("%Y-%m-%d"),
         "rsi": rsi,
         "windows": windows,
         "similar": similar_setups(closes),
         "verdict": verdict(windows, rsi),
     }
+    if as_of is not None:
+        result["as_of"] = as_of.isoformat()  # the buy date, even on a non-trading day
+        current = float(all_closes.iloc[-1])
+        result["since_buy"] = {
+            "current_price": current,
+            "current_date": all_closes.index[-1].strftime("%Y-%m-%d"),
+            "return": current / price - 1,
+        }
+    return result
+
+
+def recent_buys(transactions: list[dict], limit: int = 10) -> list[dict]:
+    buys = [t for t in transactions if t["trans_type"] == "BOUGHT" and t.get("symbol") and t.get("trade_price")]
+    buys.sort(key=lambda t: t["report_date"], reverse=True)
+    return [
+        {
+            "symbol": t["symbol"],
+            "date": t["report_date"].isoformat(),
+            "price": float(t["trade_price"]),
+            "quantity": float(t["quantity"] or 0),
+        }
+        for t in buys[:limit]
+    ]
