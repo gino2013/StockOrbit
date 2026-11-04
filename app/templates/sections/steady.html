@@ -1,0 +1,197 @@
+  <h2 id="section-steady" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>跌深時看長期
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        市場大跌、心裡不踏實的時候按一下：看大盤跟每檔持股現在離歷史高點跌了多少、你的成本在哪裡，以及歷史上每一次「至少跌這麼深」之後 1 年／3 年的表現、花多久回到前高。數據不好看的時候也照實顯示。歷史不代表未來，不是預測也不是投資建議。
+      </p>
+      <div class="mt-2"><button type="button" onclick="loadSteady()" class="btn btn-neutral btn-sm">看數據</button></div>
+      <div id="steady-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="steady-result" class="hidden mt-3">
+        <div id="steady-summary" class="rounded-box bg-base-200 p-4 text-sm"></div>
+        <div class="overflow-x-auto mt-3">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>標的</th>
+                <th class="text-right">平均成本</th>
+                <th class="text-right">現價</th>
+                <th class="text-right">未實現</th>
+                <th class="text-right">距歷史高點</th>
+                <th class="text-right">之後 1 年</th>
+                <th class="text-right">之後 3 年</th>
+                <th>過去跌這麼深，回到前高花了</th>
+              </tr>
+            </thead>
+            <tbody id="steady-tbody"></tbody>
+          </table>
+        </div>
+        <div class="text-xs opacity-60 mt-2 space-y-0.5">
+          <div><b>之後 1 年／3 年</b>：歷史上所有「離當時高點至少跟今天一樣深」的交易日，之後 1 年／3 年報酬的中位數，括號是上漲機率。樣本不到 20 天顯示「-」。</div>
+          <div><b>回到前高</b>：過去每一段跌勢，從第一次跌到今天這個深度起算，到收盤重回前高的天數（中位數／最久）。只算已經結束的跌勢。</div>
+          <div><b>個股的倖存者偏差</b>：你手上的股票是「活下來」的那些，下市或一蹶不振的公司不會出現在這裡，所以個股的歷史數字會比實際偏樂觀；大盤跟寬基 ETF 比較沒有這個問題。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// --- 跌深時看長期 ---
+function fmtDays(d) {
+  if (d == null) return '-';
+  return d >= 365 ? `${(d / 365).toFixed(1)} 年` : `${d} 天`;
+}
+
+function steadyForward(f) {
+  return f == null ? '-' : `<span class="${posNegClass(f.median)}">${fmtPct(f.median)}</span> (${(f.win_rate * 100).toFixed(0)}%)`;
+}
+
+function steadyRecovery(r) {
+  if (r.drawdown > -0.05) return '<span class="opacity-60">離高點不到 5%，談不上大跌</span>';
+  if (r.past_drops === 0) return '<span class="text-warning">比歷史上任何一次都深，沒有前例可參考</span>';
+  return `${r.past_drops} 次都回來了：中位數 ${fmtDays(r.recovery_median_days)}，最久 ${fmtDays(r.recovery_max_days)}`;
+}
+
+function steadyRow(r, isMarket) {
+  const name = isMarket ? 'S&amp;P 500' : escapeHtml(r.symbol);
+  if (r.error) return `<tr><td>${name}</td><td colspan="7" class="opacity-60">${escapeHtml(r.error)}</td></tr>`;
+  const underwater = r.unrealized != null && r.unrealized < 0
+    ? `<div class="text-xs opacity-60">回本要再漲 ${fmtPct(-r.unrealized / (1 + r.unrealized))}</div>` : '';
+  return `
+    <tr class="${isMarket ? 'font-semibold bg-base-200' : ''}">
+      <td>${name}<div class="text-xs opacity-60 font-normal">資料從 ${escapeHtml(r.since)}</div></td>
+      <td class="text-right">${isMarket ? '' : fmtPrice(r.avg_cost)}</td>
+      <td class="text-right">${isMarket ? r.price.toFixed(0) : fmtPrice(r.price)}</td>
+      <td class="text-right">${r.unrealized == null ? '' : `<span class="${posNegClass(r.unrealized)}">${fmtPct(r.unrealized)}</span>${underwater}`}</td>
+      <td class="text-right ${posNegClass(r.drawdown)}">${fmtPct(r.drawdown)}</td>
+      <td class="text-right">${steadyForward(r.forward['1y'])}</td>
+      <td class="text-right">${steadyForward(r.forward['3y'])}</td>
+      <td class="text-sm">${steadyRecovery(r)}</td>
+    </tr>`;
+}
+
+// ponytail: hand-written copy picked by thresholds; edit the text here, no config.
+const STEADY_MARKET_STAGE = [
+  [-0.05, '這還算是日常波動。',
+    '離高點不到 5% 在股市裡幾乎天天發生，新聞標題可能很聳動，但從長期數據看，這種程度連「回檔」都還稱不上。這種時候最好的動作通常是什麼都不做。'],
+  [-0.10, '這是一般的回檔。',
+    '5%～10% 的下跌每隔一段時間就會出現，是持有股票必須付的「入場費」：正因為有這些不舒服的時候，長期報酬才會比定存高。'],
+  [-0.20, '這是一次修正。',
+    '10%～20% 的下跌會讓人很不安，新聞也會開始談衰退、泡沫。但修正本身並不少見，大多數也沒有演變成長期空頭。'],
+  [-Infinity, '這是空頭等級的下跌。',
+    '跌超過 20% 是真的很痛的時候，而且很難知道底部在哪。但從整個市場的歷史來看，每一次空頭最後都被收復了；差別只在於要等多久。'],
+];
+
+const STEADY_QUOTES = [
+  '市場短期是投票機，長期是體重計：價格會吵，但最後還是回到公司賺多少錢。',
+  '你不需要猜中底部，你只需要不要在底部賣掉。',
+  '帳面虧損只有在你賣出的那一刻才會變成真的虧損。',
+  '大跌時同樣的錢能買到更多股數，定期定額的人其實是在打折時買進。',
+  '最好的幾個上漲日常常緊跟在最差的幾個下跌日後面，離場的人通常兩邊都錯過。',
+  '如果你不打算在接下來幾年用到這筆錢，今天的價格對你來說只是中途的一個數字。',
+  '恐懼的時候，回頭看你當初的投資計畫，而不是看今天的新聞。',
+  '波動是長期報酬的代價，不是投資出錯的證據。',
+  '沒有人能每次都預測對市場，但耐心持有不需要預測。',
+  '關掉看盤軟體去散個步，下週再看，數字通常沒有你想像中那麼重要。',
+];
+
+const STEADY_CHECKLIST = [
+  ['這筆錢未來 3～5 年內會用到嗎？', '不會的話，今天的價格不影響你。會用到的話，該調整的是配置（慢慢移到現金或債券），而不是在低點一次恐慌賣出。'],
+  ['你當初買它的理由還成立嗎？', '公司的營收、獲利、競爭力有沒有真的變壞？如果理由沒變，只是價格變便宜，那不是賣出的理由。指數型 ETF 買的是整個市場，理由幾乎不會失效。'],
+  ['有沒有借錢投資或用融資？', '有的話，先確認不會被追繳或斷頭。槓桿是唯一能讓「等它回來」變成不可能的東西，這比行情更重要。'],
+  ['定期定額照常扣款。', '跌的時候同樣的金額買到更多股數，平均成本會被拉低；停掉扣款等於只在貴的時候買。'],
+  ['少看盤。', '看得越頻繁，越容易看到虧損、越容易被情緒推著做決定。長期投資一個月看一次就夠了。'],
+  ['真的要動，就照數字動。', '用上面的「目標配置／再平衡建議金額」區塊：偏離目標太多才調整，而且是照比例調整，不是憑感覺全部賣掉。'],
+];
+
+function steadyEvery(r) {
+  const years = (Date.now() - Date.parse(r.since)) / (365.25 * 864e5);
+  const every = years / r.past_drops;
+  return every < 1 ? `大約每 ${Math.max(1, Math.round(every * 12))} 個月` : `大約每 ${every.toFixed(1)} 年`;
+}
+
+function steadyMarketText(m) {
+  if (m.error) return '';
+  const [, title, body] = STEADY_MARKET_STAGE.find(([limit]) => m.drawdown > limit);
+  let s = `<p>S&amp;P 500 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>。<b>${title}</b>${body}</p>`;
+  if (m.past_drops > 0) {
+    s += `<p>從 ${m.since.slice(0, 4)} 年到現在，S&amp;P 500 跌到這個深度（或更深）一共 <b>${m.past_drops} 次</b>，${steadyEvery(m)}就有一次，` +
+      `而且<b>每一次都回到了前高</b>：一半在 ${fmtDays(m.recovery_median_days)} 內回來，最久的一次花了 ${fmtDays(m.recovery_max_days)}。` +
+      `最久那次很漫長，所以「不急著用的錢」才適合放在股市。</p>`;
+  } else if (m.drawdown < 0) {
+    s += '<p>這次比資料裡任何一次都深，沒有前例可以參考。這種時候更要先確認自己的現金跟負債安全。</p>';
+  }
+  const f1 = m.forward['1y'], f3 = m.forward['3y'];
+  if (f1 && f3) {
+    s += `<p>歷史上所有「至少跌這麼深」的日子，如果當天買進或繼續持有：1 年後報酬中位數 <b>${fmtPct(f1.median)}</b>（${(f1.win_rate * 100).toFixed(0)}% 的機率是賺的），` +
+      `3 年後 <b>${fmtPct(f3.median)}</b>（${(f3.win_rate * 100).toFixed(0)}%）。持有越久，結果越穩定。</p>`;
+  }
+  return s;
+}
+
+function steadyPortfolioText(data) {
+  const p = data.portfolio_unrealized;
+  if (p == null) return '';
+  const rows = data.holdings.filter(r => !r.error && r.unrealized != null);
+  const winners = rows.filter(r => r.unrealized >= 0).length;
+  const count = rows.length ? `${rows.length} 檔裡有 ${winners} 檔還在獲利。` : '';
+  let s;
+  if (p >= 0.3) {
+    s = `你的持股整體還是 <b class="text-success">${fmtPct(p)}</b>，安全墊很厚。${count}這次下跌吃掉的是一部分帳面獲利，你的本金離危險還很遠。`;
+  } else if (p >= 0) {
+    s = `你的持股整體還是 <b class="text-success">${fmtPct(p)}</b>，${count}跌掉的是帳面獲利，不是本金。你的買進價格整體來說比現在的市價低，這代表過去的進場不算差。`;
+  } else if (p >= -0.15) {
+    s = `你的持股整體目前 <b class="text-error">${fmtPct(p)}</b>，回本要再漲 ${fmtPct(-p / (1 + p))}。${count}這是帳面虧損，只要不賣就還沒有實現；以下表的歷史回復時間來看，這個幅度通常不需要等太久。`;
+  } else {
+    s = `你的持股整體目前 <b class="text-error">${fmtPct(p)}</b>，回本要再漲 ${fmtPct(-p / (1 + p))}。${count}這個幅度確實不小，老實說回本可能需要一段時間。` +
+      '這時候最重要的不是猜底部，而是逐檔確認：寬基 ETF 長期會跟著市場回來；個股要重新檢查當初的理由，理由還在的就繼續拿，理由不在的才考慮換掉。';
+  }
+  const worst = rows.slice().sort((a, b) => a.drawdown - b.drawdown)[0];
+  if (worst && worst.drawdown <= -0.1) {
+    s += `<br>跌最深的是 <b>${escapeHtml(worst.symbol)}</b>（離高點 ${fmtPct(worst.drawdown)}）。`;
+    s += worst.past_drops > 0
+      ? `它過去跌到這個深度 ${worst.past_drops} 次，每次都回到了前高，一半在 ${fmtDays(worst.recovery_median_days)} 內、最久 ${fmtDays(worst.recovery_max_days)}。`
+      : '這是它有史以來最深的一次，沒有前例可參考，值得花點時間重新看一下這家公司現在的狀況。';
+  }
+  return `<p>${s}</p>`;
+}
+
+function steadySummary(data) {
+  const checklist = STEADY_CHECKLIST.map(([q, a]) => `<li><b>${q}</b> ${a}</li>`).join('');
+  return `<div class="space-y-2">
+    ${steadyMarketText(data.market)}
+    ${steadyPortfolioText(data)}
+    <div><b>慌的時候，先問自己這幾件事：</b><ol class="list-decimal ml-5 mt-1 space-y-1">${checklist}</ol></div>
+    <div class="flex items-center gap-2 pt-1">
+      <span>💬 <span id="steady-quote"></span></span>
+      <button type="button" class="btn btn-xs btn-ghost" onclick="steadyNextQuote()">換一句</button>
+    </div>
+  </div>`;
+}
+
+let steadyQuoteIndex = Math.floor(Math.random() * STEADY_QUOTES.length);
+function steadyNextQuote() {
+  steadyQuoteIndex = (steadyQuoteIndex + 1) % STEADY_QUOTES.length;
+  document.getElementById('steady-quote').textContent = STEADY_QUOTES[steadyQuoteIndex];
+}
+
+async function loadSteady() {
+  const errorBox = document.getElementById('steady-error');
+  const resultBox = document.getElementById('steady-result');
+  errorBox.classList.add('hidden');
+  resultBox.classList.add('hidden');
+  const res = await fetch('/api/steady');
+  const data = await res.json();
+  if (data.error) {
+    errorBox.textContent = data.error;
+    errorBox.classList.remove('hidden');
+    return;
+  }
+  document.getElementById('steady-summary').innerHTML = steadySummary(data);
+  steadyNextQuote();
+  document.getElementById('steady-tbody').innerHTML =
+    steadyRow(data.market, true) + data.holdings.map(r => steadyRow(r, false)).join('');
+  resultBox.classList.remove('hidden');
+}
+</script>
