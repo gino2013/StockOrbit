@@ -52,6 +52,7 @@ from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
 from app.domain.analytics.entry_check import check_entry, recent_buys
+from app.domain.analytics.steady import steady_report
 from app.domain.analytics.fx_history import resample_rate_series
 from app.domain.analytics.drip import simulate_drip
 from app.domain.analytics.health_dashboard import build_health_overview
@@ -2002,6 +2003,16 @@ def entry_check_recent_buys():
     with Repositories() as repo:
         transactions = repo.all_transactions()
     return JSONResponse({"items": recent_buys(transactions)})
+
+
+@app.get("/api/steady")
+def steady():
+    with Repositories() as repo:
+        holdings = repo.latest_snapshots()
+    try:
+        return JSONResponse(steady_report(holdings))
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
 
 
 @app.get("/api/drawdown-periods")
