@@ -6,6 +6,8 @@
 
 ## 2026-11-04（CodeQL 掃描結果修正）
 
+- 登入轉址檢查補強（issue #419）：上一版只擋 `//` 與 `/\` 開頭，但瀏覽器會刪掉網址裡的 tab／換行、也把 `///host` 當外部網址，所以 `/\t/evil.com` 這類寫法還是能導到外部。改成 `_safe_next`：先照瀏覽器的方式清掉 tab／CR／LF、把 `\` 換成 `/`，再用 `urlsplit` 確認沒有 scheme／host 且不是 `//` 開頭，否則回首頁。測試涵蓋 8 種繞過寫法。
+
 - 「跌深時看長期」的未實現報酬改用跟「現價」同一個價格計算（issue #421）：原本現價是 Yahoo 最新收盤、未實現卻是 Firstrade 快照當下的市值，兩個時間點不同會互相矛盾（例如成本低於現價卻顯示虧損）。現在用 `現價 × 股數 / 成本 − 1`，Yahoo 抓不到價格的才退回快照市值；整體未實現用同一套數字加總。
 
 - 修正 CodeQL 第一次掃描抓到的問題（issue #419）：登入後的 `next` 轉址原本只檢查 `/` 開頭，`//evil.com`、`/\evil.com` 會被瀏覽器當成外部網址（open redirect，可拿來做釣魚連結），現在一併擋掉並補測試；本機開發 owner 的預設密碼不再印進 log；6 個 GitHub Actions workflow 明確宣告 `permissions: contents: read`。`auth.py` 的「弱雜湊」為誤報（SHA-256 只是 bcrypt 前的 prehash），在 GitHub 上標記為 false positive。
