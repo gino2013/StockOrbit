@@ -43,9 +43,19 @@ def demo():
     assert dl.call_args.args[0] == ["^GSPC", "AAA", "ZZZ"]
     assert rep["market"]["symbol"] == "^GSPC" and rep["market"]["past_drops"] == 1
     aaa, zzz = rep["holdings"]
+    # AAA: snapshot says 900 but the shown price is 90 x 10 = 900 too; unrealized follows the
+    # shown price, not the snapshot (issue #421) - see the mismatched case below.
     assert aaa["avg_cost"] == 100 and abs(aaa["unrealized"] + 0.1) < 1e-9
-    assert zzz["error"] and zzz["unrealized"] == 1.0
+    assert zzz["error"] and zzz["unrealized"] == 1.0  # no Yahoo price -> snapshot value
     assert abs(rep["portfolio_unrealized"] - (1000 / 1050 - 1)) < 1e-9
+
+    # snapshot taken at a different moment than the latest close: use the shown price.
+    stale = [{"symbol": "AAA", "quantity": 10, "market_value": 700, "cost_basis": 800}]
+    with patch.object(steady.market_data, "download_close", return_value=frame):
+        r2 = steady.steady_report(stale)
+    assert r2["holdings"][0]["price"] == 90
+    assert abs(r2["holdings"][0]["unrealized"] - (900 / 800 - 1)) < 1e-9, r2["holdings"][0]["unrealized"]
+    assert abs(r2["portfolio_unrealized"] - (900 / 800 - 1)) < 1e-9
     print("ok")
 
 

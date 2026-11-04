@@ -73,13 +73,16 @@ def steady_report(holdings: list[dict]) -> dict:
         return {"symbol": symbol, **analyze(closes)}
 
     rows = []
+    cost = value = 0.0
     for h in held:
         r = row(h["symbol"])
+        # Same price as the row's 現價 (issue #421); snapshot value only when Yahoo has none.
+        mv = r["price"] * h["quantity"] if "price" in r else h["market_value"]
         r["avg_cost"] = h["cost_basis"] / h["quantity"] if h["cost_basis"] else None
-        r["unrealized"] = h["market_value"] / h["cost_basis"] - 1 if h["cost_basis"] else None
+        r["unrealized"] = mv / h["cost_basis"] - 1 if h["cost_basis"] else None
         rows.append(r)
-    cost = sum(h["cost_basis"] for h in held)
-    value = sum(h["market_value"] for h in held)
+        cost += h["cost_basis"]
+        value += mv
     return {
         "market": row(MARKET),
         "holdings": rows,
