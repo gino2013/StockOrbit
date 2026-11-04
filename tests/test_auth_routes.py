@@ -56,7 +56,8 @@ def demo():
     ext = http.login(_req(), email="new@test.co", password="password123", next="https://evil.example")
     assert ext.headers["location"] == "/"
     # protocol-relative URLs are external too (issue #419)
-    for evil in ("//evil.example", "/\\evil.example"):
+    for evil in ("//evil.example", "/\\evil.example", "///evil.example", "/\t/evil.example",
+                 "/\n/evil.example", "\\/evil.example", "https://evil.example", "javascript:alert(1)"):
         r = http.login(_req(), email="new@test.co", password="password123", next=evil)
         assert r.headers["location"] == "/", evil
     assert http.login(_req(), email="new@test.co", password="password123", next="/settings").headers["location"] == "/settings"

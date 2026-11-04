@@ -2,6 +2,7 @@ import os
 import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -190,6 +191,18 @@ def login_page(request: Request, next: str = "/"):
     return templates.TemplateResponse(request, "login.html", {"error": None, "next": next})
 
 
+def _safe_next(target: str) -> str:
+    """Same-site path to land on after login, else "/" (issue #419). Browsers
+    drop tab/CR/LF and read "\\" as "/" in URLs, so normalise like they do
+    before checking - otherwise "/\\t/evil.com" or "/\\evil.com" turn into
+    "//evil.com" (another site) once the browser parses them."""
+    cleaned = target.replace("\\", "/").replace("\t", "").replace("\r", "").replace("\n", "")
+    parts = urlsplit(cleaned)
+    if parts.scheme or parts.netloc or not cleaned.startswith("/") or cleaned.startswith("//"):
+        return "/"
+    return cleaned
+
+
 @app.post("/login")
 def login(request: Request, email: str = Form(...), password: str = Form(...), next: str = Form("/")):
     if _rate_limited(f"login:{_client_ip(request)}", limit=20, window_seconds=600):
@@ -207,9 +220,7 @@ def login(request: Request, email: str = Form(...), password: str = Form(...), n
         return templates.TemplateResponse(
             request, "login.html", {"error": "帳號或密碼錯誤", "next": next}, status_code=401
         )
-    # "//host" and "/\\host" are protocol-relative to browsers -> external (issue #419).
-    safe_next = next if next.startswith("/") and not next.startswith(("//", "/\\")) else "/"
-    resp = RedirectResponse(safe_next, status_code=303)
+    resp = RedirectResponse(_safe_next(next), status_code=303)
     resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
     return resp
 
