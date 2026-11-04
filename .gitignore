@@ -6,3 +6,8 @@ __pycache__/
 firstrade_session*.json
 ft_cookies*.json
 demo.db
+
+# 本機用的 Claude Code worktree 與第三方 skills（不進版控）
+.claude/worktrees/
+.claude/skills/*
+!.claude/skills/moonshot-eval/
