@@ -9,6 +9,9 @@ on:
       - "requirements.txt"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
