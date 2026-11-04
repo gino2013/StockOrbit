@@ -207,7 +207,9 @@ def login(request: Request, email: str = Form(...), password: str = Form(...), n
         return templates.TemplateResponse(
             request, "login.html", {"error": "帳號或密碼錯誤", "next": next}, status_code=401
         )
-    resp = RedirectResponse(next if next.startswith("/") else "/", status_code=303)
+    # "//host" and "/\\host" are protocol-relative to browsers -> external (issue #419).
+    safe_next = next if next.startswith("/") and not next.startswith(("//", "/\\")) else "/"
+    resp = RedirectResponse(safe_next, status_code=303)
     resp.set_cookie(COOKIE_NAME, cookie, max_age=auth.SESSION_MAX_AGE, httponly=True, samesite="lax")
     return resp
 

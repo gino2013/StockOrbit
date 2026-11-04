@@ -55,6 +55,11 @@ def demo():
     # open redirect guard: external next is ignored
     ext = http.login(_req(), email="new@test.co", password="password123", next="https://evil.example")
     assert ext.headers["location"] == "/"
+    # protocol-relative URLs are external too (issue #419)
+    for evil in ("//evil.example", "/\\evil.example"):
+        r = http.login(_req(), email="new@test.co", password="password123", next=evil)
+        assert r.headers["location"] == "/", evil
+    assert http.login(_req(), email="new@test.co", password="password123", next="/settings").headers["location"] == "/settings"
 
     # --- logout clears the cookie ---
     out = http.logout()

@@ -5,6 +5,9 @@ on:
     - cron: "0 23 * * *" # 23:00 UTC = 07:00 Taipei
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   send:
     runs-on: ubuntu-latest

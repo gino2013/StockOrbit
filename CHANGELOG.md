@@ -4,6 +4,10 @@
 
 摘要版功能總覽請看 [README](README.md#功能)。
 
+## 2026-11-04（CodeQL 掃描結果修正）
+
+- 修正 CodeQL 第一次掃描抓到的問題（issue #419）：登入後的 `next` 轉址原本只檢查 `/` 開頭，`//evil.com`、`/\evil.com` 會被瀏覽器當成外部網址（open redirect，可拿來做釣魚連結），現在一併擋掉並補測試；本機開發 owner 的預設密碼不再印進 log；6 個 GitHub Actions workflow 明確宣告 `permissions: contents: read`。`auth.py` 的「弱雜湊」為誤報（SHA-256 只是 bcrypt 前的 prehash），在 GitHub 上標記為 false positive。
+
 ## 2026-11-04（跌深時看長期）
 
 - 新區塊「跌深時看長期」（issue #417）：`domain/analytics/steady.py` 一次抓 S&P 500（`^GSPC`）跟全部持股的完整歷史（CASH 列不算），算現價離歷史高點的跌幅、歷史上「至少跌這麼深」的日子之後 1 年／3 年報酬中位數與上漲機率（樣本不到 20 天不顯示），以及過去每段已結束跌勢從第一次跌到這個深度到收盤回到前高的天數（同一段跌勢只算一次）。持股另列平均成本、未實現報酬、回本所需漲幅。上方文字依大盤跌幅（<5%／5–10%／10–20%／20%+）跟整體賺賠（≥30%／≥0／≥−15%／更深）切換版本，點名跌最深的持股，附 6 個檢查項目跟可輪換的一句話。`/api/steady`、`tests/test_steady.py`，放在「蒙地卡羅模擬」下面。

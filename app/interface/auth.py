@@ -168,7 +168,7 @@ def ensure_owner() -> str:
             raise RuntimeError("OWNER_EMAIL is set but OWNER_INITIAL_PASSWORD is not")
     else:
         email, password = _DEV_OWNER_EMAIL, _DEV_OWNER_PASSWORD
-        logger.warning("OWNER_EMAIL not set - using the local dev owner %s / %r", email, password)
+        logger.warning("OWNER_EMAIL not set - using the local dev owner %s (see _DEV_OWNER_PASSWORD)", email)
 
     db = SessionLocal()
     try:
