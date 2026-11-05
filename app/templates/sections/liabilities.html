@@ -88,7 +88,7 @@ function renderLiabilities(liabilities) {
   const nt = (v, digits = 0) => v == null ? '-' : 'NT$' + v.toLocaleString('en-US', {maximumFractionDigits: digits});
   const term = (l) => l.term_months == null ? '<span class="opacity-50">月付款不夠付利息</span>'
     : `${l.term_months} 期（${(l.term_months / 12).toFixed(l.term_months % 12 ? 1 : 0)} 年）<span class="opacity-50">・剩 ${l.remaining_months} 期</span>`;
-  let html = '<table class="table table-sm"><thead><tr><th>名稱</th><th class="text-right">本金</th><th class="text-right">年利率</th>' +
+  let html = '<div class="overflow-x-auto"><table class="table table-sm"><thead><tr><th>名稱</th><th class="text-right">本金</th><th class="text-right">年利率</th>' +
     '<th class="text-right">月付款</th><th>年期</th><th>起貸日</th><th class="text-right">未償還餘額</th><th></th></tr></thead><tbody>';
   for (const l of liabilities) {
     html += `<tr>
@@ -102,7 +102,7 @@ function renderLiabilities(liabilities) {
       <td class="text-right whitespace-nowrap"><button type="button" onclick="editLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs">編輯</button><button type="button" onclick="deleteLiability('${escapeHtml(l.id)}')" class="btn btn-ghost btn-xs text-error">刪除</button></td>
     </tr>`;
   }
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   content.innerHTML = html;
 }
 
