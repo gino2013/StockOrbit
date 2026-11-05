@@ -1,5 +1,5 @@
-"""Stay-the-course check for a market drop (issue #417): for the S&P 500 and
-each holding, how far it sits below its all-time high today, and what
+"""Stay-the-course check for a market drop (issue #417): for the reference
+markets (QQQ, QLD, S&P 500) and each holding, how far it sits below its all-time high today, and what
 history says about every past time it was at least that far down - forward
 1Y / 3Y returns and how long it took to get back to the old high. Facts
 from the price history, shown as-is even when they don't reassure; not a
@@ -10,7 +10,8 @@ import pandas as pd
 
 from app.infrastructure import market_data
 
-MARKET = "^GSPC"
+# Reference markets, main one first (issue #429): the owner holds mostly QQQ/QLD.
+MARKETS = {"QQQ": "QQQ（那斯達克 100）", "QLD": "QLD（2 倍 QQQ）", "^GSPC": "S&P 500"}
 FORWARD = [("1y", 252), ("3y", 756)]
 MIN_SAMPLES = 20  # fewer forward-return days than this says nothing
 
@@ -61,7 +62,7 @@ def steady_report(holdings: list[dict]) -> dict:
     """`holdings`: latest_snapshots rows (symbol / quantity / market_value / cost_basis)."""
     # "CASH" is the synthetic cash-balance row; Yahoo has an unrelated CASH ticker.
     held = [h for h in holdings if h["quantity"] > 0 and h["symbol"] != "CASH"]
-    symbols = [MARKET] + [h["symbol"] for h in held]
+    symbols = list(dict.fromkeys([*MARKETS, *(h["symbol"] for h in held)]))
     data = market_data.download_close(symbols, period="max")
     if isinstance(data, pd.Series):
         data = data.to_frame(symbols[0])
@@ -84,7 +85,7 @@ def steady_report(holdings: list[dict]) -> dict:
         cost += h["cost_basis"]
         value += mv
     return {
-        "market": row(MARKET),
+        "markets": [{**row(sym), "name": name} for sym, name in MARKETS.items()],
         "holdings": rows,
         "portfolio_unrealized": value / cost - 1 if cost else None,
     }

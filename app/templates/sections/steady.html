@@ -4,7 +4,7 @@
   <div class="card bg-base-100 shadow-sm mb-8">
     <div class="card-body">
       <p class="text-xs opacity-60">
-        市場大跌、心裡不踏實的時候按一下：看大盤跟每檔持股現在離歷史高點跌了多少、你的成本在哪裡，以及歷史上每一次「至少跌這麼深」之後 1 年／3 年的表現、花多久回到前高。數據不好看的時候也照實顯示。歷史不代表未來，不是預測也不是投資建議。
+        市場大跌、心裡不踏實的時候按一下：看 QQQ、QLD、S&amp;P 500 跟每檔持股現在離歷史高點跌了多少、你的成本在哪裡，以及歷史上每一次「至少跌這麼深」之後 1 年／3 年的表現、花多久回到前高。數據不好看的時候也照實顯示。歷史不代表未來，不是預測也不是投資建議。
       </p>
       <div class="mt-2"><button type="button" onclick="loadSteady()" class="btn btn-neutral btn-sm">看數據</button></div>
       <div id="steady-error" class="alert alert-error text-sm hidden mt-2"></div>
@@ -54,7 +54,7 @@ function steadyRecovery(r) {
 }
 
 function steadyRow(r, isMarket) {
-  const name = isMarket ? 'S&amp;P 500' : escapeHtml(r.symbol);
+  const name = escapeHtml(isMarket ? r.name : r.symbol);
   if (r.error) return `<tr><td>${name}</td><td colspan="7" class="opacity-60">${escapeHtml(r.error)}</td></tr>`;
   const underwater = r.unrealized != null && r.unrealized < 0
     ? `<div class="text-xs opacity-60">回本要再漲 ${fmtPct(-r.unrealized / (1 + r.unrealized))}</div>` : '';
@@ -111,12 +111,19 @@ function steadyEvery(r) {
   return every < 1 ? `大約每 ${Math.max(1, Math.round(every * 12))} 個月` : `大約每 ${every.toFixed(1)} 年`;
 }
 
-function steadyMarketText(m) {
+// The first market (QQQ) gets the full stage wording; the others get one compact
+// paragraph - QLD is 2x leveraged, so "-10% is just a pullback" would not hold for it.
+function steadyMarketText(m, main) {
   if (m.error) return '';
+  return main ? steadyMainText(m) : steadyBriefText(m);
+}
+
+function steadyMainText(m) {
+  const name = escapeHtml(m.name);
   const [, title, body] = STEADY_MARKET_STAGE.find(([limit]) => m.drawdown > limit);
-  let s = `<p>S&amp;P 500 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>。<b>${title}</b>${body}</p>`;
+  let s = `<p>${name} 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>。<b>${title}</b>${body}</p>`;
   if (m.past_drops > 0) {
-    s += `<p>從 ${m.since.slice(0, 4)} 年到現在，S&amp;P 500 跌到這個深度（或更深）一共 <b>${m.past_drops} 次</b>，${steadyEvery(m)}就有一次，` +
+    s += `<p>從 ${m.since.slice(0, 4)} 年到現在，${name} 跌到這個深度（或更深）一共 <b>${m.past_drops} 次</b>，${steadyEvery(m)}就有一次，` +
       `而且<b>每一次都回到了前高</b>：一半在 ${fmtDays(m.recovery_median_days)} 內回來，最久的一次花了 ${fmtDays(m.recovery_max_days)}。` +
       `最久那次很漫長，所以「不急著用的錢」才適合放在股市。</p>`;
   } else if (m.drawdown < 0) {
@@ -128,6 +135,24 @@ function steadyMarketText(m) {
       `3 年後 <b>${fmtPct(f3.median)}</b>（${(f3.win_rate * 100).toFixed(0)}%）。持有越久，結果越穩定。</p>`;
   }
   return s;
+}
+
+function steadyBriefText(m) {
+  let s = `<b>${escapeHtml(m.name)}</b> 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>`;
+  if (m.past_drops > 0) {
+    s += `；${m.since.slice(0, 4)} 年至今跌到這個深度 ${m.past_drops} 次，每次都回到前高（一半在 ${fmtDays(m.recovery_median_days)} 內，最久 ${fmtDays(m.recovery_max_days)}）`;
+  } else if (m.drawdown <= -0.05) {
+    s += '；比資料裡任何一次都深，沒有前例可參考';
+  }
+  const f1 = m.forward['1y'], f3 = m.forward['3y'];
+  if (f1 && f3) {
+    s += `；這種日子之後 1 年中位數 ${fmtPct(f1.median)}（${(f1.win_rate * 100).toFixed(0)}% 賺）、3 年 ${fmtPct(f3.median)}（${(f3.win_rate * 100).toFixed(0)}%）`;
+  }
+  s += '。';
+  if (m.symbol === 'QLD') {
+    s += '<span class="opacity-70">2 倍槓桿漲跌都放大，盤整時還會慢慢耗損，資料也只從 2006 年開始，上面的數字要打折看；它能撐過去的前提是你不需要在低點賣。</span>';
+  }
+  return `<p>${s}</p>`;
 }
 
 function steadyPortfolioText(data) {
@@ -160,7 +185,7 @@ function steadyPortfolioText(data) {
 function steadySummary(data) {
   const checklist = STEADY_CHECKLIST.map(([q, a]) => `<li><b>${q}</b> ${a}</li>`).join('');
   return `<div class="space-y-2">
-    ${steadyMarketText(data.market)}
+    ${data.markets.map((m, i) => steadyMarketText(m, i === 0)).join('')}
     ${steadyPortfolioText(data)}
     <div><b>慌的時候，先問自己這幾件事：</b><ol class="list-decimal ml-5 mt-1 space-y-1">${checklist}</ol></div>
     <div class="flex items-center gap-2 pt-1">
@@ -191,7 +216,9 @@ async function loadSteady() {
   document.getElementById('steady-summary').innerHTML = steadySummary(data);
   steadyNextQuote();
   document.getElementById('steady-tbody').innerHTML =
-    steadyRow(data.market, true) + data.holdings.map(r => steadyRow(r, false)).join('');
+    // Reference markets you already hold show once, as a holding row (with cost).
+    data.markets.filter(m => !data.holdings.some(h => h.symbol === m.symbol)).map(m => steadyRow(m, true)).join('') +
+    data.holdings.map(r => steadyRow(r, false)).join('');
   resultBox.classList.remove('hidden');
 }
 </script>
