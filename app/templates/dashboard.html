@@ -237,6 +237,16 @@
       </div>
       {% endif %}
     </div>
+    {% if realized_summary and realized_summary.all_time.trade_count %}
+    {% set rg = realized_summary.all_time.total_gain %}
+    <a class="stat" href="#section-realized">
+      <div class="stat-title">已實現損益（累計）</div>
+      <div class="stat-value text-2xl {{ 'text-success' if rg >= 0 else 'text-error' }}">
+        {{ '+' if rg >= 0 else '-' }}${{ "{:,.0f}".format(rg|abs) }}
+      </div>
+      <div class="stat-desc">{{ realized_summary.all_time.trade_count }} 筆賣出</div>
+    </a>
+    {% endif %}
     <div class="stat">
       <div class="stat-title">報酬率</div>
       <div class="stat-value text-2xl {{ 'text-success' if stats.total_gain_pct >= 0 else 'text-error' }}">
