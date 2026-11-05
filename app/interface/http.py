@@ -195,12 +195,20 @@ def _safe_next(target: str) -> str:
     """Same-site path to land on after login, else "/" (issue #419). Browsers
     drop tab/CR/LF and read "\\" as "/" in URLs, so normalise like they do
     before checking - otherwise "/\\t/evil.com" or "/\\evil.com" turn into
-    "//evil.com" (another site) once the browser parses them."""
-    cleaned = target.replace("\\", "/").replace("\t", "").replace("\r", "").replace("\n", "")
-    parts = urlsplit(cleaned)
-    if parts.scheme or parts.netloc or not cleaned.startswith("/") or cleaned.startswith("//"):
-        return "/"
-    return cleaned
+    "//evil.com" (another site) once the browser parses them.
+    Shaped like CodeQL's documented py/url-redirection fix (issue #426): the
+    backslash replace is the last step and the netloc/scheme check guards
+    the return, so the scanner recognises it."""
+    stripped = target.replace("\t", "").replace("\r", "").replace("\n", "")
+    cleaned = stripped.replace("\\", "/")
+    if (
+        not urlsplit(cleaned).netloc
+        and not urlsplit(cleaned).scheme
+        and cleaned.startswith("/")
+        and not cleaned.startswith("//")
+    ):
+        return cleaned
+    return "/"
 
 
 @app.post("/login")
