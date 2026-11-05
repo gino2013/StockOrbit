@@ -30,18 +30,23 @@ def demo():
     assert r["forward"]["1d"] == {"samples": 1, "median": 100 / 70 - 1, "win_rate": 1.0}
     assert steady.analyze(closes)["forward"]["1y"] is None  # too few samples
 
-    # report: market row first, holdings carry cost and unrealized; missing data -> error row.
-    frame = pd.DataFrame({"^GSPC": closes, "AAA": closes})
+    # report: reference markets in order (QQQ, QLD, S&P 500), holdings carry cost and
+    # unrealized; missing data -> error row; a held reference market is downloaded once.
+    frame = pd.DataFrame({"QQQ": closes, "^GSPC": closes, "AAA": closes})
     holdings = [
         {"symbol": "AAA", "quantity": 10, "market_value": 900, "cost_basis": 1000},
+        {"symbol": "QLD", "quantity": 0, "market_value": 0, "cost_basis": 0},
         {"symbol": "ZZZ", "quantity": 1, "market_value": 100, "cost_basis": 50},
         {"symbol": "OLD", "quantity": 0, "market_value": 0, "cost_basis": 0},
         {"symbol": "CASH", "quantity": 500, "market_value": 500, "cost_basis": 500},
     ]
     with patch.object(steady.market_data, "download_close", return_value=frame) as dl:
         rep = steady.steady_report(holdings)
-    assert dl.call_args.args[0] == ["^GSPC", "AAA", "ZZZ"]
-    assert rep["market"]["symbol"] == "^GSPC" and rep["market"]["past_drops"] == 1
+    assert dl.call_args.args[0] == ["QQQ", "QLD", "^GSPC", "AAA", "ZZZ"]
+    qqq, qld, spx = rep["markets"]
+    assert [m["symbol"] for m in rep["markets"]] == ["QQQ", "QLD", "^GSPC"]
+    assert qqq["past_drops"] == 1 and qqq["name"].startswith("QQQ") and spx["name"] == "S&P 500"
+    assert qld["error"] and qld["name"].startswith("QLD")  # no Yahoo data -> error row, still named
     aaa, zzz = rep["holdings"]
     # AAA: snapshot says 900 but the shown price is 90 x 10 = 900 too; unrealized follows the
     # shown price, not the snapshot (issue #421) - see the mismatched case below.
@@ -56,6 +61,12 @@ def demo():
     assert r2["holdings"][0]["price"] == 90
     assert abs(r2["holdings"][0]["unrealized"] - (900 / 800 - 1)) < 1e-9, r2["holdings"][0]["unrealized"]
     assert abs(r2["portfolio_unrealized"] - (900 / 800 - 1)) < 1e-9
+    # holding a reference market: downloaded once, still both a market and a holding row.
+    held_qqq = [{"symbol": "QQQ", "quantity": 1, "market_value": 90, "cost_basis": 80}]
+    with patch.object(steady.market_data, "download_close", return_value=frame) as dl:
+        r3 = steady.steady_report(held_qqq)
+    assert dl.call_args.args[0] == ["QQQ", "QLD", "^GSPC"]
+    assert r3["markets"][0]["symbol"] == r3["holdings"][0]["symbol"] == "QQQ"
     print("ok")
 
 
