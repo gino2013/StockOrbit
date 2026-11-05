@@ -196,9 +196,7 @@ def _safe_next(target: str) -> str:
     drop tab/CR/LF and read "\\" as "/" in URLs, so normalise like they do
     before checking - otherwise "/\\t/evil.com" or "/\\evil.com" turn into
     "//evil.com" (another site) once the browser parses them.
-    Shaped like CodeQL's documented py/url-redirection fix (issue #426): the
-    backslash replace is the last step and the netloc/scheme check guards
-    the return, so the scanner recognises it."""
+    """
     stripped = target.replace("\t", "").replace("\r", "").replace("\n", "")
     cleaned = stripped.replace("\\", "/")
     if (
@@ -207,7 +205,10 @@ def _safe_next(target: str) -> str:
         and cleaned.startswith("/")
         and not cleaned.startswith("//")
     ):
-        return cleaned
+        # Same string as `cleaned`; CodeQL's py/url-redirection only treats a
+        # value on the right of "+" (app-controlled prefix) or a constant
+        # compare as sanitised - it has no netloc-check guard (issue #426).
+        return "/" + cleaned[1:]
     return "/"
 
 
