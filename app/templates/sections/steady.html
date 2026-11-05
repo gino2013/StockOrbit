@@ -60,7 +60,7 @@ function steadyRow(r, isMarket) {
     ? `<div class="text-xs opacity-60">回本要再漲 ${fmtPct(-r.unrealized / (1 + r.unrealized))}</div>` : '';
   return `
     <tr class="${isMarket ? 'font-semibold bg-base-200' : ''}">
-      <td>${name}<div class="text-xs opacity-60 font-normal">資料從 ${escapeHtml(r.since)}</div></td>
+      <td class="whitespace-nowrap">${name}<div class="text-xs opacity-60 font-normal">資料從 ${escapeHtml(r.since)}</div></td>
       <td class="text-right">${isMarket ? '' : fmtPrice(r.avg_cost)}</td>
       <td class="text-right">${isMarket ? r.price.toFixed(0) : fmtPrice(r.price)}</td>
       <td class="text-right">${r.unrealized == null ? '' : `<span class="${posNegClass(r.unrealized)}">${fmtPct(r.unrealized)}</span>${underwater}`}</td>

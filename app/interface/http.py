@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
@@ -91,6 +92,7 @@ async def _bind_request_user(request: Request) -> None:
 
 app = FastAPI(title="StockOrbit", dependencies=[Depends(_bind_request_user)])
 templates = Jinja2Templates(directory="app/templates")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")  # home-screen icon + manifest (issue #431)
 # Jinja2's `tojson` filter alphabetizes dict keys by default (its
 # json.dumps_kwargs policy is {"sort_keys": True}) - that silently discarded
 # `targets`' DB sort_order (issue #336: drag-to-reorder) on every page
