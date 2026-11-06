@@ -583,13 +583,17 @@ class Repositories:
     def dip_plan(self) -> DipPlan | None:
         return self._mine(DipPlan).first()
 
-    def upsert_dip_plan(self, symbol: str, budget: float, tiers_json: str) -> None:
+    def upsert_dip_plan(self, symbol: str, budget: float, tiers_json: str, alert_enabled: bool = True) -> None:
         existing = self._mine(DipPlan).first()
         if existing:
+            if (existing.symbol, existing.tiers_json) != (symbol, tiers_json):
+                existing.alert_level = 0  # different plan -> start the email count over
             existing.symbol, existing.budget, existing.tiers_json = symbol, budget, tiers_json
+            existing.alert_enabled = alert_enabled
             existing.updated_at = datetime.now(timezone.utc)
         else:
-            self._db.add(DipPlan(user_id=self._user_id, symbol=symbol, budget=budget, tiers_json=tiers_json))
+            self._db.add(DipPlan(user_id=self._user_id, symbol=symbol, budget=budget, tiers_json=tiers_json,
+                                 alert_enabled=alert_enabled, alert_level=0))
         self._db.commit()
 
     def delete_dip_plan(self) -> None:

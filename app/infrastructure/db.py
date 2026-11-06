@@ -375,6 +375,10 @@ class DipPlan(Base):
     symbol = Column(String, nullable=False, default="QQQ")
     budget = Column(Float, nullable=False)
     tiers_json = Column(Text, nullable=False)
+    # crash email (issue #441): on/off, and how many tiers this drawdown has
+    # already been emailed about (see domain/notifications/dip_alerts.py).
+    alert_enabled = Column(Boolean, nullable=False, default=True)
+    alert_level = Column(Integer, nullable=False, default=0)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -492,7 +496,9 @@ def _infer_untracked_revision() -> str | None:
         return "0022_liability_term"
     if not inspector.has_table("dip_plans"):
         return "0023_moonshot_evaluation"
-    return "0024_dip_plans"  # structure already matches head
+    if "alert_level" not in {c["name"] for c in inspector.get_columns("dip_plans")}:
+        return "0024_dip_plans"
+    return "0025_dip_alerts"  # structure already matches head
 
 
 def run_pending_migrations() -> None:
