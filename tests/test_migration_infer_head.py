@@ -36,6 +36,7 @@ def demo():
     boot = "from app.main import app"
     drops = [  # (case, columns to drop first)
         ("head", []),
+        ("no_dip_plans", [("DROP", "dip_plans")]),
         ("no_term", [("liabilities", "term_months")]),
         ("no_currency", [("liabilities", "term_months"), ("liabilities", "currency")]),
         ("no_goal_contrib", [("liabilities", "term_months"), ("liabilities", "currency"),
@@ -46,14 +47,15 @@ def demo():
         _fresh_create_all(db)
         con = sqlite3.connect(db)
         for table, col in to_drop:
-            con.execute(f"ALTER TABLE {table} DROP COLUMN {col}")
+            con.execute(f"DROP TABLE {col}" if table == "DROP" else f"ALTER TABLE {table} DROP COLUMN {col}")
         con.commit()
         con.close()
         _py(db, boot)  # must not raise "duplicate column"
         assert {"currency", "term_months"} <= _cols(db, "liabilities"), name
         assert {"monthly_contribution", "year_end_contribution"} <= _cols(db, "investment_goals"), name
         head = sqlite3.connect(db).execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        assert head == "0023_moonshot_evaluation", (name, head)
+        assert head == "0024_dip_plans", (name, head)
+        assert "dip_plans" in {r[0] for r in sqlite3.connect(db).execute("SELECT name FROM sqlite_master WHERE type='table'")}, name
 
 
 if __name__ == "__main__":
