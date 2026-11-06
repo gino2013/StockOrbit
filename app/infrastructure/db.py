@@ -364,6 +364,20 @@ class FireSettings(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class DipPlan(Base):
+    """Buy-the-dip plan, one row per user (issue #439). `tiers_json` is a
+    list of [drawdown_threshold, budget_fraction] pairs, e.g.
+    [[-0.1, 0.25], [-0.2, 0.35], [-0.3, 0.4]]."""
+
+    __tablename__ = "dip_plans"
+
+    user_id = _user_id_col(primary_key=True)
+    symbol = Column(String, nullable=False, default="QQQ")
+    budget = Column(Float, nullable=False)
+    tiers_json = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class User(Base):
     """An account. Data in every other user-scoped table is keyed by user_id.
 
@@ -476,7 +490,9 @@ def _infer_untracked_revision() -> str | None:
         return "0021_liability_currency"
     if not inspector.has_table("moonshot_evaluation"):
         return "0022_liability_term"
-    return "0023_moonshot_evaluation"  # structure already matches head
+    if not inspector.has_table("dip_plans"):
+        return "0023_moonshot_evaluation"
+    return "0024_dip_plans"  # structure already matches head
 
 
 def run_pending_migrations() -> None:

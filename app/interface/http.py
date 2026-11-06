@@ -1,4 +1,6 @@
+import json
 import os
+import re
 import time
 from collections import defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
@@ -54,6 +56,7 @@ from app.domain.analytics.correlation import compute_correlation_matrix
 from app.domain.analytics.dca import run_dca_comparison
 from app.domain.analytics.drawdown_periods import find_drawdown_periods
 from app.domain.analytics.entry_check import check_entry, recent_buys
+from app.domain.analytics.dip_plan import DEFAULT_TIERS, dip_plan, validate_tiers
 from app.domain.analytics.steady import steady_report
 from app.domain.analytics.fx_history import resample_rate_series
 from app.domain.analytics.drip import simulate_drip
@@ -2037,6 +2040,61 @@ def steady():
         return JSONResponse(steady_report(holdings))
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+_SYMBOL_RE = re.compile(r"^[A-Z0-9.^=-]{1,15}$")
+
+
+@app.get("/api/dip-plan")
+def get_dip_plan():
+    """Buy-the-dip plan (issue #439): saved settings plus today's numbers."""
+    with Repositories() as repo:
+        plan = repo.dip_plan()
+        if not plan:
+            return JSONResponse({"plan": None, "defaults": DEFAULT_TIERS})
+        symbol, budget, tiers = plan.symbol, plan.budget, [tuple(t) for t in json.loads(plan.tiers_json)]
+        held = [h for h in repo.latest_snapshots() if h["symbol"] == symbol and h["quantity"] > 0]
+    closes = market_data.download_close(symbol, period="max")
+    if isinstance(closes, pd.DataFrame):
+        closes = closes[symbol] if symbol in closes else closes.iloc[:, 0]
+    if closes is None or len(closes.dropna()) < 2:
+        return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers}, "error": f"抓不到 {symbol} 的股價"})
+    result = dip_plan(closes, budget, tiers, sum(h["quantity"] for h in held), sum(h["cost_basis"] for h in held))
+    return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers}, "result": result})
+
+
+@app.post("/api/dip-plan")
+def set_dip_plan(
+    symbol: str = Form("QQQ"), budget: float = Form(...),
+    t1: str = Form(""), p1: str = Form(""), t2: str = Form(""), p2: str = Form(""), t3: str = Form(""), p3: str = Form(""),
+):
+    symbol = symbol.strip().upper() or "QQQ"
+    if not _SYMBOL_RE.match(symbol):
+        return JSONResponse({"error": "代號格式不對"}, status_code=400)
+    if budget <= 0:
+        return JSONResponse({"error": "預算要大於 0"}, status_code=400)
+    tiers = []
+    # Form takes percent numbers ("10" = 10% below the high); blank rows are skipped.
+    for t, p in ((t1, p1), (t2, p2), (t3, p3)):
+        if not t.strip() and not p.strip():
+            continue
+        try:
+            tiers.append((-abs(float(t)) / 100, float(p) / 100))
+        except ValueError:
+            return JSONResponse({"error": "跌幅跟比例要填數字"}, status_code=400)
+    error = validate_tiers(tiers)
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    with Repositories() as repo:
+        repo.upsert_dip_plan(symbol, budget, json.dumps(tiers))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/dip-plan/delete")
+def delete_dip_plan():
+    with Repositories() as repo:
+        repo.delete_dip_plan()
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/drawdown-periods")

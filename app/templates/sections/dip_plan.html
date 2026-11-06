@@ -1,0 +1,119 @@
+  <h2 id="section-dip-plan" class="flex items-center gap-2 text-lg font-bold mb-3">
+    <span class="w-1.5 h-5 bg-primary rounded-full"></span>分批加碼計畫
+  </h2>
+  <div class="card bg-base-100 shadow-sm mb-8">
+    <div class="card-body">
+      <p class="text-xs opacity-60">
+        平常先寫好：準備多少錢、標的跌到離歷史高點幾 % 時各投入預算的幾成。真的大跌時就照表執行，不用在最恐慌的時候做決定。門檻是用「目前的歷史高點」算的，高點創新高時觸發價也會跟著往上調。歷史報酬僅供參考，不是投資建議。
+      </p>
+      <form id="dip-form" class="mt-2 space-y-2">
+        <div class="flex flex-wrap gap-3 items-end">
+          <label class="text-sm">標的<br>
+            <input name="symbol" value="QQQ" class="input input-bordered input-sm mt-1 w-28 uppercase">
+          </label>
+          <label class="text-sm">預算（美元）<br>
+            <input name="budget" type="number" min="1" step="any" placeholder="5000" required class="input input-bordered input-sm mt-1 w-36">
+          </label>
+        </div>
+        <div class="space-y-2">
+          {% for i in [1, 2, 3] %}
+          <div class="flex flex-nowrap items-center text-sm whitespace-nowrap">
+            <span class="mr-2 opacity-70">第 {{ i }} 階：跌</span>
+            <input name="t{{ i }}" type="number" min="0" max="95" step="any" class="input input-bordered input-sm !w-14 min-w-0">
+            <span class="mx-2 opacity-70">% → 投入</span>
+            <input name="p{{ i }}" type="number" min="0" max="100" step="any" class="input input-bordered input-sm !w-14 min-w-0">
+            <span class="ml-2 opacity-70">%</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-neutral btn-sm">儲存計畫</button>
+          <button type="button" onclick="deleteDipPlan()" id="dip-delete-btn" class="btn btn-ghost btn-sm hidden">清除</button>
+        </div>
+      </form>
+      <div id="dip-error" class="alert alert-error text-sm hidden mt-2"></div>
+      <div id="dip-content" class="mt-3"></div>
+    </div>
+  </div>
+
+<script>
+function fillDipForm(symbol, budget, tiers) {
+  const f = document.getElementById('dip-form');
+  f.symbol.value = symbol;
+  f.budget.value = budget ?? '';
+  for (let i = 0; i < 3; i++) {
+    const t = tiers[i];
+    f[`t${i + 1}`].value = t ? +(Math.abs(t[0]) * 100).toFixed(2) : '';
+    f[`p${i + 1}`].value = t ? +(t[1] * 100).toFixed(2) : '';
+  }
+}
+
+function dipMoney(x) { return '$' + x.toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+
+async function loadDipPlan() {
+  const content = document.getElementById('dip-content');
+  const errorBox = document.getElementById('dip-error');
+  errorBox.classList.add('hidden');
+  const data = await (await fetch('/api/dip-plan')).json();
+  document.getElementById('dip-delete-btn').classList.toggle('hidden', !data.plan);
+  if (!data.plan) {
+    fillDipForm('QQQ', null, data.defaults);
+    content.innerHTML = '<p class="text-sm opacity-60">還沒有計畫。上面已經填好常見的預設（跌 10%／20%／30% 各投入 25%／35%／40%），填上預算按儲存就好。</p>';
+    return;
+  }
+  const p = data.plan;
+  fillDipForm(p.symbol, p.budget, p.tiers);
+  if (data.error) { errorBox.textContent = data.error; errorBox.classList.remove('hidden'); content.innerHTML = ''; return; }
+  const r = data.result, sym = escapeHtml(p.symbol);
+  const rows = r.tiers.map((t, i) => {
+    const status = t.reached
+      ? '<span class="badge badge-success badge-sm">已觸發，可以執行</span>'
+      : `<span class="opacity-70">還要再跌 ${fmtPct(t.to_go).replace('-', '')}</span>`;
+    const fwd = t.forward_1y ? `<span class="${posNegClass(t.forward_1y.median)}">${fmtPct(t.forward_1y.median)}</span>（${(t.forward_1y.win_rate * 100).toFixed(0)}% 賺）` : '-';
+    return `<tr class="${t.reached ? 'bg-success/10' : ''}">
+      <td>第 ${i + 1} 階</td>
+      <td class="text-right">${fmtPct(t.threshold)}</td>
+      <td class="text-right">${fmtPrice(t.trigger_price)}</td>
+      <td class="text-right">${dipMoney(t.amount)}<div class="text-xs opacity-60">${(t.pct * 100).toFixed(0)}%</div></td>
+      <td class="text-right">約 ${t.shares.toFixed(2)} 股</td>
+      <td>${status}</td>
+      <td class="text-right whitespace-nowrap">${fwd}</td>
+    </tr>`;
+  }).join('');
+  const reached = r.tiers.filter(t => t.reached);
+  const headline = reached.length
+    ? `${sym} 目前離高點 <b>${fmtPct(r.drawdown)}</b>，已經到了第 ${reached.length} 階。照計畫，現在該投入的累計是 <b>${dipMoney(reached.reduce((a, t) => a + t.amount, 0))}</b>（已經買過的就不用重複買）。`
+    : `${sym} 目前離高點 <b>${fmtPct(r.drawdown)}</b>，還沒到第 1 階（${fmtPct(r.tiers[0].threshold)}，${fmtPrice(r.tiers[0].trigger_price)}）。現在不用做任何事。`;
+  const avg = r.avg_cost_now != null
+    ? `全部執行完，你的 ${sym} 平均成本會從 ${fmtPrice(r.avg_cost_now)} 變成 <b>${fmtPrice(r.avg_cost_after)}</b>。`
+    : `全部執行完，這筆錢的平均買進價約 <b>${fmtPrice(r.avg_cost_after)}</b>。`;
+  const rest = r.unallocated > 0.5 ? `另外有 ${dipMoney(r.unallocated)} 沒有分配到任何一階，可以當成更深跌幅的預備金。` : '';
+  content.innerHTML = `
+    <div class="rounded-box bg-base-200 p-4 text-sm space-y-1">
+      <p>${headline}</p>
+      <p>${avg}${rest}</p>
+      <p class="text-xs opacity-60">現價 ${fmtPrice(r.price)}，歷史高點 ${fmtPrice(r.high)}。</p>
+    </div>
+    <div class="overflow-x-auto mt-3"><table class="table table-sm whitespace-nowrap">
+      <thead><tr><th>階段</th><th class="text-right">離高點</th><th class="text-right">觸發價</th><th class="text-right">投入</th><th class="text-right">可買</th><th>狀態</th><th class="text-right">歷史上這時買，1 年後</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="text-xs opacity-60 mt-2"><b>歷史上這時買，1 年後</b>：過去所有離高點至少這麼深的交易日，買進後 1 年報酬的中位數跟上漲機率。不保證未來也一樣。</p>`;
+}
+
+document.getElementById('dip-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorBox = document.getElementById('dip-error');
+  const res = await fetch('/api/dip-plan', { method: 'POST', body: new FormData(e.target) });
+  const data = await res.json();
+  if (data.error) { errorBox.textContent = data.error; errorBox.classList.remove('hidden'); return; }
+  loadDipPlan();
+});
+
+async function deleteDipPlan() {
+  await fetch('/api/dip-plan/delete', { method: 'POST' });
+  loadDipPlan();
+}
+
+loadDipPlan();
+</script>

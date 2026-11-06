@@ -23,6 +23,7 @@ from sqlalchemy import desc, func
 
 from app.infrastructure.db import (
     AllocationAlert,
+    DipPlan,
     ExchangeRateSnapshot,
     FireSettings,
     FirestradeCredential,
@@ -573,6 +574,26 @@ class Repositories:
 
     def delete_fire_settings(self) -> None:
         existing = self._mine(FireSettings).first()
+        if existing:
+            self._db.delete(existing)
+            self._db.commit()
+
+    # --- buy-the-dip plan (issue #439) ------------------------------------------
+
+    def dip_plan(self) -> DipPlan | None:
+        return self._mine(DipPlan).first()
+
+    def upsert_dip_plan(self, symbol: str, budget: float, tiers_json: str) -> None:
+        existing = self._mine(DipPlan).first()
+        if existing:
+            existing.symbol, existing.budget, existing.tiers_json = symbol, budget, tiers_json
+            existing.updated_at = datetime.now(timezone.utc)
+        else:
+            self._db.add(DipPlan(user_id=self._user_id, symbol=symbol, budget=budget, tiers_json=tiers_json))
+        self._db.commit()
+
+    def delete_dip_plan(self) -> None:
+        existing = self._mine(DipPlan).first()
         if existing:
             self._db.delete(existing)
             self._db.commit()
