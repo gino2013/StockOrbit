@@ -494,67 +494,102 @@
     </li>
     <li class="nav-menu-group">
       <details open>
-        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="13" x2="21" y2="13"/></svg></span><span class="nav-menu-group-label">持股管理</span></summary>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="13" x2="21" y2="13"/></svg></span><span class="nav-menu-group-label">總覽與持股</span></summary>
         <ul class="menu bg-base-100">
-          <li><a href="#section-monte-carlo">蒙地卡羅模擬</a></li>
-          <li><a href="#section-steady">跌深時看長期</a></li>
           <li><a href="#section-health-overview">持股健康度總覽</a></li>
-          <li><a href="#section-goal">目標達成進度</a></li>
           <li><a href="#section-holdings">持股與配置</a></li>
-          <li><a href="#section-rebalance">再平衡建議</a></li>
-          <li><a href="#section-realized">已實現損益</a></li>
-          <li><a href="#section-tax-lots">批次比較</a></li>
-          <li><a href="#section-overseas-income">海外所得試算</a></li>
-          <li><a href="#section-tax-loss-harvesting">稅務效率分析</a></li>
-          <li><a href="#section-dividends">股利追蹤</a></li>
-          <li><a href="#section-cash-flow-sankey">資金流</a></li>
-          <li><a href="#section-dividend-calendar">配息月曆</a></li>
+          <li><a href="#section-rebalance">再平衡建議金額</a></li>
           <li><a href="#section-notes">持股筆記</a></li>
-          <li><a href="#section-price-alerts">價格提醒</a></li>
-          <li><a href="#section-allocation-alerts">配置偏離提醒</a></li>
-          <li><a href="#section-liabilities">負債（信貸）</a></li>
+          <li><a href="#section-liabilities">投資負債（信貸）</a></li>
+        </ul>
+      </details>
+    </li>
+    <li class="nav-menu-group">
+      <details open>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-menu-group-label">損益與稅務</span></summary>
+        <ul class="menu bg-base-100">
+          <li><a href="#section-realized">已實現損益</a></li>
+          <li><a href="#section-tax-lots">賣出批次試算（FIFO／HIFO）</a></li>
+          <li><a href="#section-tax-loss-harvesting">虧損節稅</a></li>
+          <li><a href="#section-overseas-income">海外所得試算</a></li>
+        </ul>
+      </details>
+    </li>
+    <li class="nav-menu-group">
+      <details open>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7c0 2.6-5 1.3-5 4 0 1.1 1 1.8 2.5 1.8s2.5-.5 2.5-1.5"/></svg></span><span class="nav-menu-group-label">股利與現金流</span></summary>
+        <ul class="menu bg-base-100">
+          <li><a href="#section-dividends">股利收入</a></li>
+          <li><a href="#section-dividend-calendar">配息月曆</a></li>
+          <li><a href="#section-cash-flow-sankey">資金流向</a></li>
+          <li><a href="#section-drip">股利再投入試算</a></li>
+        </ul>
+      </details>
+    </li>
+    <li class="nav-menu-group">
+      <details open>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1"/></svg></span><span class="nav-menu-group-label">目標與規劃</span></summary>
+        <ul class="menu bg-base-100">
+          <li><a href="#section-goal">目標達成進度</a></li>
           <li><a href="#section-fire">FIRE 進度</a></li>
-          <li><a href="#section-moonshot-screen">千倍股篩選</a></li>
+          <li><a href="#section-monte-carlo">蒙地卡羅模擬</a></li>
+          <li><a href="#section-dca">定期定額 vs 單筆投入</a></li>
+          <li><a href="#section-compound-curve">實際複利 vs 平均報酬</a></li>
         </ul>
       </details>
     </li>
     <li class="nav-menu-group">
       <details open>
-        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="14"/><line x1="10" y1="20" x2="10" y2="8"/><line x1="16" y1="20" x2="16" y2="11"/><line x1="20" y1="20" x2="20" y2="4"/></svg></span><span class="nav-menu-group-label">市場資訊</span></summary>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg></span><span class="nav-menu-group-label">績效</span></summary>
         <ul class="menu bg-base-100">
-          <li><a href="#section-risk">風險波動指標</a></li>
-          <li><a href="#section-technical">價格技術指標</a></li>
-          <li><a href="#section-fundamentals">基本面分析</a></li>
-          <li><a href="#section-trending">目前熱門標的</a></li>
-          <li><a href="#section-fx-history">美元匯率歷史</a></li>
-          <li><a href="#section-yield-curve">美債殖利率曲線</a></li>
-          <li><a href="#section-stock-lookup">個股資訊查詢</a></li>
-          <li><a href="#section-entry-check">進場檢查</a></li>
-          <li><a href="#section-institutional-holders">機構持股／內部人</a></li>
+          <li><a href="#section-account-timeline">帳戶淨值走勢</a></li>
+          <li><a href="#section-history">組合 vs 比較標的</a></li>
+          <li><a href="#section-performance-report">期間績效報告</a></li>
+          <li><a href="#section-attribution">配置歸因分析</a></li>
+          <li><a href="#section-backtest">目標配置回測</a></li>
         </ul>
       </details>
     </li>
     <li class="nav-menu-group">
       <details open>
-        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="12" x2="12" y2="7"/><line x1="12" y1="12" x2="16" y2="14"/></svg></span><span class="nav-menu-group-label">歷史分析</span></summary>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg></span><span class="nav-menu-group-label">風險與配置</span></summary>
         <ul class="menu bg-base-100">
-          <li><a href="#section-allocation-history">配置歷史走勢</a></li>
-          <li><a href="#section-concentration-history">集中度歷史走勢</a></li>
-          <li><a href="#section-account-timeline">帳戶價值與交易</a></li>
-          <li><a href="#section-history">持股歷史走勢</a></li>
-          <li><a href="#section-backtest">再平衡回測</a></li>
-          <li><a href="#section-compound-curve">複利曲線估算</a></li>
-          <li><a href="#section-compounder-checklist">個股複利檢查</a></li>
-          <li><a href="#section-correlation">相關性矩陣</a></li>
-          <li><a href="#section-risk-parity">貝塔調整建議</a></li>
+          <li><a href="#section-risk">風險指標（波動／回撤／Beta）</a></li>
+          <li><a href="#section-correlation">持股相關性矩陣</a></li>
+          <li><a href="#section-risk-parity">風險平價配置</a></li>
           <li><a href="#section-style-box">持股風格箱</a></li>
           <li><a href="#section-efficient-frontier">效率前緣</a></li>
-          <li><a href="#section-scenario">大盤下跌模擬</a></li>
-          <li><a href="#section-dca">定期定額比較</a></li>
-          <li><a href="#section-drip">股利再投入</a></li>
-          <li><a href="#section-drawdown-periods">高點回本風險</a></li>
-          <li><a href="#section-performance-report">績效報告</a></li>
-          <li><a href="#section-attribution">績效歸因</a></li>
+          <li><a href="#section-scenario">壓力測試（Beta 推估）</a></li>
+          <li><a href="#section-steady">跌幅歷史對照</a></li>
+          <li><a href="#section-drawdown-periods">歷史套牢期間</a></li>
+          <li><a href="#section-allocation-history">配置歷史走勢</a></li>
+          <li><a href="#section-concentration-history">集中度歷史走勢</a></li>
+        </ul>
+      </details>
+    </li>
+    <li class="nav-menu-group">
+      <details open>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></span><span class="nav-menu-group-label">提醒</span></summary>
+        <ul class="menu bg-base-100">
+          <li><a href="#section-price-alerts">價格提醒</a></li>
+          <li><a href="#section-allocation-alerts">配置偏離提醒</a></li>
+        </ul>
+      </details>
+    </li>
+    <li class="nav-menu-group">
+      <details open>
+        <summary><span class="nav-group-icon"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="21" y2="21"/></svg></span><span class="nav-menu-group-label">市場與選股</span></summary>
+        <ul class="menu bg-base-100">
+          <li><a href="#section-stock-lookup">個股資訊查詢</a></li>
+          <li><a href="#section-entry-check">買進前價位檢查</a></li>
+          <li><a href="#section-fundamentals">持股基本面分析</a></li>
+          <li><a href="#section-technical">技術指標（均線／RSI）</a></li>
+          <li><a href="#section-institutional-holders">機構持股／內部人交易</a></li>
+          <li><a href="#section-trending">市場熱門與新聞</a></li>
+          <li><a href="#section-fx-history">美元／台幣匯率</a></li>
+          <li><a href="#section-yield-curve">美債殖利率曲線</a></li>
+          <li><a href="#section-compounder-checklist">複利體質檢查</a></li>
+          <li><a href="#section-moonshot-screen">四因子成長股篩選</a></li>
         </ul>
       </details>
     </li>
