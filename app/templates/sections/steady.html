@@ -10,6 +10,7 @@
       <div id="steady-error" class="alert alert-error text-sm hidden mt-2"></div>
       <div id="steady-result" class="hidden mt-3">
         <div id="steady-summary" class="rounded-box bg-base-200 p-4 text-sm"></div>
+        <div id="steady-leveraged" class="mt-3"></div>
         <div class="overflow-x-auto mt-3">
           <table class="table table-sm">
             <thead>
@@ -65,6 +66,34 @@ function steadyVsWorst(m) {
   if (m.drawdown >= 0) return '';
   const share = m.drawdown / m.max_drawdown;
   return `史上最深的一次是 ${m.max_drawdown_peak.slice(0, 4)}–${m.max_drawdown_trough.slice(0, 4)} 年的 <b>${fmtPct(m.max_drawdown)}</b>，現在的跌幅大約是那次的 ${(share * 100).toFixed(0)}%。`;
+}
+
+// Leveraged ETFs you hold (issue #437): share of everything and the hit if
+// the index falls further. Smooth-decline estimate - choppy markets are worse.
+function steadyLeveraged(data) {
+  if (!data.leveraged || !data.leveraged.length) return '';
+  return data.leveraged.map(l => {
+    const sym = escapeHtml(l.symbol), und = escapeHtml(l.underlying);
+    const row = data.holdings.find(h => h.symbol === l.symbol && !h.error);
+    const worst = row ? `${sym} 史上最深跌過 <b>${fmtPct(row.max_drawdown)}</b>（${row.max_drawdown_peak.slice(0, 4)}–${row.max_drawdown_trough.slice(0, 4)}），目前離高點 ${fmtPct(row.drawdown)}。` : '';
+    const rows = l.scenarios.map(x => `
+      <tr>
+        <td>${und} 再跌 ${(-x.underlying_drop * 100).toFixed(0)}%</td>
+        <td class="text-right text-error">${fmtPct(x.etf_drop)}</td>
+        <td class="text-right text-error">-$${Math.abs(x.loss).toLocaleString('en-US', { maximumFractionDigits: 0 })}</td>
+        <td class="text-right text-error">${fmtPct(x.portfolio_hit)}</td>
+        <td class="text-right opacity-70">${fmtPct(-x.etf_drop / (1 + x.etf_drop))}</td>
+      </tr>`).join('');
+    return `<div class="rounded-box border border-warning/40 p-4 text-sm">
+      <div class="font-semibold mb-1">⚠️ 槓桿 ETF 風險：${sym}（${l.leverage} 倍 ${und}）</div>
+      <p>${sym} 市值 $${l.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}，佔你總資產（含現金）<b>${fmtPct(l.weight).replace('+', '')}</b>。${worst}</p>
+      <div class="overflow-x-auto mt-2"><table class="table table-sm">
+        <thead><tr><th>如果從現在起</th><th class="text-right">${sym} 估計</th><th class="text-right">金額</th><th class="text-right">拖累總資產</th><th class="text-right">之後回本要漲</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <p class="text-xs opacity-70 mt-2">估計用 (1 + 指數跌幅)<sup>${l.leverage}</sup> − 1，是「一路平穩下跌」的情況；實際上漲漲跌跌時，每天重設槓桿會額外耗損，跌幅通常更大，所以把這些數字當成「至少會這樣」。極端情況下，${und} 單日跌 ${(100 / l.leverage).toFixed(0)}%，${sym} 理論上就會歸零（歷史上沒發生過，但這是 ${l.leverage} 倍槓桿的極限）。能撐過去的前提是這部分你不需要在低點賣，也不要用借來的錢放大它。</p>
+    </div>`;
+  }).join('');
 }
 
 function steadyRow(r, isMarket) {
@@ -229,6 +258,7 @@ async function loadSteady() {
     return;
   }
   document.getElementById('steady-summary').innerHTML = steadySummary(data);
+  document.getElementById('steady-leveraged').innerHTML = steadyLeveraged(data);
   steadyNextQuote();
   document.getElementById('steady-tbody').innerHTML =
     // Reference markets you already hold show once, as a holding row (with cost).

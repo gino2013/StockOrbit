@@ -70,6 +70,20 @@ def demo():
         r3 = steady.steady_report(held_qqq)
     assert dl.call_args.args[0] == ["QQQ", "QLD", "^GSPC"]
     assert r3["markets"][0]["symbol"] == r3["holdings"][0]["symbol"] == "QQQ"
+    # leveraged ETFs: share of everything incl. cash, (1+x)^L - 1 for a further drop.
+    lev = steady.leveraged_risk([
+        {"symbol": "QLD", "quantity": 10, "market_value": 3000, "cost_basis": 2000},
+        {"symbol": "QQQ", "quantity": 5, "market_value": 6000, "cost_basis": 5000},
+        {"symbol": "CASH", "quantity": 1000, "market_value": 1000, "cost_basis": 1000},
+        {"symbol": "TQQQ", "quantity": 0, "market_value": 0, "cost_basis": 0},
+    ])
+    assert [x["symbol"] for x in lev] == ["QLD"]  # unleveraged and sold-out rows skipped
+    q = lev[0]
+    assert q["weight"] == 0.3 and q["leverage"] == 2 and q["underlying"] == "QQQ"
+    s30 = q["scenarios"][2]
+    assert s30["underlying_drop"] == -0.3 and abs(s30["etf_drop"] - (0.49 - 1)) < 1e-9
+    assert abs(s30["loss"] + 1530) < 1e-6 and abs(s30["portfolio_hit"] + 0.153) < 1e-9
+    assert steady.leveraged_risk([]) == []
     print("ok")
 
 
