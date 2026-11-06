@@ -63,6 +63,33 @@ def analyze(closes: pd.Series) -> dict:
     }
 
 
+# Daily-reset leveraged ETFs we know the target of (issue #437).
+LEVERAGED = {"QLD": ("QQQ", 2), "TQQQ": ("QQQ", 3), "SSO": ("SPY", 2), "UPRO": ("SPY", 3)}
+FURTHER_DROPS = [-0.10, -0.20, -0.30]
+
+
+def leveraged_risk(holdings: list[dict]) -> list[dict]:
+    """For each held leveraged ETF: its share of everything (cash included)
+    and the estimated hit if its index falls a further 10/20/30%.
+    (1 + x) ** L - 1 is the smooth-decline case; a choppy decline loses more
+    (volatility decay), so treat it as a floor on the damage, not a forecast."""
+    held = [h for h in holdings if h["quantity"] > 0]
+    total = sum(h["market_value"] for h in held)
+    out = []
+    for h in held:
+        if h["symbol"] not in LEVERAGED or not total:
+            continue
+        underlying, lev = LEVERAGED[h["symbol"]]
+        mv = h["market_value"]
+        scenarios = []
+        for x in FURTHER_DROPS:
+            drop = (1 + x) ** lev - 1
+            scenarios.append({"underlying_drop": x, "etf_drop": drop, "loss": mv * drop, "portfolio_hit": mv * drop / total})
+        out.append({"symbol": h["symbol"], "underlying": underlying, "leverage": lev,
+                    "value": mv, "weight": mv / total, "scenarios": scenarios})
+    return out
+
+
 def steady_report(holdings: list[dict]) -> dict:
     """`holdings`: latest_snapshots rows (symbol / quantity / market_value / cost_basis)."""
     # "CASH" is the synthetic cash-balance row; Yahoo has an unrelated CASH ticker.
@@ -93,4 +120,5 @@ def steady_report(holdings: list[dict]) -> dict:
         "markets": [{**row(sym), "name": name} for sym, name in MARKETS.items()],
         "holdings": rows,
         "portfolio_unrealized": value / cost - 1 if cost else None,
+        "leveraged": leveraged_risk(holdings),
     }
