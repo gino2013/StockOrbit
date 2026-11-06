@@ -26,6 +26,10 @@
           </div>
           {% endfor %}
         </div>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="alert_enabled" class="checkbox checkbox-sm" checked>
+          跌破每一階時寄信通知我（同一波下跌每階只寄一次，附歷史數字）
+        </label>
         <div class="flex gap-2">
           <button type="submit" class="btn btn-neutral btn-sm">儲存計畫</button>
           <button type="button" onclick="deleteDipPlan()" id="dip-delete-btn" class="btn btn-ghost btn-sm hidden">清除</button>
@@ -37,8 +41,9 @@
   </div>
 
 <script>
-function fillDipForm(symbol, budget, tiers) {
+function fillDipForm(symbol, budget, tiers, alertEnabled = true) {
   const f = document.getElementById('dip-form');
+  f.alert_enabled.checked = alertEnabled;
   f.symbol.value = symbol;
   f.budget.value = budget ?? '';
   for (let i = 0; i < 3; i++) {
@@ -62,7 +67,7 @@ async function loadDipPlan() {
     return;
   }
   const p = data.plan;
-  fillDipForm(p.symbol, p.budget, p.tiers);
+  fillDipForm(p.symbol, p.budget, p.tiers, p.alert_enabled);
   if (data.error) { errorBox.textContent = data.error; errorBox.classList.remove('hidden'); content.innerHTML = ''; return; }
   const r = data.result, sym = escapeHtml(p.symbol);
   const rows = r.tiers.map((t, i) => {

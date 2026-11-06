@@ -2053,20 +2053,22 @@ def get_dip_plan():
         if not plan:
             return JSONResponse({"plan": None, "defaults": DEFAULT_TIERS})
         symbol, budget, tiers = plan.symbol, plan.budget, [tuple(t) for t in json.loads(plan.tiers_json)]
+        alert_enabled = plan.alert_enabled
         held = [h for h in repo.latest_snapshots() if h["symbol"] == symbol and h["quantity"] > 0]
     closes = market_data.download_close(symbol, period="max")
     if isinstance(closes, pd.DataFrame):
         closes = closes[symbol] if symbol in closes else closes.iloc[:, 0]
     if closes is None or len(closes.dropna()) < 2:
-        return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers}, "error": f"抓不到 {symbol} 的股價"})
+        return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers, "alert_enabled": alert_enabled}, "error": f"抓不到 {symbol} 的股價"})
     result = dip_plan(closes, budget, tiers, sum(h["quantity"] for h in held), sum(h["cost_basis"] for h in held))
-    return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers}, "result": result})
+    return JSONResponse({"plan": {"symbol": symbol, "budget": budget, "tiers": tiers, "alert_enabled": alert_enabled}, "result": result})
 
 
 @app.post("/api/dip-plan")
 def set_dip_plan(
     symbol: str = Form("QQQ"), budget: float = Form(...),
     t1: str = Form(""), p1: str = Form(""), t2: str = Form(""), p2: str = Form(""), t3: str = Form(""), p3: str = Form(""),
+    alert_enabled: str = Form(""),
 ):
     symbol = symbol.strip().upper() or "QQQ"
     if not _SYMBOL_RE.match(symbol):
@@ -2086,7 +2088,7 @@ def set_dip_plan(
     if error:
         return JSONResponse({"error": error}, status_code=400)
     with Repositories() as repo:
-        repo.upsert_dip_plan(symbol, budget, json.dumps(tiers))
+        repo.upsert_dip_plan(symbol, budget, json.dumps(tiers), alert_enabled == "on")
     return JSONResponse({"ok": True})
 
 

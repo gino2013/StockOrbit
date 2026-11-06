@@ -36,6 +36,7 @@ def demo():
     boot = "from app.main import app"
     drops = [  # (case, columns to drop first)
         ("head", []),
+        ("no_dip_alert_cols", [("dip_plans", "alert_level"), ("dip_plans", "alert_enabled")]),
         ("no_dip_plans", [("DROP", "dip_plans")]),
         ("no_term", [("liabilities", "term_months")]),
         ("no_currency", [("liabilities", "term_months"), ("liabilities", "currency")]),
@@ -54,7 +55,8 @@ def demo():
         assert {"currency", "term_months"} <= _cols(db, "liabilities"), name
         assert {"monthly_contribution", "year_end_contribution"} <= _cols(db, "investment_goals"), name
         head = sqlite3.connect(db).execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        assert head == "0024_dip_plans", (name, head)
+        assert head == "0025_dip_alerts", (name, head)
+        assert {"alert_enabled", "alert_level"} <= _cols(db, "dip_plans"), name
         assert "dip_plans" in {r[0] for r in sqlite3.connect(db).execute("SELECT name FROM sqlite_master WHERE type='table'")}, name
 
 
