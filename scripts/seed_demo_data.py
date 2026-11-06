@@ -65,7 +65,7 @@ HOLDINGS = {
     "MSFT": (10, 350.00, 420.00),
     "VOO": (8, 500.00, 575.00),
     "QQQ": (6, 466.67, 550.00),
-    "NVDA": (15, 185.00, 173.33),  # deliberately underwater: exercises 稅務效率分析
+    "NVDA": (15, 185.00, 173.33),  # deliberately underwater: exercises 虧損節稅
     "CASH": (1, 128.00, 128.00),
 }
 
@@ -113,7 +113,7 @@ TRANSACTIONS = [
     (60, "BOUGHT", "VOO", 2, 540.00, -1080.00, "Bought 2 VOO @ 540.00"),
     (30, "DIV", "VOO", 0, 0, 23.10, "VOO cash dividend"),
     # Sized so replaying every row lands on exactly the CASH holding above
-    # (帳戶價值與交易 flags any gap, issue #400).
+    # (帳戶淨值走勢 flags any gap, issue #400).
     (10, "WITHDRAWAL", None, 0, 0, 3819.90, "ACH withdrawal"),
 ]
 
@@ -248,7 +248,7 @@ def _check():
         assert db.query(Transaction).filter(Transaction.trans_type == "SOLD").count() == 3
         assert abs(sum(w for w in TARGETS.values()) - 1.0) < 1e-9
         nvda = next(r for r in rows if r.symbol == "NVDA")
-        assert nvda.market_value < nvda.cost_basis, "NVDA should be underwater for 稅務效率分析"
+        assert nvda.market_value < nvda.cost_basis, "NVDA should be underwater for 虧損節稅"
         print(f"OK - {len(rows)} holdings, total MV ${total_mv:,.0f}, "
               f"gain {(total_mv - total_cost) / total_cost:+.1%}, "
               f"{db.query(Transaction).count()} transactions")
