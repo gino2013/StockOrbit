@@ -26,6 +26,9 @@ def demo():
         r = steady.analyze(closes)
     assert abs(r["drawdown"] - (90 / 120 - 1)) < 1e-9 and r["high"] == 120
     assert r["past_drops"] == 1 and r["recovery_median_days"] == 1
+    # worst ever: 100 -> 70 (-30%), peak day 0, trough day 2.
+    assert abs(r["max_drawdown"] + 0.3) < 1e-9
+    assert (r["max_drawdown_peak"], r["max_drawdown_trough"]) == ("2020-01-01", "2020-01-03")
     # days at least 25% down with a next day: day 2 (70 -> 100).
     assert r["forward"]["1d"] == {"samples": 1, "median": 100 / 70 - 1, "win_rate": 1.0}
     assert steady.analyze(closes)["forward"]["1y"] is None  # too few samples

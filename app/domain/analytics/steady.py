@@ -46,10 +46,15 @@ def analyze(closes: pd.Series) -> dict:
     today = float(dd.iloc[-1])
     mask = dd <= today
     recoveries = past_recoveries(closes, today) if today < 0 else []
+    trough = dd.idxmin()
     return {
         "price": float(closes.iloc[-1]),
         "high": float(peak.iloc[-1]),
         "drawdown": today,
+        # worst peak-to-trough ever (issue #435): puts today's drop in context.
+        "max_drawdown": float(dd[trough]),
+        "max_drawdown_peak": closes[:trough].idxmax().strftime("%Y-%m-%d"),
+        "max_drawdown_trough": trough.strftime("%Y-%m-%d"),
         "since": closes.index[0].strftime("%Y-%m-%d"),
         "forward": {label: forward_stats(closes, mask, days) for label, days in FORWARD},
         "past_drops": len(recoveries),
