@@ -19,6 +19,7 @@
                 <th class="text-right">現價</th>
                 <th class="text-right">未實現</th>
                 <th class="text-right">距歷史高點</th>
+                <th class="text-right">史上最深</th>
                 <th class="text-right">之後 1 年</th>
                 <th class="text-right">之後 3 年</th>
                 <th>過去跌這麼深，回到前高花了</th>
@@ -29,6 +30,7 @@
         </div>
         <div class="text-xs opacity-60 mt-2 space-y-0.5">
           <div><b>之後 1 年／3 年</b>：歷史上所有「離當時高點至少跟今天一樣深」的交易日，之後 1 年／3 年報酬的中位數，括號是上漲機率。樣本不到 20 天顯示「-」。</div>
+          <div><b>史上最深</b>：資料裡從高點到谷底跌最多的一次，下面是高點跟谷底的年份。</div>
           <div><b>回到前高</b>：過去每一段跌勢，從第一次跌到今天這個深度起算，到收盤重回前高的天數（中位數／最久）。只算已經結束的跌勢。</div>
           <div><b>個股的倖存者偏差</b>：你手上的股票是「活下來」的那些，下市或一蹶不振的公司不會出現在這裡，所以個股的歷史數字會比實際偏樂觀；大盤跟寬基 ETF 比較沒有這個問題。</div>
         </div>
@@ -53,9 +55,21 @@ function steadyRecovery(r) {
   return `${r.past_drops} 次都回來了：中位數 ${fmtDays(r.recovery_median_days)}，最久 ${fmtDays(r.recovery_max_days)}`;
 }
 
+// Worst peak-to-trough ever, with the year it bottomed (issue #435).
+function steadyWorst(r) {
+  return `<span class="text-error">${fmtPct(r.max_drawdown)}</span><div class="text-xs opacity-60">${r.max_drawdown_peak.slice(0, 4)}–${r.max_drawdown_trough.slice(0, 4)}</div>`;
+}
+
+// How today's drop compares with the worst one on record.
+function steadyVsWorst(m) {
+  if (m.drawdown >= 0) return '';
+  const share = m.drawdown / m.max_drawdown;
+  return `史上最深的一次是 ${m.max_drawdown_peak.slice(0, 4)}–${m.max_drawdown_trough.slice(0, 4)} 年的 <b>${fmtPct(m.max_drawdown)}</b>，現在的跌幅大約是那次的 ${(share * 100).toFixed(0)}%。`;
+}
+
 function steadyRow(r, isMarket) {
   const name = escapeHtml(isMarket ? r.name : r.symbol);
-  if (r.error) return `<tr><td>${name}</td><td colspan="7" class="opacity-60">${escapeHtml(r.error)}</td></tr>`;
+  if (r.error) return `<tr><td>${name}</td><td colspan="8" class="opacity-60">${escapeHtml(r.error)}</td></tr>`;
   const underwater = r.unrealized != null && r.unrealized < 0
     ? `<div class="text-xs opacity-60">回本要再漲 ${fmtPct(-r.unrealized / (1 + r.unrealized))}</div>` : '';
   return `
@@ -65,8 +79,9 @@ function steadyRow(r, isMarket) {
       <td class="text-right">${isMarket ? r.price.toFixed(0) : fmtPrice(r.price)}</td>
       <td class="text-right">${r.unrealized == null ? '' : `<span class="${posNegClass(r.unrealized)}">${fmtPct(r.unrealized)}</span>${underwater}`}</td>
       <td class="text-right ${posNegClass(r.drawdown)}">${fmtPct(r.drawdown)}</td>
-      <td class="text-right">${steadyForward(r.forward['1y'])}</td>
-      <td class="text-right">${steadyForward(r.forward['3y'])}</td>
+      <td class="text-right whitespace-nowrap">${steadyWorst(r)}</td>
+      <td class="text-right whitespace-nowrap">${steadyForward(r.forward['1y'])}</td>
+      <td class="text-right whitespace-nowrap">${steadyForward(r.forward['3y'])}</td>
       <td class="text-sm">${steadyRecovery(r)}</td>
     </tr>`;
 }
@@ -121,7 +136,7 @@ function steadyMarketText(m, main) {
 function steadyMainText(m) {
   const name = escapeHtml(m.name);
   const [, title, body] = STEADY_MARKET_STAGE.find(([limit]) => m.drawdown > limit);
-  let s = `<p>${name} 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>。<b>${title}</b>${body}</p>`;
+  let s = `<p>${name} 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>。<b>${title}</b>${body}${steadyVsWorst(m)}</p>`;
   if (m.past_drops > 0) {
     s += `<p>從 ${m.since.slice(0, 4)} 年到現在，${name} 跌到這個深度（或更深）一共 <b>${m.past_drops} 次</b>，${steadyEvery(m)}就有一次，` +
       `而且<b>每一次都回到了前高</b>：一半在 ${fmtDays(m.recovery_median_days)} 內回來，最久的一次花了 ${fmtDays(m.recovery_max_days)}。` +
@@ -138,7 +153,7 @@ function steadyMainText(m) {
 }
 
 function steadyBriefText(m) {
-  let s = `<b>${escapeHtml(m.name)}</b> 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>`;
+  let s = `<b>${escapeHtml(m.name)}</b> 目前離歷史高點 <b>${fmtPct(m.drawdown)}</b>（史上最深 ${fmtPct(m.max_drawdown)}，${m.max_drawdown_trough.slice(0, 4)} 年）`;
   if (m.past_drops > 0) {
     s += `；${m.since.slice(0, 4)} 年至今跌到這個深度 ${m.past_drops} 次，每次都回到前高（一半在 ${fmtDays(m.recovery_median_days)} 內，最久 ${fmtDays(m.recovery_max_days)}）`;
   } else if (m.drawdown <= -0.05) {
